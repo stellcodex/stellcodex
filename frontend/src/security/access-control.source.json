@@ -1,0 +1,156 @@
+{
+  "version": "1.0",
+  "roles": [
+    "owner",
+    "admin",
+    "support",
+    "moderator",
+    "user"
+  ],
+  "permissions": {
+    "admin.users.read": "admin.users.read",
+    "admin.users.suspend": "admin.users.suspend",
+    "admin.users.unsuspend": "admin.users.unsuspend",
+    "admin.users.revoke_sessions": "admin.users.revoke_sessions",
+    "admin.users.disable_sharing": "admin.users.disable_sharing",
+    "admin.users.enable_sharing": "admin.users.enable_sharing",
+    "admin.users.delete": "admin.users.delete",
+    "admin.files.read": "admin.files.read",
+    "admin.files.hide": "admin.files.hide",
+    "admin.files.unhide": "admin.files.unhide",
+    "admin.files.archive": "admin.files.archive",
+    "admin.files.unarchive": "admin.files.unarchive",
+    "admin.files.delete": "admin.files.delete",
+    "admin.files.view_metadata": "admin.files.view_metadata",
+    "admin.files.view_processing_history": "admin.files.view_processing_history",
+    "admin.files.purge_versions": "admin.files.purge_versions",
+    "admin.files.storage_purge": "admin.files.storage_purge",
+    "admin.shares.read": "admin.shares.read",
+    "admin.shares.revoke": "admin.shares.revoke",
+    "admin.shares.set_expiry": "admin.shares.set_expiry",
+    "admin.shares.remove_expiry": "admin.shares.remove_expiry",
+    "admin.shares.downgrade_permission": "admin.shares.downgrade_permission",
+    "admin.shares.upgrade_permission": "admin.shares.upgrade_permission",
+    "admin.shares.make_public": "admin.shares.make_public",
+    "admin.shares.set_no_expiry": "admin.shares.set_no_expiry",
+    "admin.shares.org_wide": "admin.shares.org_wide",
+    "admin.presentations.read": "admin.presentations.read",
+    "admin.presentations.lock": "admin.presentations.lock",
+    "admin.presentations.unlock": "admin.presentations.unlock",
+    "admin.presentations.delete": "admin.presentations.delete",
+    "admin.notes.read": "admin.notes.read",
+    "admin.notes.remove": "admin.notes.remove",
+    "admin.comments.disable_on_file": "admin.comments.disable_on_file",
+    "admin.comments.enable_on_file": "admin.comments.enable_on_file",
+    "admin.library.read": "admin.library.read",
+    "admin.library.curate_basic": "admin.library.curate_basic",
+    "admin.library.feature": "admin.library.feature",
+    "admin.library.unfeature": "admin.library.unfeature",
+    "admin.library.remove_from_library": "admin.library.remove_from_library",
+    "admin.library.assign_category": "admin.library.assign_category",
+    "system.status.read": "system.status.read",
+    "system.queues.read": "system.queues.read",
+    "system.queues.pause": "system.queues.pause",
+    "system.queues.resume": "system.queues.resume",
+    "system.queues.set_concurrency": "system.queues.set_concurrency",
+    "system.workers.restart": "system.workers.restart",
+    "system.workers.scale": "system.workers.scale",
+    "system.deploy.read": "system.deploy.read",
+    "system.deploy.rollback": "system.deploy.rollback",
+    "system.backups.read": "system.backups.read",
+    "system.backups.restore_test": "system.backups.restore_test",
+    "system.secrets.rotate": "system.secrets.rotate",
+    "security.policies.read": "security.policies.read",
+    "security.policies.update": "security.policies.update",
+    "security.abuse.read": "security.abuse.read",
+    "security.ip.block": "security.ip.block",
+    "security.ip.unblock": "security.ip.unblock",
+    "security.files.quarantine": "security.files.quarantine",
+    "security.files.unquarantine": "security.files.unquarantine",
+    "security.emergency.readonly_enable": "security.emergency.readonly_enable",
+    "security.emergency.readonly_disable": "security.emergency.readonly_disable",
+    "security.emergency.disable_uploads": "security.emergency.disable_uploads",
+    "security.emergency.enable_uploads": "security.emergency.enable_uploads",
+    "security.emergency.disable_public_shares": "security.emergency.disable_public_shares",
+    "security.emergency.enable_public_shares": "security.emergency.enable_public_shares",
+    "logs.audit.read": "logs.audit.read",
+    "logs.system.read_redacted": "logs.system.read_redacted",
+    "logs.system.read_full": "logs.system.read_full",
+    "logs.export_redacted": "logs.export_redacted",
+    "logs.export_full": "logs.export_full",
+    "ai.suggestions.read": "ai.suggestions.read",
+    "ai.suggestions.approve": "ai.suggestions.approve",
+    "ai.suggestions.reject": "ai.suggestions.reject",
+    "analytics.read_aggregate": "analytics.read_aggregate",
+    "rbac.roles.read": "rbac.roles.read",
+    "rbac.roles.create": "rbac.roles.create",
+    "rbac.roles.update": "rbac.roles.update",
+    "rbac.roles.delete": "rbac.roles.delete",
+    "rbac.assignments.read": "rbac.assignments.read",
+    "rbac.assignments.update": "rbac.assignments.update",
+    "approvals.request_create": "approvals.request_create",
+    "approvals.read": "approvals.read",
+    "approvals.approve": "approvals.approve",
+    "approvals.reject": "approvals.reject",
+    "approvals.execute": "approvals.execute",
+    "approvals.cancel": "approvals.cancel"
+  },
+  "role_permissions": {
+    "owner": [
+      "*"
+    ],
+    "admin": [
+      "*"
+    ],
+    "support": [
+      "system.status.read"
+    ],
+    "moderator": [
+      "system.status.read"
+    ],
+    "user": [
+      "system.status.read"
+    ]
+  },
+  "routes": {
+    "/dashboard": "system.status.read",
+    "/dashboard/files": "system.status.read",
+    "/dashboard/activity": "system.status.read",
+    "/dashboard/settings": "system.status.read",
+    "/admin": "system.status.read",
+    "/admin/users": "admin.users.read",
+    "/admin/files": "admin.files.read",
+    "/admin/approvals": "approvals.read",
+    "/admin/ai": "ai.suggestions.read",
+    "/admin/audit": "logs.audit.read",
+    "/admin/rbac": "rbac.roles.read",
+    "/admin/system": "system.status.read"
+  },
+  "approval": {
+    "required_for": []
+  },
+  "kpis": {
+    "user": [],
+    "admin": []
+  },
+  "limits": {
+    "max_file_size_mb": 200,
+    "retention_days": 30,
+    "share_ttl_days_default": 7,
+    "concurrency_per_user": 2,
+    "anonymous_upload_enabled": true
+  },
+  "status": {
+    "mode": "static",
+    "components": [
+      "api",
+      "worker",
+      "viewer",
+      "storage"
+    ]
+  },
+  "community": {
+    "mode": "static",
+    "model": "default"
+  }
+}

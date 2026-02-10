@@ -1,0 +1,31 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap");
+@import "tailwindcss";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary: #0055ff;
+  --color-white: #ffffff;
+  --color-gray-1: #f7f8fa;
+  --color-gray-2: #e5e7eb;
+  --color-gray-3: #6b7280;
+  --color-black: #111827;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  font-family: "Inter", "Segoe UI", sans-serif;
+  background-color: var(--color-gray-1);
+  color: var(--color-black);
+}
+
+::selection {
+  background: #cfe0ff;
+  color: var(--color-black);
+}

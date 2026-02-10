@@ -1,0 +1,292 @@
+diff --git a/backend/app/api/v1/routes/files.py b/backend/app/api/v1/routes/files.py
+index 1111111..2222222 100644
+--- a/backend/app/api/v1/routes/files.py
++++ b/backend/app/api/v1/routes/files.py
+@@ -1,52 +1,219 @@
+-from datetime import timedelta
+-from uuid import uuid4
++from __future__ import annotations
++
++from datetime import datetime, timezone
++from uuid import uuid4, UUID
+ 
+ import boto3
+-from botocore.client import Config
+-from fastapi import APIRouter, HTTPException
+-from pydantic import BaseModel
++from botocore.config import Config as BotoConfig
++from botocore.exceptions import ClientError
++from fastapi import APIRouter, HTTPException, Depends, status
++from pydantic import BaseModel, Field
++from sqlalchemy.orm import Session
+ 
+ from app.core.config import settings
++from app.db.session import get_db
++from app.models.file import File
++from app.api.v1.routes.auth import oauth2_scheme, decode_token
+ 
+ router = APIRouter(tags=["files"])
+ 
+ 
+ def s3_client():
+-    return boto3.client(
+-        "s3",
+-        endpoint_url=settings.S3_ENDPOINT,
+-        aws_access_key_id=settings.S3_ACCESS_KEY,
+-        aws_secret_access_key=settings.S3_SECRET_KEY,
+-        config=Config(signature_version="s3v4"),
+-        verify=settings.S3_SECURE,
+-    )
++    # Single source of truth: Settings uses STELLCODEX_S3_*
++    if not settings.s3_enabled:
++        raise HTTPException(status_code=500, detail="S3 not configured")
++    boto_cfg = BotoConfig(signature_version="s3v4", s3={"addressing_style": "path"})
++    session = boto3.session.Session()
++    return session.client(
++        "s3",
++        endpoint_url=settings.s3_endpoint_url,
++        region_name=settings.s3_region,
++        aws_access_key_id=settings.s3_access_key_id,
++        aws_secret_access_key=settings.s3_secret_access_key,
++        use_ssl=settings.s3_use_ssl,
++        verify=settings.s3_verify_tls,
++        config=boto_cfg,
++    )
+ 
+ 
+ class CreateUploadIn(BaseModel):
+     filename: str
+     content_type: str
++    size_bytes: int = Field(..., ge=1)
++    sha256: str | None = None
+ 
+ 
+ class CreateUploadOut(BaseModel):
+-    object_key: str
++    file_id: str
++    object_key: str
+     upload_url: str
+     expires_in_seconds: int = 900
+ 
++class CompleteIn(BaseModel):
++    # Optional: if client captured etag
++    etag: str | None = None
++
++class FileOut(BaseModel):
++    file_id: str
++    object_key: str
++    original_filename: str
++    content_type: str
++    size_bytes: int
++    status: str
++    visibility: str
++    created_at: datetime | None = None
++
++class PageOut(BaseModel):
++    items: list[FileOut]
++    page: int
++    page_size: int
++    total: int
++
++def _now() -> datetime:
++    return datetime.now(timezone.utc)
++
++def _require_user(token: str = Depends(oauth2_scheme)) -> dict:
++    payload = decode_token(token)
++    if payload.get("type") != "access":
++        raise HTTPException(status_code=401, detail="Invalid access token")
++    return payload
++
++def _feature_on() -> None:
++    if not getattr(settings, "feature_files", True):
++        raise HTTPException(status_code=404, detail="Feature disabled")
++
++def _validate_upload(content_type: str, size_bytes: int) -> None:
++    max_bytes = getattr(settings, "max_upload_bytes", 100 * 1024 * 1024)
++    if size_bytes > max_bytes:
++        raise HTTPException(status_code=413, detail=f"File too large (max {max_bytes} bytes)")
++
++    allow = getattr(settings, "allowed_content_types", [])
++    if allow and content_type not in allow:
++        raise HTTPException(status_code=415, detail="Unsupported content-type")
++
++def _safe_object_key(owner_sub: str) -> str:
++    # No filename in key: prevents path traversal / header injection / unicode tricks
++    return f"uploads/{owner_sub}/{uuid4()}/original"
++
+ 
+-@router.post("/files/upload-url", response_model=CreateUploadOut)
+-def create_upload_url(data: CreateUploadIn):
+-    if not data.filename:
+-        raise HTTPException(status_code=400, detail="filename required")
+-
+-    key = f"uploads/{uuid4()}-{data.filename}"
+-    s3 = s3_client()
+-    url = s3.generate_presigned_url(
+-        "put_object",
+-        Params={"Bucket": settings.S3_BUCKET, "Key": key, "ContentType": data.content_type},
+-        ExpiresIn=900,
+-    )
+-    return CreateUploadOut(object_key=key, upload_url=url)
++@router.post("/initiate", response_model=CreateUploadOut)
++def initiate_upload(
++    data: CreateUploadIn,
++    db: Session = Depends(get_db),
++    user: dict = Depends(_require_user),
++):
++    _feature_on()
++    if not data.filename:
++        raise HTTPException(status_code=400, detail="filename required")
++    _validate_upload(data.content_type, data.size_bytes)
++
++    owner_sub = str(user.get("sub") or "anonymous")
++    key = _safe_object_key(owner_sub)
++    bucket = settings.s3_bucket
++
++    # DB record: pending
++    f = File(
++        owner_sub=owner_sub,
++        bucket=bucket,
++        object_key=key,
++        original_filename=data.filename,
++        content_type=data.content_type,
++        size_bytes=data.size_bytes,
++        sha256=data.sha256,
++        status="pending",
++        visibility="private",
++        created_at=_now(),
++        updated_at=_now(),
++    )
++    db.add(f)
++    db.commit()
++    db.refresh(f)
++
++    s3 = s3_client()
++    url = s3.generate_presigned_url(
++        "put_object",
++        Params={"Bucket": bucket, "Key": key, "ContentType": data.content_type},
++        ExpiresIn=900,
++    )
++    return CreateUploadOut(file_id=f.file_id, object_key=key, upload_url=url, expires_in_seconds=900)
++
++
++@router.post("/{file_id}/complete", response_model=FileOut)
++def complete_upload(
++    file_id: str,
++    _data: CompleteIn,
++    db: Session = Depends(get_db),
++    user: dict = Depends(_require_user),
++):
++    _feature_on()
++    owner_sub = str(user.get("sub") or "")
++    f: File | None = db.query(File).filter(File.file_id == file_id).first()
++    if not f:
++        raise HTTPException(status_code=404, detail="File not found")
++    if f.owner_sub != owner_sub:
++        raise HTTPException(status_code=403, detail="Forbidden")
++
++    s3 = s3_client()
++    try:
++        head = s3.head_object(Bucket=f.bucket, Key=f.object_key)
++    except ClientError:
++        raise HTTPException(status_code=400, detail="Object not uploaded yet")
++
++    # Optional verification: compare size/content-type with client-provided
++    remote_size = int(head.get("ContentLength") or 0)
++    remote_ct = (head.get("ContentType") or "").strip()
++    if remote_size and f.size_bytes and remote_size != int(f.size_bytes):
++        raise HTTPException(status_code=400, detail="Uploaded size mismatch")
++    if remote_ct and f.content_type and remote_ct != f.content_type:
++        raise HTTPException(status_code=400, detail="Uploaded content-type mismatch")
++
++    f.status = "ready"
++    f.updated_at = _now()
++    db.add(f)
++    db.commit()
++    db.refresh(f)
++    return FileOut(
++        file_id=f.file_id,
++        object_key=f.object_key,
++        original_filename=f.original_filename,
++        content_type=f.content_type,
++        size_bytes=int(f.size_bytes),
++        status=f.status,
++        visibility=f.visibility,
++        created_at=f.created_at,
++    )
++
++
++@router.get("", response_model=PageOut)
++def list_files(
++    page: int = 1,
++    page_size: int = 20,
++    db: Session = Depends(get_db),
++    user: dict = Depends(_require_user),
++):
++    _feature_on()
++    if page < 1 or page_size < 1 or page_size > 100:
++        raise HTTPException(status_code=400, detail="Invalid pagination")
++    owner_sub = str(user.get("sub") or "")
++
++    q = db.query(File).filter(File.owner_sub == owner_sub)
++    total = q.count()
++    rows = (
++        q.order_by(File.created_at.desc())
++        .offset((page - 1) * page_size)
++        .limit(page_size)
++        .all()
++    )
++    items = [
++        FileOut(
++            file_id=r.file_id,
++            object_key=r.object_key,
++            original_filename=r.original_filename,
++            content_type=r.content_type,
++            size_bytes=int(r.size_bytes),
++            status=r.status,
++            visibility=r.visibility,
++            created_at=r.created_at,
++        )
++        for r in rows
++    ]
++    return PageOut(items=items, page=page, page_size=page_size, total=total)
++
++
++class UrlOut(BaseModel):
++    url: str
++    expires_in_seconds: int = 900
++
++@router.post("/{file_id}/download-url", response_model=UrlOut)
++def download_url(
++    file_id: str,
++    db: Session = Depends(get_db),
++    user: dict = Depends(_require_user),
++):
++    _feature_on()
++    owner_sub = str(user.get("sub") or "")
++    f: File | None = db.query(File).filter(File.file_id == file_id).first()
++    if not f:
++        raise HTTPException(status_code=404, detail="File not found")
++    if f.owner_sub != owner_sub:
++        raise HTTPException(status_code=403, detail="Forbidden")
++    if f.status != "ready":
++        raise HTTPException(status_code=409, detail="File not ready")
++
++    s3 = s3_client()
++    url = s3.generate_presigned_url(
++        "get_object",
++        Params={"Bucket": f.bucket, "Key": f.object_key},
++        ExpiresIn=900,
++    )
++    return UrlOut(url=url, expires_in_seconds=900)
++
++
++# Backward-compat endpoint (optional): /upload-url (no DB). Keep if needed.
++@router.post("/upload-url", response_model=CreateUploadOut)
++def legacy_create_upload_url(
++    data: CreateUploadIn,
++    db: Session = Depends(get_db),
++    user: dict = Depends(_require_user),
++):
++    # Route kept but now behaves like initiate (writes DB)
++    return initiate_upload(data=data, db=db, user=user)

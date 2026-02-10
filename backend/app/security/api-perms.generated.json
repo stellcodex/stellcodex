@@ -1,0 +1,582 @@
+[
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/auth/me",
+    "perm": "system.status.read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/auth/mfa/verify",
+    "perm": "system.status.read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/auth/login",
+    "perm": "system.status.read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/auth/logout",
+    "perm": "system.status.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/overview/metrics",
+    "perm": "system.status.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/overview/alerts",
+    "perm": "system.status.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/overview/recent-actions",
+    "perm": "logs.audit.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/users",
+    "perm": "admin.users.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/users/{user_id}",
+    "perm": "admin.users.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/users/{user_id}/activity",
+    "perm": "admin.users.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/users/{user_id}/uploads",
+    "perm": "admin.users.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/users/{user_id}/shares",
+    "perm": "admin.users.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/users/{user_id}/notes",
+    "perm": "admin.users.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/users/{user_id}/sessions",
+    "perm": "admin.users.read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/users/{user_id}:suspend",
+    "perm": "admin.users.suspend",
+    "approval_required": true
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/users/{user_id}:unsuspend",
+    "perm": "admin.users.unsuspend",
+    "approval_required": true
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/users/{user_id}:revoke-sessions",
+    "perm": "admin.users.revoke_sessions"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/users/{user_id}:disable-sharing",
+    "perm": "admin.users.disable_sharing"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/users/{user_id}:enable-sharing",
+    "perm": "admin.users.enable_sharing"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/admin/users/{user_id}",
+    "perm": "admin.users.delete",
+    "approval_required": true
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/files",
+    "perm": "admin.files.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/files/{scx_id}",
+    "perm": "admin.files.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/files/{scx_id}/metadata",
+    "perm": "admin.files.view_metadata"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/files/{scx_id}/jobs",
+    "perm": "admin.files.view_processing_history"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/files/{scx_id}/shares",
+    "perm": "admin.shares.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/files/{scx_id}/presentations",
+    "perm": "admin.presentations.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/files/{scx_id}/annotations",
+    "perm": "admin.notes.read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/files/{scx_id}:hide",
+    "perm": "admin.files.hide"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/files/{scx_id}:unhide",
+    "perm": "admin.files.unhide"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/files/{scx_id}:archive",
+    "perm": "admin.files.archive"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/files/{scx_id}:unarchive",
+    "perm": "admin.files.unarchive"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/files/{scx_id}:quarantine",
+    "perm": "security.files.quarantine"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/files/{scx_id}:unquarantine",
+    "perm": "security.files.unquarantine"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/admin/files/{scx_id}",
+    "perm": "admin.files.delete",
+    "approval_required": true
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/files/{scx_id}:disable-comments",
+    "perm": "admin.comments.disable_on_file"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/files/{scx_id}:enable-comments",
+    "perm": "admin.comments.enable_on_file"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/files/{scx_id}:purge-versions",
+    "perm": "admin.files.purge_versions",
+    "approval_required": true
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/files/{scx_id}:storage-purge",
+    "perm": "admin.files.storage_purge",
+    "approval_required": true
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/shares",
+    "perm": "admin.shares.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/shares/{share_id}",
+    "perm": "admin.shares.read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/shares/{share_id}:revoke",
+    "perm": "admin.shares.revoke"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/shares/{share_id}:set-expiry",
+    "perm": "admin.shares.set_expiry"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/shares/{share_id}:remove-expiry",
+    "perm": "admin.shares.remove_expiry",
+    "approval_required": true
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/shares/{share_id}:downgrade-permission",
+    "perm": "admin.shares.downgrade_permission"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/shares/{share_id}:upgrade-permission",
+    "perm": "admin.shares.upgrade_permission"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/shares/{share_id}:make-public",
+    "perm": "admin.shares.make_public",
+    "approval_required": true
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/shares/{share_id}:set-no-expiry",
+    "perm": "admin.shares.set_no_expiry",
+    "approval_required": true
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/shares/{share_id}:org-wide",
+    "perm": "admin.shares.org_wide",
+    "approval_required": true
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/presentations",
+    "perm": "admin.presentations.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/presentations/{presentation_id}",
+    "perm": "admin.presentations.read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/presentations/{presentation_id}:lock",
+    "perm": "admin.presentations.lock"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/presentations/{presentation_id}:unlock",
+    "perm": "admin.presentations.unlock"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/admin/presentations/{presentation_id}",
+    "perm": "admin.presentations.delete",
+    "approval_required": true
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/notes",
+    "perm": "admin.notes.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/notes/{note_id}",
+    "perm": "admin.notes.read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/notes/{note_id}:remove",
+    "perm": "admin.notes.remove"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/library/pending",
+    "perm": "admin.library.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/library/featured",
+    "perm": "admin.library.read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/library/{item_id}:feature",
+    "perm": "admin.library.feature"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/library/{item_id}:unfeature",
+    "perm": "admin.library.unfeature"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/library/{item_id}:remove",
+    "perm": "admin.library.remove_from_library"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/library/{item_id}:assign-category",
+    "perm": "admin.library.assign_category"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/system/status",
+    "perm": "system.status.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/system/services",
+    "perm": "system.status.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/system/queues",
+    "perm": "system.queues.read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/system/queues/{queue}:pause",
+    "perm": "system.queues.pause",
+    "approval_required": true
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/system/queues/{queue}:resume",
+    "perm": "system.queues.resume",
+    "approval_required": true
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/system/queues/{queue}:set-concurrency",
+    "perm": "system.queues.set_concurrency",
+    "approval_required": true
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/system/workers:restart",
+    "perm": "system.workers.restart",
+    "approval_required": true
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/system/workers:scale",
+    "perm": "system.workers.scale",
+    "approval_required": true
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/system/deploy",
+    "perm": "system.deploy.read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/system/deploy:rollback",
+    "perm": "system.deploy.rollback",
+    "approval_required": true
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/system/backups",
+    "perm": "system.backups.read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/system/backups:restore-test",
+    "perm": "system.backups.restore_test",
+    "approval_required": true
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/system/secrets:rotate",
+    "perm": "system.secrets.rotate",
+    "approval_required": true
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/security/policies",
+    "perm": "security.policies.read"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/admin/security/policies",
+    "perm": "security.policies.update",
+    "approval_required": true
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/security/abuse",
+    "perm": "security.abuse.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/security/ip-blocklist",
+    "perm": "security.abuse.read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/security/ip-blocklist:block",
+    "perm": "security.ip.block"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/security/ip-blocklist:unblock",
+    "perm": "security.ip.unblock"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/security/emergency:readonly-enable",
+    "perm": "security.emergency.readonly_enable",
+    "approval_required": true
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/security/emergency:readonly-disable",
+    "perm": "security.emergency.readonly_disable",
+    "approval_required": true
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/security/emergency:disable-uploads",
+    "perm": "security.emergency.disable_uploads",
+    "approval_required": true
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/security/emergency:enable-uploads",
+    "perm": "security.emergency.enable_uploads",
+    "approval_required": true
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/security/emergency:disable-public-shares",
+    "perm": "security.emergency.disable_public_shares",
+    "approval_required": true
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/security/emergency:enable-public-shares",
+    "perm": "security.emergency.enable_public_shares",
+    "approval_required": true
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/logs/audit",
+    "perm": "logs.audit.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/logs/system",
+    "perm": "logs.system.read_redacted"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/logs/access",
+    "perm": "logs.system.read_redacted"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/logs:export-redacted",
+    "perm": "logs.export_redacted",
+    "approval_required": true
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/logs:export-full",
+    "perm": "logs.export_full",
+    "approval_required": true
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/ai/suggestions",
+    "perm": "ai.suggestions.read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/ai/suggestions/{id}:approve",
+    "perm": "ai.suggestions.approve"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/ai/suggestions/{id}:reject",
+    "perm": "ai.suggestions.reject"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/analytics/aggregate",
+    "perm": "analytics.read_aggregate"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/rbac/roles",
+    "perm": "rbac.roles.read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/rbac/roles",
+    "perm": "rbac.roles.create",
+    "approval_required": true
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/admin/rbac/roles/{role_id}",
+    "perm": "rbac.roles.update",
+    "approval_required": true
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/admin/rbac/roles/{role_id}",
+    "perm": "rbac.roles.delete",
+    "approval_required": true
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/rbac/assignments",
+    "perm": "rbac.assignments.read"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/admin/rbac/assignments",
+    "perm": "rbac.assignments.update",
+    "approval_required": true
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/approvals",
+    "perm": "approvals.read"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/approvals/{approval_id}",
+    "perm": "approvals.read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/approvals",
+    "perm": "approvals.request_create"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/approvals/{approval_id}:approve",
+    "perm": "approvals.approve",
+    "approval_required": true
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/approvals/{approval_id}:reject",
+    "perm": "approvals.reject",
+    "approval_required": true
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/approvals/{approval_id}:cancel",
+    "perm": "approvals.cancel"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/approvals/{approval_id}:execute",
+    "perm": "approvals.execute",
+    "approval_required": true
+  }
+]

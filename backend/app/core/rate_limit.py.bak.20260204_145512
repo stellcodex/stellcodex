@@ -1,0 +1,44 @@
+diff --git a/backend/app/core/rate_limit.py b/backend/app/core/rate_limit.py
+index 1111111..2222222 100644
+--- a/backend/app/core/rate_limit.py
++++ b/backend/app/core/rate_limit.py
+@@ -1,10 +1,12 @@
+ import time
+ import redis
+ from starlette.middleware.base import BaseHTTPMiddleware
+ from starlette.requests import Request
+ from starlette.responses import JSONResponse
+ from app.core.config import settings
+ 
+ _r = None
+ 
+ def redis_client():
+     global _r
+     if _r is None:
+-        _r = redis.from_url(settings.REDIS_URL)
++        if not settings.redis_url:
++            raise RuntimeError("REDIS_URL not set")
++        _r = redis.from_url(str(settings.redis_url))
+     return _r
+ 
+ class RateLimitMiddleware(BaseHTTPMiddleware):
+     async def dispatch(self, request: Request, call_next):
+         ip = request.client.host if request.client else "unknown"
+         key = f"rl:{ip}:{int(time.time() // 3600)}"
+@@ -18,14 +20,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
+         if count == 1:
+             r.expire(key, 3600)
+ 
+-        if count > settings.RATE_LIMIT_PER_HOUR:
++        if count > settings.rate_limit_per_hour:
+             return JSONResponse(
+                 status_code=429,
+                 content={
+                     "data": None,
+                     "error": {"message": "Rate limit exceeded", "error_id": None},
+-                    "meta": {"limit": settings.RATE_LIMIT_PER_HOUR},
++                    "meta": {"limit": settings.rate_limit_per_hour},
+                 },
+             )
+ 
+         return await call_next(request)

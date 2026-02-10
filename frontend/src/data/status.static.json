@@ -1,0 +1,12 @@
+{
+  "overall": "unknown",
+  "summary": "Status data not configured.",
+  "updated_at": null,
+  "components": [
+    { "name": "Upload", "status": "unknown" },
+    { "name": "Conversion", "status": "unknown" },
+    { "name": "Viewer", "status": "unknown" },
+    { "name": "Sharing", "status": "unknown" }
+  ],
+  "incidents": []
+}

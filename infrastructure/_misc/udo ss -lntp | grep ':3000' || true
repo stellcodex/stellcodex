@@ -1,0 +1,3 @@
+ExecStart={ path=/usr/bin/node ; argv[]=/usr/bin/node /var/www/stellcodex/frontend/node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3000 ; ignore_errors=no ; start_time=[Wed 2026-02-04 23:38:23 +03] ; stop_time=[n/a] ; pid=596275 ; code=(null) ; status=0/0 }
+User=stellcodex
+DropInPaths=/etc/systemd/system/stellcodex-frontend.service.d/override.conf
