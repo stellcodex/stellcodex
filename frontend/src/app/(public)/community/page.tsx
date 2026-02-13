@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import accessControl from "@/security/access-control.source.json";
 import communityStatic from "@/data/community.static.json";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/StateBlocks";
+import { apiFetchJson } from "@/lib/apiClient";
 
 type CommunityItem = {
   id?: string;
@@ -41,17 +42,15 @@ export default function CommunityPage() {
     }
     if (effectiveMode === "api") {
       setState("loading");
-      fetch("/api/community")
-        .then(async (res) => {
-          if (!res.ok) throw new Error(`Community API failed (${res.status})`);
-          return res.json();
-        })
+      apiFetchJson<CommunityPayload>("/community", undefined, {
+        fallbackMessage: "Topluluk verisi alınamadı",
+      })
         .then((payload) => {
           setData(payload);
           setState("ready");
         })
         .catch((err) => {
-          setError(err?.message || "Failed to load community feed");
+          setError(err?.message || "Topluluk akışı yüklenemedi.");
           setState("error");
         });
       return;
@@ -62,30 +61,30 @@ export default function CommunityPage() {
   const items = data?.items ?? [];
 
   return (
-    <main className="mx-auto max-w-6xl px-6 pb-16 pt-14">
+    <main className="mx-auto max-w-6xl px-6 py-6 sm:py-8">
       <header className="max-w-2xl">
         <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#4f6f6b]">
-          Library / Community
+          Topluluk
         </div>
-        <h1 className="mt-4 text-3xl font-semibold tracking-tight text-[#0c2a2a] sm:text-4xl">
+        <h1 className="mt-4 text-xl font-semibold tracking-tight text-[#0c2a2a] sm:text-2xl">
           Kurasyonlu model galerisi
         </h1>
         <p className="mt-3 text-sm text-[#2c4b49]">
-          Paylasilan public modeller burada listelenir. Girişsiz sadece goruntuleme.
+          Paylaşılan açık modeller burada listelenir. Girişsiz sadece görüntüleme.
         </p>
       </header>
 
-      <section className="mt-8 rounded-3xl border border-[#d7d3c8] bg-white/80 p-6 shadow-sm">
+      <section className="mt-8 rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
         {effectiveMode === "unset" ? (
           <EmptyState
-            title="Community feed not configured"
-            description="Select a data source mode in access-control.source.json."
+            title="Topluluk akışı yapılandırılmadı"
+            description="access-control.source.json içinde veri kaynağını seçin."
           />
         ) : null}
         {state === "loading" ? <LoadingState lines={4} /> : null}
-        {state === "error" ? <ErrorState title="Failed to load" description={error || ""} /> : null}
+        {state === "error" ? <ErrorState title="Yüklenemedi" description={error || ""} /> : null}
         {state === "ready" && items.length === 0 ? (
-          <EmptyState title="Henüz public icerik yok" description="Ilk paylasim burada gorunecek." />
+          <EmptyState title="Henüz açık içerik yok" description="İlk paylaşım burada görünecek." />
         ) : null}
         {state === "ready" && items.length > 0 ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -95,11 +94,11 @@ export default function CommunityPage() {
                 className="rounded-2xl border border-[#e3dfd3] bg-[#f7f5ef] p-4"
               >
                 <div className="text-sm font-semibold text-[#0c2a2a]">
-                  {item.title || "Public model"}
+                  {item.title || "Açık model"}
                 </div>
                 <div className="mt-1 text-xs text-[#4f6f6b]">{item.format || "Format"}</div>
-                <div className="mt-3 grid place-items-center rounded-xl border border-dashed border-[#d7d3c8] bg-white p-6 text-xs text-[#8a9895]">
-                  Thumbnail
+                <div className="mt-3 grid place-items-center rounded-xl border border-dashed border-[#d7d3c8] bg-white p-5 text-xs text-[#8a9895]">
+                  Önizleme
                 </div>
               </div>
             ))}

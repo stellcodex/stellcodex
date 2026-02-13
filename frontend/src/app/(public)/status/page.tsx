@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import accessControl from "@/security/access-control.source.json";
 import statusStatic from "@/data/status.static.json";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/StateBlocks";
+import { apiFetchJson } from "@/lib/apiClient";
 
 type StatusComponent = { name: string; status: string };
 type StatusIncident = { id?: string; summary?: string; status?: string; started_at?: string };
@@ -40,17 +41,15 @@ export default function StatusPage() {
     }
     if (effectiveMode === "api") {
       setState("loading");
-      fetch("/api/status")
-        .then(async (res) => {
-          if (!res.ok) throw new Error(`Status API failed (${res.status})`);
-          return res.json();
-        })
+      apiFetchJson<StatusPayload>("/status", undefined, {
+        fallbackMessage: "Durum servisi yanıt vermedi",
+      })
         .then((payload) => {
           setData(payload);
           setState("ready");
         })
         .catch((err) => {
-          setError(err?.message || "Failed to load status");
+          setError(err?.message || "Durum bilgisi alınamadı");
           setState("error");
         });
       return;
@@ -59,41 +58,41 @@ export default function StatusPage() {
   }, [effectiveMode]);
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-12">
+    <main className="mx-auto max-w-6xl px-6 py-6 sm:py-8">
       <header className="max-w-2xl">
         <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-          Status
+          Durum
         </div>
-        <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-          System status
+        <h1 className="mt-4 text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
+          Sistem durumu
         </h1>
         <p className="mt-3 text-sm text-slate-600">
-          Public status feed. Data source is controlled by access-control configuration.
+          Genel durum akışı. Veri kaynağı erişim kontrol dosyasından yönetilir.
         </p>
       </header>
 
-      <section className="mt-8 grid gap-6">
+      <section className="mt-8 grid gap-4">
         {effectiveMode === "unset" ? (
           <EmptyState
-            title="Status feed not configured"
-            description="Select a data source mode in access-control.source.json."
+            title="Durum akışı yapılandırılmadı"
+            description="access-control.source.json dosyasında veri kaynağı modunu seçin."
           />
         ) : null}
         {state === "loading" ? <LoadingState lines={4} /> : null}
-        {state === "error" ? <ErrorState title="Failed to load" description={error || ""} /> : null}
+        {state === "error" ? <ErrorState title="Yüklenemedi" description={error || ""} /> : null}
 
         {state === "ready" && data ? (
           <>
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="text-sm font-semibold text-slate-900">Overall status</div>
-              <p className="mt-2 text-sm text-slate-600">{data.summary || "No summary available."}</p>
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="text-sm font-semibold text-slate-900">Genel durum</div>
+              <p className="mt-2 text-sm text-slate-600">{data.summary || "Özet bilgisi yok."}</p>
               <div className="mt-2 text-xs text-slate-500">
-                Status: {data.overall || "unknown"}
+                Durum: {data.overall || "bilinmiyor"}
               </div>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="text-sm font-semibold text-slate-900">Components</div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="text-sm font-semibold text-slate-900">Bileşenler</div>
               {data.components && data.components.length > 0 ? (
                 <ul className="mt-3 grid gap-2 text-sm text-slate-600">
                   {data.components.map((component) => (
@@ -103,22 +102,22 @@ export default function StatusPage() {
                   ))}
                 </ul>
               ) : (
-                <p className="mt-2 text-sm text-slate-600">No component data yet.</p>
+                <p className="mt-2 text-sm text-slate-600">Henüz bileşen verisi yok.</p>
               )}
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="text-sm font-semibold text-slate-900">Incident history</div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="text-sm font-semibold text-slate-900">Olay geçmişi</div>
               {data.incidents && data.incidents.length > 0 ? (
                 <ul className="mt-3 grid gap-2 text-sm text-slate-600">
                   {data.incidents.map((incident, idx) => (
                     <li key={incident.id || idx}>
-                      {incident.summary || "Incident"} — {incident.status || "unknown"}
+                      {incident.summary || "Olay"} — {incident.status || "bilinmiyor"}
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="mt-2 text-sm text-slate-600">No incidents reported.</p>
+                <p className="mt-2 text-sm text-slate-600">Bildirilmiş olay yok.</p>
               )}
             </div>
           </>
