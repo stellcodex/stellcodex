@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate-master:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify master doc exists
+        run: test -f docs/STELLCODEX_MASTER_V1.3.md
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install jsonschema
+        run: python -m pip install --upgrade pip jsonschema
+
+      - name: Validate render preset spec
+        run: |
+          python - <<PY
+          import json
+          from jsonschema import validate
+
+          with open("config/render_presets.schema.json", "r", encoding="utf-8") as f:
+            schema = json.load(f)
+          with open("config/render_presets.json", "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+          validate(instance=data, schema=schema)
+          print("render_presets.json OK")
+          PY

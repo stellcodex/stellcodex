@@ -1,6 +1,6 @@
 # DXF Native 2D Viewer — Teknik Tasarım (ezdxf==1.4.3)
 
-Bu doküman README_MASTER.md içindeki “DXF native 2D viewer” kararını uygulamak için teknik tasarımı kilitler.
+Bu doküman docs/STELLCODEX_MASTER_V1.3.md içindeki “DXF native 2D viewer” kararını uygulamak için teknik tasarımı kilitler.
 Amaç: DXF dosyası yüklenince web’de native 2D viewer ile pan/zoom, katman görünürlük ve anotasyon altyapısına uyumlu önizleme.
 
 ## DXF “açmak” tanımı

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["presets"],
+  "properties": {
+    "presets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "engine", "resolution", "sampling", "light_rig"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": ["preview_low", "studio_soft", "technical_white", "exploded_shadow"]
+          },
+          "engine": {
+            "type": "string",
+            "enum": ["Eevee", "Cycles"]
+          },
+          "resolution": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "sampling": {
+            "type": "string",
+            "enum": ["medium", "standard"]
+          },
+          "light_rig": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "presets": [
+    {
+      "name": "preview_low",
+      "engine": "Eevee",
+      "resolution": "1024",
+      "sampling": "medium",
+      "light_rig": "studio_basic"
+    },
+    {
+      "name": "studio_soft",
+      "engine": "Cycles",
+      "resolution": "2048",
+      "sampling": "standard",
+      "light_rig": "soft_studio"
+    },
+    {
+      "name": "technical_white",
+      "engine": "Cycles",
+      "resolution": "2048",
+      "sampling": "standard",
+      "light_rig": "white_bg_tech"
+    },
+    {
+      "name": "exploded_shadow",
+      "engine": "Cycles",
+      "resolution": "2048",
+      "sampling": "standard",
+      "light_rig": "experiment_exploded"
+    }
+  ]
+}

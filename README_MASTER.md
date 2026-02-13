@@ -225,7 +225,7 @@ Bildirim merkezi: job tamamlandı, paylaşım alındı, approval bekliyor
 
 Merkez AI (Codex dahil) yeni UI ekranı/route eklerken bu sayfa haritasıyla çelişemez.
 
-Yeni ekran ihtiyacı doğarsa: önce bu dosyaya (README_MASTER.md) değişiklik önerisi + gerekçe + etkiler yazılmadan kod eklenmez.
+Yeni ekran ihtiyacı doğarsa: önce bu dosyaya (docs/STELLCODEX_MASTER_V1.3.md) değişiklik önerisi + gerekçe + etkiler yazılmadan kod eklenmez.
 
 RBAC olmayan hiçbir admin UI route deploy edilmez.
 
@@ -242,3 +242,7 @@ RBAC Validation
 Run: cd /var/www/stellcodex/frontend && npm run gen:access
 Run: cd /var/www/stellcodex/frontend && npm run rbac:validate
 Run: cd /var/www/stellcodex/frontend && npm run rbac:validate-routes
+
+Admin Telemetry Auth (V1)
+- Env: ADMIN_TOKEN=change-me
+- Use: Authorization: Bearer <ADMIN_TOKEN>
