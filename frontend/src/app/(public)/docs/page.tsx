@@ -24,46 +24,53 @@ export default function DocsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-6 pb-16 pt-14">
+    <main className="mx-auto max-w-6xl px-6 py-6 sm:py-8">
       <header className="max-w-2xl">
         <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#4f6f6b]">
-          Docs / Help
+          Dokümanlar
         </div>
-        <h1 className="mt-4 text-3xl font-semibold tracking-tight text-[#0c2a2a] sm:text-4xl">
-          Yardim ve dokumantasyon
+        <h1 className="mt-4 text-xl font-semibold tracking-tight text-[#0c2a2a] sm:text-2xl">
+          Yardım ve dokümantasyon
         </h1>
         <p className="mt-3 text-sm text-[#2c4b49]">
-          Getting started, format listeleri, sorun giderme ve SSS burada.
+          Başlangıç, format listeleri, sorun giderme ve SSS burada.
         </p>
       </header>
 
-      <section className="mt-8 rounded-3xl border border-[#d7d3c8] bg-white/80 p-6 shadow-sm">
-        <div className="text-sm font-semibold text-[#0c2a2a]">Getting Started</div>
-        <p className="mt-2 text-sm text-[#2c4b49]">Upload → View → Share.</p>
+      <section className="mt-8 rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
+        <div className="text-sm font-semibold text-[#0c2a2a]">Başlangıç</div>
+        <p className="mt-2 text-sm text-[#2c4b49]">Yükle → Görüntüle → Paylaş.</p>
       </section>
 
-      <section className="mt-6 rounded-3xl border border-[#d7d3c8] bg-white/80 p-6 shadow-sm">
-        <div className="text-sm font-semibold text-[#0c2a2a]">Supported Formats</div>
+      <section className="mt-6 rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
+        <div className="text-sm font-semibold text-[#0c2a2a]">Desteklenen Formatlar</div>
         <p className="mt-2 text-sm text-[#2c4b49]">
-          Refer to <code className="rounded bg-[#f0eee7] px-2 py-1">docs/compatibility/formats-matrix.md</code>.
+          Ayrıntı için{" "}
+          <code className="rounded bg-[#f0eee7] px-2 py-1">docs/compatibility/formats-matrix.md</code>{" "}
+          dosyasına bakın.
         </p>
       </section>
 
-      <section className="mt-6 rounded-3xl border border-[#d7d3c8] bg-white/80 p-6 shadow-sm">
-        <div className="text-sm font-semibold text-[#0c2a2a]">Troubleshooting</div>
-        <p className="mt-2 text-sm text-[#2c4b49]">Content will be added as issues are documented.</p>
+      <section className="mt-6 rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
+        <div className="text-sm font-semibold text-[#0c2a2a]">Sorun Giderme</div>
+        <p className="mt-2 text-sm text-[#2c4b49]">
+          Sorunlar belgelendikçe içerik eklenecektir.
+        </p>
       </section>
 
-      <section className="mt-6 rounded-3xl border border-[#d7d3c8] bg-white/80 p-6 shadow-sm">
-        <div className="text-sm font-semibold text-[#0c2a2a]">FAQ</div>
-        <p className="mt-2 text-sm text-[#2c4b49]">FAQ will appear after launch feedback.</p>
+      <section className="mt-6 rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
+        <div className="text-sm font-semibold text-[#0c2a2a]">SSS</div>
+        <p className="mt-2 text-sm text-[#2c4b49]">
+          SSS, yayından sonraki geri bildirimlerle oluşacaktır.
+        </p>
       </section>
 
-      <section className="mt-8 rounded-3xl border border-[#d7d3c8] bg-white/80 p-6 shadow-sm">
-        <div className="text-sm font-semibold text-[#0c2a2a]">Repo docs index</div>
+      <section className="mt-8 rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
+        <div className="text-sm font-semibold text-[#0c2a2a]">Repo doküman listesi</div>
         {docs.length === 0 ? (
           <p className="mt-3 text-sm text-[#2c4b49]">
-            No docs detected. Ensure <code className="rounded bg-[#f0eee7] px-2 py-1">docs/</code> exists.
+            Doküman bulunamadı.{" "}
+            <code className="rounded bg-[#f0eee7] px-2 py-1">docs/</code> klasörünü kontrol edin.
           </p>
         ) : (
           <ul className="mt-4 grid gap-2 text-sm text-[#2c4b49]">

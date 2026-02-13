@@ -13,13 +13,20 @@ export function DxfViewer({ fileId }: { fileId: string }) {
   const dragging = useRef(false);
   const lastPos = useRef({ x: 0, y: 0 });
   const svgRef = useRef<string | null>(null);
+  const manifestLoadedRef = useRef(false);
 
   const layerList = useMemo(() => manifest?.layers ?? [], [manifest]);
+
+  const isPendingError = (value: string) => {
+    const msg = value.toLowerCase();
+    return msg.includes("not ready") || msg.includes("hazır değil") || msg.includes("hazirlaniyor") || msg.includes("hazırlanıyor");
+  };
 
   useEffect(() => {
     let cancelled = false;
     setManifest(null);
     setError(null);
+    manifestLoadedRef.current = false;
     if (svgRef.current) {
       URL.revokeObjectURL(svgRef.current);
       svgRef.current = null;
@@ -33,16 +40,32 @@ export function DxfViewer({ fileId }: { fileId: string }) {
         const data = await getDxfManifest(fileId);
         if (cancelled) return;
         setManifest(data);
-        const initial = new Set(data.layers.filter((l) => l.is_visible).map((l) => l.name));
-        setActiveLayers(initial);
+        if (!manifestLoadedRef.current) {
+          const initial = new Set(data.layers.filter((l) => l.is_visible).map((l) => l.name));
+          setActiveLayers(initial);
+        }
+        manifestLoadedRef.current = true;
+        setError(null);
       } catch (e: any) {
-        if (!cancelled) setError(e?.message || "DXF manifest alınamadı.");
+        if (cancelled) return;
+        const message = e?.message || "DXF manifest alınamadı.";
+        if (isPendingError(message)) {
+          setError(null);
+          return;
+        }
+        setError(message);
       }
     };
     void load();
+    const timer = window.setInterval(() => {
+      if (!manifestLoadedRef.current) {
+        void load();
+      }
+    }, 3000);
 
     return () => {
       cancelled = true;
+      window.clearInterval(timer);
     };
   }, [fileId]);
 
@@ -63,7 +86,13 @@ export function DxfViewer({ fileId }: { fileId: string }) {
         setSvgUrl(url);
         setError(null);
       } catch (e: any) {
-        if (!cancelled) setError(e?.message || "DXF render başarısız.");
+        if (cancelled) return;
+        const message = e?.message || "DXF render başarısız.";
+        if (isPendingError(message)) {
+          setError(null);
+          return;
+        }
+        setError(message);
       }
     };
     void render();
@@ -108,38 +137,34 @@ export function DxfViewer({ fileId }: { fileId: string }) {
   };
 
   return (
-    <div className="grid h-full grid-cols-[1fr_280px] gap-4">
-      <div
-        className="relative h-full rounded-2xl border border-slate-200 bg-white overflow-hidden"
-        onWheel={onWheel}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-      >
-        {error ? (
-          <div className="p-4 text-sm text-red-600">{error}</div>
-        ) : !svgUrl ? (
-          <div className="p-4 text-sm text-slate-500">Yükleniyor...</div>
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div
-              className="origin-center"
-              style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})` }}
-            >
-              <img src={svgUrl} alt="DXF preview" className="max-w-none" />
-            </div>
+    <div
+      className="relative h-full rounded-2xl border border-slate-200 bg-white overflow-hidden"
+      onWheel={onWheel}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+    >
+      {error ? (
+        <div className="p-4 text-sm text-red-600">{error}</div>
+      ) : !svgUrl ? (
+        <div className="p-4 text-sm text-slate-500">2D çizim hazırlanıyor...</div>
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div
+            className="origin-center"
+            style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})` }}
+          >
+            <img src={svgUrl} alt="DXF preview" className="max-w-none" />
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      <div className="h-full rounded-2xl border border-slate-200 bg-white p-3 overflow-auto">
-        <div className="text-xs font-semibold text-slate-900">Katmanlar</div>
-        <div className="mt-2 space-y-2">
-          {layerList.length === 0 ? (
-            <div className="text-xs text-slate-500">Katman bulunamadı.</div>
-          ) : (
-            layerList.map((layer) => (
-              <label key={layer.name} className="flex items-center gap-2 text-xs text-slate-700">
+      {manifest && layerList.length > 0 ? (
+        <div className="absolute right-3 top-3 max-h-[45%] w-[220px] overflow-auto rounded-lg border border-slate-200 bg-white/95 p-2 text-xs">
+          <div className="mb-1 font-semibold text-slate-900">Katmanlar</div>
+          <div className="space-y-1.5">
+            {layerList.map((layer) => (
+              <label key={layer.name} className="flex items-center gap-2 text-slate-700">
                 <input
                   type="checkbox"
                   checked={activeLayers.has(layer.name)}
@@ -151,21 +176,14 @@ export function DxfViewer({ fileId }: { fileId: string }) {
                   }}
                 />
                 <span className="h-2 w-2 rounded-full" style={{ backgroundColor: layer.color }} />
-                <span className="truncate" title={layer.name}>{layer.name}</span>
+                <span className="truncate" title={layer.name}>
+                  {layer.name}
+                </span>
               </label>
-            ))
-          )}
-        </div>
-
-        {manifest ? (
-          <div className="mt-4 space-y-1 text-[11px] text-slate-500">
-            <div>Units: {manifest.units?.name || "unknown"}</div>
-            {manifest.units?.name === "unitless" ? (
-              <div className="text-amber-600">Unit belirsiz, ölçümler birimsizdir.</div>
-            ) : null}
+            ))}
           </div>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }

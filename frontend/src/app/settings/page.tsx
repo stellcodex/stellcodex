@@ -14,7 +14,7 @@ export default function SettingsPage() {
         </p>
       </header>
 
-      <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
         <p className="text-sm text-[#6B7280]">
           Oturum durumunu yönetmek için aşağıdaki butonu kullanın.
         </p>

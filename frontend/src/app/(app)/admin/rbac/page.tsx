@@ -33,36 +33,36 @@ export default function AdminRbacPage() {
     <div className="space-y-6">
       <SectionHeader
         title="RBAC"
-        description="Read-only policy and generated artifacts."
-        crumbs={[{ label: "Admin", href: "/admin" }, { label: "RBAC" }]}
+        description="Salt okunur politika ve üretilmiş çıktı dosyaları."
+        crumbs={[{ label: "Yönetim", href: "/admin" }, { label: "RBAC" }]}
       />
 
-      <div className="grid gap-6">
+      <div className="grid gap-4">
         <section className="rounded-2xl border border-slate-200 bg-white p-5">
           <div className="text-sm font-semibold text-slate-900">rbac.policy.json</div>
           <pre className="mt-3 max-h-96 overflow-auto rounded-xl bg-slate-900 p-4 text-xs text-slate-100">
-            {policy ?? "File not available."}
+            {policy ?? "Dosya mevcut değil."}
           </pre>
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-5">
           <div className="text-sm font-semibold text-slate-900">api-perms.generated.json</div>
           <pre className="mt-3 max-h-64 overflow-auto rounded-xl bg-slate-900 p-4 text-xs text-slate-100">
-            {apiPerms ?? "File not available."}
+            {apiPerms ?? "Dosya mevcut değil."}
           </pre>
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-5">
           <div className="text-sm font-semibold text-slate-900">critical-endpoints.generated.json</div>
           <pre className="mt-3 max-h-64 overflow-auto rounded-xl bg-slate-900 p-4 text-xs text-slate-100">
-            {critical ?? "File not available."}
+            {critical ?? "Dosya mevcut değil."}
           </pre>
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-5">
           <div className="text-sm font-semibold text-slate-900">route-perms.generated.ts</div>
           <pre className="mt-3 max-h-64 overflow-auto rounded-xl bg-slate-900 p-4 text-xs text-slate-100">
-            {routePerms ?? "File not available."}
+            {routePerms ?? "Dosya mevcut değil."}
           </pre>
         </section>
       </div>

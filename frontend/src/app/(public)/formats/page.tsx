@@ -1,13 +1,14 @@
 import accessControl from "@/security/access-control.source.json";
+import { ALLOWED_FORMATS } from "@/lib/formats.generated";
 
 const TODO = "TODO_REQUIRED";
 
 function renderLimit(value: unknown, suffix = "") {
   if (value === null || value === undefined || value === TODO || value === "") {
-    return "Not set";
+    return "Belirtilmedi";
   }
   if (typeof value === "boolean") {
-    return value ? "Enabled" : "Disabled";
+    return value ? "Açık" : "Kapalı";
   }
   return `${value}${suffix}`;
 }
@@ -22,12 +23,12 @@ export default function FormatsPage() {
   };
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-12">
+    <main className="mx-auto max-w-6xl px-6 py-6 sm:py-8">
       <header className="max-w-2xl">
         <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-          Formats & Limits
+          Formatlar ve Limitler
         </div>
-        <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+        <h1 className="mt-4 text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
           Desteklenen formatlar ve limitler.
         </h1>
         <p className="mt-3 text-sm text-slate-600">
@@ -36,26 +37,30 @@ export default function FormatsPage() {
         </p>
       </header>
 
-      <section className="mt-10 grid gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="mt-8 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="text-sm font-semibold text-slate-900">Desteklenen Formatlar</div>
           <div className="mt-4 grid gap-3 text-sm text-slate-600">
             <div>
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
                 3D
               </div>
-              <div className="mt-2">STEP / STP, IGES / IGS, STL</div>
+              <div className="mt-2">
+                {ALLOWED_FORMATS.filter((f) => !["dxf", "pdf", "png", "jpg", "jpeg"].includes(f))
+                  .map((f) => f.toUpperCase())
+                  .join(" / ")}
+              </div>
             </div>
             <div>
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
                 2D
               </div>
-              <div className="mt-2">PDF, PNG, JPG</div>
+              <div className="mt-2">DXF / PDF / PNG / JPG</div>
             </div>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="text-sm font-semibold text-slate-900">Limitler</div>
           <ul className="mt-3 grid gap-2 text-sm text-slate-600">
             <li>Maks. dosya boyutu: {renderLimit(limits.max_file_size_mb, " MB")}</li>
@@ -67,10 +72,10 @@ export default function FormatsPage() {
         </div>
       </section>
 
-      <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="text-sm font-semibold text-slate-900">Fair Use</div>
+      <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="text-sm font-semibold text-slate-900">Adil Kullanım</div>
         <ul className="mt-3 grid gap-2 text-sm text-slate-600">
-          <li>Abuse koruması</li>
+          <li>Kötüye kullanım koruması</li>
           <li>Kuyruk sistemi</li>
         </ul>
       </section>

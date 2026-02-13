@@ -1,69 +1,34 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
 
-export interface User {
-  id: string;
+export type User = {
   name: string;
-  email?: string;
-}
-
-type UserContextValue = {
-  user: User | null;
-  isAuthenticated: boolean;
-  login: (nextUser: User) => void;
-  logout: () => void;
+  role: "user" | "admin";
 };
 
-const UserContext = createContext<UserContextValue | undefined>(undefined);
+type UserContextValue = {
+  user: User;
+  setUser: (next: User) => void;
+  logout: () => void;
+  isAuthenticated: boolean;
+};
+
+const UserContext = createContext<UserContextValue | null>(null);
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const stored = window.localStorage.getItem("stellcodex-user");
-    if (!stored) {
-      return;
-    }
-    try {
-      const parsed = JSON.parse(stored) as User;
-      if (parsed?.id && parsed?.name) {
-        setUser(parsed);
-      }
-    } catch {
-      window.localStorage.removeItem("stellcodex-user");
-    }
-  }, []);
-
-  const login = (nextUser: User) => {
-    setUser(nextUser);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("stellcodex-user", JSON.stringify(nextUser));
-    }
-  };
-
-  const logout = () => {
-    setUser(null);
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem("stellcodex-user");
-    }
-  };
-
+  const [user, setUser] = useState<User>({ name: "COSKUN", role: "user" });
+  const logout = useCallback(() => setUser({ name: "Misafir", role: "user" }), []);
+  const isAuthenticated = user.name !== "Misafir";
   const value = useMemo(
-    () => ({ user, isAuthenticated: Boolean(user), login, logout }),
-    [user]
+    () => ({ user, setUser, logout, isAuthenticated }),
+    [isAuthenticated, logout, user]
   );
-
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
 }
 
 export function useUser() {
-  const context = useContext(UserContext);
-  if (!context) {
-    throw new Error("useUser must be used within UserProvider");
-  }
-  return context;
+  const ctx = useContext(UserContext);
+  if (!ctx) throw new Error("useUser, UserProvider içinde kullanılmalı.");
+  return ctx;
 }

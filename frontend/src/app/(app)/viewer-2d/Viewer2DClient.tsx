@@ -87,11 +87,15 @@ export default function Viewer2DClient() {
   }, [fileId]);
 
   return (
-    <PageShell title="2D Viewer" subtitle="PDF ve görsel dosyaları için hızlı görüntüleme.">
+    <PageShell title="2D Görüntüleyici" subtitle="PDF ve görsel dosyaları için hızlı görüntüleme.">
       <div className="h-[75vh] rounded-3xl border border-slate-200 bg-white p-4">
         {!fileId ? (
           <div className="text-sm text-slate-600">
-            Dosya seçilmedi. Önce <a className="underline" href="/files">Yüklemeler</a> sayfasından bir dosya seç.
+            Dosya seçilmedi. Önce{" "}
+            <a className="underline" href="/files">
+              Yüklemeler
+            </a>{" "}
+            sayfasından bir dosya seç.
           </div>
         ) : error ? (
           <div className="text-sm text-red-600">{error}</div>
@@ -101,7 +105,7 @@ export default function Viewer2DClient() {
           contentType === "application/pdf" ? (
             <iframe src={url} className="h-full w-full rounded-2xl" />
           ) : (
-            <img src={url} alt="2D preview" className="h-full w-full object-contain" />
+            <img src={url} alt="2D önizleme" className="h-full w-full object-contain" />
           )
         ) : (
           <div className="text-sm text-slate-500">Yükleniyor...</div>

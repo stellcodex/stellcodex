@@ -8,14 +8,13 @@ import { clsx } from "clsx";
 import { Button } from "@/components/ui/Button";
 
 const nav = [
-  { href: "/admin", label: "Overview" },
-  { href: "/admin/users", label: "Users" },
-  { href: "/admin/files", label: "Files" },
-  { href: "/admin/ai", label: "AI" },
-  { href: "/admin/approvals", label: "Approvals" },
-  { href: "/admin/audit", label: "Audit" },
-  { href: "/admin/rbac", label: "RBAC" },
-  { href: "/admin/system", label: "System" },
+  { href: "/admin/users", label: "Kullanıcılar" },
+  { href: "/admin/files", label: "Dosyalar" },
+  { href: "/admin/shares", label: "Paylaşımlar" },
+  { href: "/admin/queue", label: "Kuyruklar" },
+  { href: "/admin/system", label: "Sağlık" },
+  { href: "/admin/audit", label: "Denetim" },
+  { href: "/admin/ai", label: "AI Önerileri" },
 ];
 
 function isActivePath(pathname: string, href: string) {
@@ -38,7 +37,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       <div className="flex">
         <aside className="hidden w-64 flex-col border-r border-slate-200 bg-white p-4 lg:flex">
           <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-            Admin
+            Yönetim
           </div>
           <nav className="mt-4 grid gap-1">
             {items.map((item) => (
@@ -58,7 +57,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
           </nav>
           <div className="mt-auto grid gap-2 pt-6">
             <Button href="/" variant="ghost">
-              Public Site
+              Genel site
             </Button>
           </div>
         </aside>
@@ -70,16 +69,16 @@ export function AdminShell({ children }: { children: ReactNode }) {
                 <button
                   className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white lg:hidden"
                   onClick={() => setOpen((s) => !s)}
-                  aria-label="Open admin navigation"
+                  aria-label="Yönetim menüsünü aç"
                   aria-expanded={open}
                 >
                   ☰
                 </button>
-                <div className="text-sm font-semibold text-slate-900">Admin Console</div>
+                <div className="text-sm font-semibold text-slate-900">Yönetim Konsolu</div>
               </div>
               <div className="flex items-center gap-2">
                 <div className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500">
-                  Admin session
+                  Yönetici oturumu
                 </div>
               </div>
             </div>

@@ -8,10 +8,13 @@ import { clsx } from "clsx";
 import { Button } from "@/components/ui/Button";
 
 const nav = [
-  { href: "/dashboard", label: "Overview" },
-  { href: "/dashboard/files", label: "Files" },
-  { href: "/dashboard/activity", label: "Activity" },
-  { href: "/dashboard/settings", label: "Settings" },
+  { href: "/dashboard", label: "Durum" },
+  { href: "/dashboard/overview", label: "Özet" },
+  { href: "/dashboard/files", label: "Dosyalar" },
+  { href: "/dashboard/projects", label: "Projeler" },
+  { href: "/dashboard/shares", label: "Paylaşımlar" },
+  { href: "/dashboard/activity", label: "Aktivite" },
+  { href: "/dashboard/settings", label: "Ayarlar" },
 ];
 
 function isActivePath(pathname: string, href: string) {
@@ -34,7 +37,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       <div className="flex">
         <aside className="hidden w-64 flex-col border-r border-slate-200 bg-white p-4 lg:flex">
           <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-            Dashboard
+            Panel
           </div>
           <nav className="mt-4 grid gap-1">
             {items.map((item) => (
@@ -54,10 +57,10 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           </nav>
           <div className="mt-auto grid gap-2 pt-6">
             <Button href="/files" variant="secondary">
-              Uploads
+              Yüklemeler
             </Button>
             <Button href="/home" variant="ghost">
-              Public Site
+              Genel site
             </Button>
           </div>
         </aside>
@@ -69,19 +72,19 @@ export function DashboardShell({ children }: { children: ReactNode }) {
                 <button
                   className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white lg:hidden"
                   onClick={() => setOpen((s) => !s)}
-                  aria-label="Open dashboard navigation"
+                  aria-label="Panel menüsünü aç"
                   aria-expanded={open}
                 >
                   ☰
                 </button>
-                <div className="text-sm font-semibold text-slate-900">User Dashboard</div>
+                <div className="text-sm font-semibold text-slate-900">Kullanıcı Paneli</div>
               </div>
               <div className="flex items-center gap-2">
                 <Button href="/files" variant="secondary">
-                  Upload
+                  Yükle
                 </Button>
                 <div className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500">
-                  Session
+                  Oturum
                 </div>
               </div>
             </div>

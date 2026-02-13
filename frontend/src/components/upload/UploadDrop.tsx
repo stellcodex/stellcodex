@@ -1,33 +1,20 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { PrimaryButton } from "@/components/ui/PrimaryButton";
+import { tokens } from "@/lib/tokens";
 import { uploadDirect } from "@/services/api";
+import { ALLOWED_FORMATS } from "@/lib/formats.generated";
+import {
+  DEFAULT_PROJECT_ID,
+  DEFAULT_PROJECT_NAME,
+  detectWorkspaceMode,
+  registerUploadedFile,
+  type WorkspaceMode,
+} from "@/lib/workspace-store";
 
-const allowedExt = [
-  ".stl",
-  ".step",
-  ".stp",
-  ".iges",
-  ".igs",
-  ".brep",
-  ".brp",
-  ".fcstd",
-  ".ifc",
-  ".obj",
-  ".ply",
-  ".off",
-  ".3mf",
-  ".amf",
-  ".dae",
-  ".glb",
-  ".gltf",
-  ".dxf",
-  ".pdf",
-  ".png",
-  ".jpg",
-  ".jpeg",
-];
+const allowedExt = ALLOWED_FORMATS.map((ext) => `.${ext}`);
 
 function hasAllowedExt(name: string) {
   const lower = name.toLowerCase();
@@ -47,7 +34,7 @@ export function UploadDrop({ onUploaded }: { onUploaded?: (fileId: string) => vo
 
       if (!hasAllowedExt(file.name)) {
         setError(
-          "Desteklenmeyen dosya türü. STEP/IGES/BREP/FCStd/IFC/STL/OBJ/PLY/OFF/3MF/AMF/DAE/GLB/GLTF/DXF/PDF/PNG/JPG kabul edilir. DWG ve SVG desteklenmez."
+          "Desteklenmeyen dosya türü. STEP/IGES/BREP/STL/OBJ/PLY/OFF/3MF/AMF/DAE/DXF/PDF/PNG/JPG kabul edilir. DWG ve Parasolid desteklenmez."
         );
         return;
       }
@@ -61,10 +48,20 @@ export function UploadDrop({ onUploaded }: { onUploaded?: (fileId: string) => vo
       try {
         setStatus("Dosya yükleniyor...");
         const res = await uploadDirect(file);
-        setStatus("Yükleme tamamlandı.");
-        onUploaded?.(res.file_id);
-      } catch (e: any) {
-        setError(e?.message || "Yükleme başarısız.");
+        const mode: WorkspaceMode = detectWorkspaceMode(file.name, file.type || null);
+        const registered = registerUploadedFile({
+          fileId: res.file_id,
+          originalFilename: file.name,
+          sizeBytes: file.size,
+          contentType: file.type || null,
+          mode,
+          projectId: DEFAULT_PROJECT_ID,
+          projectName: DEFAULT_PROJECT_NAME,
+        });
+        setStatus("Yükleme tamamlandı. Dosya projeye eklendi.");
+        onUploaded?.(registered.fileId);
+      } catch (error: unknown) {
+        setError(error instanceof Error ? error.message : "Yükleme başarısız.");
       } finally {
         setBusy(false);
       }
@@ -73,22 +70,23 @@ export function UploadDrop({ onUploaded }: { onUploaded?: (fileId: string) => vo
   );
 
   return (
-    <div
-      className="rounded-3xl border border-dashed border-slate-300 bg-white p-6 text-center"
-      onDragOver={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-      }}
-      onDrop={(e) => {
-        e.preventDefault();
-        const file = e.dataTransfer.files?.[0];
-        if (file) void handleFile(file);
-      }}
-    >
+    <Card className="p-5 text-center">
+      <div
+        className="rounded-2xl border border-dashed border-[#d1d5db] bg-white p-5"
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          const file = e.dataTransfer.files?.[0];
+          if (file) void handleFile(file);
+        }}
+      >
       <input
         ref={inputRef}
         type="file"
-        accept=".stl,.step,.stp,.iges,.igs,.brep,.brp,.fcstd,.ifc,.obj,.ply,.off,.3mf,.amf,.dae,.glb,.gltf,.dxf,.pdf,.png,.jpg,.jpeg"
+        accept={allowedExt.join(",")}
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
@@ -96,23 +94,24 @@ export function UploadDrop({ onUploaded }: { onUploaded?: (fileId: string) => vo
         }}
       />
 
-      <div className="text-sm font-semibold text-slate-900">Dosya Yükle</div>
-      <div className="mt-2 text-sm text-slate-600">
-        STEP / IGES / BREP / FCStd / IFC / STL / OBJ / PLY / OFF / 3MF / AMF / DAE / GLB / GLTF / DXF / PDF / PNG / JPG
+      <div style={tokens.typography.h2} className="text-[#111827]">Dosya yükle</div>
+      <div style={tokens.typography.body} className="mt-2 text-[#6b7280]">
+        STEP / IGES / BREP / STL / OBJ / PLY / OFF / 3MF / AMF / DAE / DXF / PDF / PNG / JPG
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-        <Button
+        <PrimaryButton
           onClick={() => inputRef.current?.click()}
           disabled={busy}
         >
-          Dosya Seç
-        </Button>
-        <span className="text-xs text-slate-500">Maks: 100MB</span>
+          Dosya seç
+        </PrimaryButton>
+        <span className="text-xs text-[#6b7280]">Maks: 100MB</span>
       </div>
 
-      {status ? <div className="mt-4 text-sm text-slate-700">{status}</div> : null}
+      {status ? <div className="mt-4 text-sm text-[#6b7280]">{status}</div> : null}
       {error ? <div className="mt-3 text-sm text-red-600">{error}</div> : null}
-    </div>
+      </div>
+    </Card>
   );
 }

@@ -6,7 +6,7 @@ export default function Page() {
   return (
     <Suspense
       fallback={
-        <PageShell title="2D Viewer" subtitle="PDF ve görsel dosyaları için hızlı görüntüleme.">
+        <PageShell title="2D Görüntüleyici" subtitle="PDF ve görsel dosyaları için hızlı görüntüleme.">
           <div className="text-sm text-slate-500">Yükleniyor...</div>
         </PageShell>
       }

@@ -5,26 +5,26 @@ export default function DashboardSettingsPage() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Profile & Settings"
-        description="Account, security, and preferences."
+        title="Profil ve Ayarlar"
+        description="Hesap, güvenlik ve tercih ayarları."
         crumbs={[
-          { label: "Dashboard", href: "/dashboard" },
-          { label: "Settings" },
+          { label: "Panel", href: "/dashboard" },
+          { label: "Ayarlar" },
         ]}
       />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <EmptyState
-          title="Profile"
-          description="Profile fields will appear once account endpoints are connected."
+          title="Profil"
+          description="Hesap uç noktaları bağlandığında profil alanları görünecek."
         />
         <EmptyState
-          title="Security"
-          description="Security settings will appear once auth integrations are enabled."
+          title="Güvenlik"
+          description="Kimlik doğrulama entegrasyonları açıldığında güvenlik ayarları görünecek."
         />
         <EmptyState
-          title="Preferences"
-          description="Viewer preferences will appear once settings are defined."
+          title="Tercihler"
+          description="Ayarlar tanımlandığında görüntüleyici tercihleri görünecek."
         />
       </div>
     </div>

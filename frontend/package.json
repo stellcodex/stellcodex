@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "NEXT_DISABLE_TURBOPACK=1 next dev",
+    "dev": "next dev --webpack -p 3010",
+    "dev:clean": "node -e \"const {execSync}=require('child_process'); const fs=require('fs'); try{execSync('fuser -k 3010/tcp || true',{stdio:'inherit'});}catch(e){}; try{fs.rmSync('.next/dev/lock',{force:true});}catch(e){}\"",
+    "dev:ports": "ss -ltnp | egrep ':3000|:3010|:3002' || true",
+    "dev:verify": "ss -ltnp | egrep ':3000|:3010' || true && curl -I http://127.0.0.1:3010/ | head -n 5 && curl -I http://127.0.0.1:3000/ | head -n 5 && curl -I http://$(hostname -I | awk '{print $1}'):3000/ | head -n 5",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

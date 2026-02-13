@@ -2,24 +2,37 @@
 
 import { useRouter } from "next/navigation";
 import { UploadDrop } from "@/components/upload/UploadDrop";
+import { getWorkspaceFileById } from "@/lib/workspace-store";
 
 export default function UploadPage() {
   const router = useRouter();
 
   return (
-    <main className="mx-auto max-w-3xl px-6 pb-16 pt-14">
-      <header className="max-w-xl">
-        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#4f6f6b]">Upload</div>
-        <h1 className="mt-3 text-3xl font-semibold text-[#0c2a2a] sm:text-4xl">
-          Dosyayi yukle
+    <main className="mx-auto max-w-6xl px-6 py-6 sm:py-8">
+      <header className="max-w-2xl">
+        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+          Yükleme
+        </div>
+        <h1 className="mt-4 text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
+          Dosya yükle ve hemen görüntüle.
         </h1>
-        <p className="mt-2 text-sm text-[#2c4b49]">
-          Yukleme baslar baslamaz isleme alinir ve otomatik goruntuleme acilir.
+        <p className="mt-3 text-sm text-slate-600">
+          Yükleme başlar başlamaz işleme alınır ve otomatik görüntüleme açılır.
         </p>
       </header>
 
       <section className="mt-8">
-        <UploadDrop onUploaded={(fileId) => router.push(`/view/${fileId}`)} />
+        <UploadDrop
+          onUploaded={(fileId) => {
+            const record = getWorkspaceFileById(fileId);
+            const mode = record?.mode || "3d";
+            const params = new URLSearchParams({
+              file: fileId,
+              project: record?.projectId || "genel-proje",
+            });
+            router.push(`${mode === "2d" ? "/app/2d" : "/app/3d"}?${params.toString()}`);
+          }}
+        />
       </section>
     </main>
   );

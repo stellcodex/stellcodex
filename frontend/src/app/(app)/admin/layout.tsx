@@ -2,12 +2,12 @@
 
 import type { ReactNode } from "react";
 import { AdminShell } from "@/components/layout/AdminShell";
-import { RouteGuard } from "@/security/route-guards";
+import { AdminGuard } from "@/security/token-guards";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
     <AdminShell>
-      <RouteGuard>{children}</RouteGuard>
+      <AdminGuard>{children}</AdminGuard>
     </AdminShell>
   );
 }

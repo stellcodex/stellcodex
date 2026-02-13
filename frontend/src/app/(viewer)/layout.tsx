@@ -1,3 +1,4 @@
+import { MasterFrame } from "@/components/layout/MasterFrame";
 export const dynamic = "force-dynamic";
 
 export default function ViewerLayout({
@@ -5,5 +6,5 @@ export default function ViewerLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <div className="min-h-screen bg-[#f3f2ee]">{children}</div>;
+  return <MasterFrame>{children}</MasterFrame>;
 }

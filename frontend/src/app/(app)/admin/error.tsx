@@ -6,11 +6,11 @@ import { ErrorState } from "@/components/ui/StateBlocks";
 export default function Error({ error, reset }: { error: Error; reset: () => void }) {
   return (
     <ErrorState
-      title="Admin error"
-      description={error?.message || "Unexpected error."}
+      title="Yönetim hatası"
+      description={error?.message || "Beklenmeyen hata."}
       action={
         <Button variant="secondary" onClick={reset}>
-          Retry
+          Yeniden dene
         </Button>
       }
     />

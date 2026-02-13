@@ -5,11 +5,11 @@ import { usePathname } from "next/navigation";
 import React from "react";
 
 const NAV = [
-  { href: "/home", label: "Home" },
-  { href: "/files", label: "Files" },
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/viewer-3d", label: "3D Viewer" },
-  { href: "/viewer-2d", label: "2D Viewer" },
+  { href: "/home", label: "Ana Sayfa" },
+  { href: "/files", label: "Dosyalar" },
+  { href: "/dashboard", label: "Panel" },
+  { href: "/viewer-3d", label: "3D Görüntüleyici" },
+  { href: "/viewer-2d", label: "2D Görüntüleyici" },
 ];
 
 function cx(...a: Array<string | false | null | undefined>) {
@@ -60,13 +60,13 @@ export function TopNav() {
             href="/files"
             className="hidden sm:inline-flex rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
           >
-            Upload
+            Yükle
           </Link>
 
           <button
             className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 md:hidden"
             onClick={() => setOpen((v) => !v)}
-            aria-label="Open menu"
+            aria-label="Menüyü aç"
           >
             ☰
           </button>

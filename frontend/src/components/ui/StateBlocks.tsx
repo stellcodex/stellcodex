@@ -6,7 +6,7 @@ export function EmptyState(props: {
   action?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
+    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center">
       <div className="text-sm font-semibold text-slate-900">{props.title}</div>
       {props.description ? (
         <p className="mt-2 text-sm text-slate-600">{props.description}</p>
@@ -22,7 +22,7 @@ export function ErrorState(props: {
   action?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center">
+    <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-center">
       <div className="text-sm font-semibold text-red-700">{props.title}</div>
       {props.description ? (
         <p className="mt-2 text-sm text-red-600">{props.description}</p>

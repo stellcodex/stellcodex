@@ -6,7 +6,7 @@ export default function Page() {
   return (
     <Suspense
       fallback={
-        <PageShell title="3D Viewer" subtitle="Orbit / Pan / Zoom, kesit ve tel kafes.">
+        <PageShell title="3D Görüntüleyici" subtitle="Yörünge / Kaydırma / Yakınlaşma, kesit ve tel kafes.">
           <div className="text-sm text-slate-500">Yükleniyor...</div>
         </PageShell>
       }

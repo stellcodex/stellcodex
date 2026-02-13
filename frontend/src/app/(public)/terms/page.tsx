@@ -6,36 +6,31 @@ function readMarkdown(filename: string) {
     const filePath = path.join(process.cwd(), "src", "content", filename);
     return fs.readFileSync(filePath, "utf-8");
   } catch {
-    return "Content not available.";
+    return "İçerik mevcut değil.";
   }
 }
 
 export default function TermsPage() {
   const tr = readMarkdown("terms.tr.md");
-  const en = readMarkdown("terms.en.md");
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-12">
+    <main className="mx-auto max-w-6xl px-6 py-6 sm:py-8">
       <header className="max-w-2xl">
         <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-          Terms
+          Şartlar
         </div>
-        <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-          Terms of service
+        <h1 className="mt-4 text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
+          Kullanım şartları
         </h1>
         <p className="mt-3 text-sm text-slate-600">
-          Legal content is loaded from markdown files for bilingual updates.
+          Hukuki içerik markdown dosyalarından yüklenir.
         </p>
       </header>
 
-      <section className="mt-8 grid gap-6">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="mt-8 grid gap-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="text-sm font-semibold text-slate-900">Türkçe</div>
           <pre className="mt-3 whitespace-pre-wrap text-sm text-slate-600">{tr}</pre>
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="text-sm font-semibold text-slate-900">English</div>
-          <pre className="mt-3 whitespace-pre-wrap text-sm text-slate-600">{en}</pre>
         </div>
       </section>
     </main>

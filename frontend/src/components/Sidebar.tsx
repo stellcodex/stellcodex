@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { JSX, ReactNode } from "react";
 import { useUser } from "@/context/UserContext";
+import { appRegistry } from "@/data/appRegistry";
 
 type IconType = (props: { className?: string }) => JSX.Element;
 
@@ -15,29 +16,37 @@ type NavLinkItem = {
 };
 
 const navItems: NavLinkItem[] = [
-  { label: "New Chat", href: "/", icon: IconChat },
-  { label: "Global Search", href: "/", icon: IconSearch },
+  { label: "Yeni Sohbet", href: "/", icon: IconChat },
+  { label: "Genel Arama", href: "/", icon: IconSearch },
 ];
 
-const appItems: NavLinkItem[] = [
-  { label: "3D Model", href: "/3dmodel", icon: IconCube },
-  { label: "2D Çizim", href: "/2dcizim", icon: IconDraft },
-  { label: "Render", href: "/render", icon: IconSpark },
-  { label: "Patlatma", href: "/patlatma", icon: IconBurst },
-];
+const appItems: NavLinkItem[] = appRegistry.map((item) => ({
+  label: item.label,
+  href: item.href,
+  icon:
+    item.key === "3d"
+      ? IconCube
+      : item.key === "2d"
+      ? IconDraft
+      : item.key === "render"
+      ? IconSpark
+      : item.key === "exploded"
+      ? IconBurst
+      : IconSpark,
+}));
 
 const userItems: NavLinkItem[] = [
-  { label: "My Files", href: "/files", icon: IconFiles, requiresAuth: true },
-  { label: "My Projects", href: "/projects", icon: IconFolder, requiresAuth: true },
+  { label: "Dosyalarım", href: "/files", icon: IconFiles, requiresAuth: true },
+  { label: "Projelerim", href: "/projects", icon: IconFolder, requiresAuth: true },
 ];
 
 const footerItems: NavLinkItem[] = [
-  { label: "Settings", href: "/settings", icon: IconSettings, requiresAuth: true },
-  { label: "Account", href: "/account", icon: IconUser, requiresAuth: true },
+  { label: "Ayarlar", href: "/settings", icon: IconSettings, requiresAuth: true },
+  { label: "Hesap", href: "/account", icon: IconUser, requiresAuth: true },
 ];
 
 const mobileItems: NavLinkItem[] = [
-  { label: "Home", href: "/", icon: IconHome },
+  { label: "Ana Sayfa", href: "/", icon: IconHome },
   ...appItems,
   ...userItems,
   ...footerItems,
@@ -60,7 +69,7 @@ export default function Sidebar() {
         <div>
           <Link href="/" className="flex items-center gap-3 px-2">
             <LogoIcon />
-            <span className="text-base font-semibold text-[#111827]">Stellcodex</span>
+            <span className="text-base font-semibold text-[#111827]">STELLCODEX</span>
           </Link>
 
           <div className="mt-6 space-y-2">
@@ -77,7 +86,7 @@ export default function Sidebar() {
 
           <div className="mt-6">
             <div className="px-3 text-xs font-semibold uppercase tracking-[0.2em] text-[#6B7280]">
-              Applications
+              Uygulamalar
             </div>
             <div className="mt-3 space-y-2">
               {appItems.map((item) => (
@@ -94,7 +103,7 @@ export default function Sidebar() {
 
           <div className="mt-6">
             <div className="px-3 text-xs font-semibold uppercase tracking-[0.2em] text-[#6B7280]">
-              User Space
+              Kullanıcı Alanı
             </div>
             <div className="mt-3 space-y-2">
               {userItems.map((item) => (

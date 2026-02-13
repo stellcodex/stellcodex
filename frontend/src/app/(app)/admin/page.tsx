@@ -13,9 +13,9 @@ export default function AdminOverviewPage() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Overview"
-        description="System pulse and operational shortcuts."
-        crumbs={[{ label: "Admin", href: "/admin" }, { label: "Overview" }]}
+        title="Genel"
+        description="Sistem nabzı ve operasyon özetleri."
+        crumbs={[{ label: "Yönetim", href: "/admin" }, { label: "Genel" }]}
       />
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -25,26 +25,26 @@ export default function AdminOverviewPage() {
           (accessControl.kpis?.admin ?? []).map((kpi, idx) => (
             <div key={kpi.key || idx} className="rounded-2xl border border-slate-200 bg-white p-5">
               <div className="text-sm font-semibold text-slate-900">{kpi.key}</div>
-              <p className="mt-2 text-sm text-slate-600">No data yet.</p>
+              <p className="mt-2 text-sm text-slate-600">Henüz veri yok.</p>
             </div>
           ))
         ) : (
           <EmptyState
-            title="KPI feed not configured"
-            description="Define admin KPIs in access-control.source.json."
+            title="KPI kaynağı yapılandırılmadı"
+            description="access-control.source.json içinde yönetim KPI'larını tanımlayın."
           />
         )}
-        <EmptyState title="System Health" description="No system metrics yet." />
+        <EmptyState title="Sistem Sağlığı" description="Henüz sistem metriği yok." />
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5">
-        <div className="text-sm font-semibold text-slate-900">Quick Actions</div>
+        <div className="text-sm font-semibold text-slate-900">Hızlı işlemler</div>
         <div className="mt-3 flex flex-wrap gap-3 text-sm">
-          <Link className="text-slate-700 hover:text-slate-900" href="/admin/approvals">
-            Go to Approval Queue
+          <Link className="text-slate-700 hover:text-slate-900" href="/admin/queue">
+            Kuyruklara git
           </Link>
           <Link className="text-slate-700 hover:text-slate-900" href="/admin/audit">
-            View Audit Logs
+            Denetim kayıtlarını gör
           </Link>
         </div>
       </div>

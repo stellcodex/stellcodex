@@ -33,7 +33,7 @@ export default function DashboardFilesPage() {
       })
       .catch((err) => {
         if (!mounted) return;
-        setError(err?.message || "Failed to load files");
+        setError(err?.message || "Dosyalar yüklenemedi.");
         setState("error");
       });
     return () => {
@@ -44,11 +44,11 @@ export default function DashboardFilesPage() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="My Library"
-        description="Search, filter, and manage your files."
+        title="Dosya Kütüphanem"
+        description="Dosyaları ara, filtrele ve yönet."
         crumbs={[
-          { label: "Dashboard", href: "/dashboard" },
-          { label: "Library" },
+          { label: "Panel", href: "/dashboard" },
+          { label: "Kütüphane" },
         ]}
       />
 
@@ -56,30 +56,30 @@ export default function DashboardFilesPage() {
         <div className="flex flex-wrap items-center gap-3">
           <input
             className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm"
-            placeholder="Search"
+            placeholder="Ara"
             disabled
           />
           <select className="rounded-xl border border-slate-200 px-3 py-2 text-sm" disabled>
             <option>Format</option>
           </select>
           <select className="rounded-xl border border-slate-200 px-3 py-2 text-sm" disabled>
-            <option>Status</option>
+            <option>Durum</option>
           </select>
           <select className="rounded-xl border border-slate-200 px-3 py-2 text-sm" disabled>
-            <option>Date</option>
+            <option>Tarih</option>
           </select>
         </div>
         <p className="mt-2 text-xs text-slate-500">
-          Filters are placeholders. Wire to real endpoints.
+          Filtreler yer tutucudur. Gerçek uç noktalara bağlayın.
         </p>
 
         <div className="mt-5">
           {state === "loading" ? <LoadingState lines={6} /> : null}
           {state === "error" ? (
-            <ErrorState title="Failed to load" description={error || ""} />
+            <ErrorState title="Yüklenemedi" description={error || ""} />
           ) : null}
           {state === "ready" && items.length === 0 ? (
-            <EmptyState title="No files yet" description="Upload files to see them here." />
+            <EmptyState title="Henüz dosya yok" description="Burada görmek için dosya yükleyin." />
           ) : null}
           {state === "ready" && items.length > 0 ? (
             <div className="grid gap-3">
