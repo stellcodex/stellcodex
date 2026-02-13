@@ -31,10 +31,12 @@ class ArtifactOut(BaseModel):
 class UploadResponse(BaseModel):
     project_id: UUID
     revision_id: UUID
+    file_id: str
     job_id: UUID
 
 
 class StatusResponse(BaseModel):
     revision_id: UUID
+    file_id: str
     jobs: List[JobOut]
     artifacts: List[ArtifactOut]

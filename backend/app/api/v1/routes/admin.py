@@ -122,6 +122,12 @@ def admin_failed_jobs(limit: int = 50, db: Session = Depends(get_db)):
     }
 
 
+@router.get("/failures")
+def admin_failures_alias(limit: int = 50, db: Session = Depends(get_db)):
+    # Backward-compatible alias kept for existing admin clients.
+    return admin_failed_jobs(limit=limit, db=db)
+
+
 @router.get("/users")
 def admin_users(db: Session = Depends(get_db)):
     users = db.query(User).order_by(User.created_at.desc()).limit(200).all()

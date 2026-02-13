@@ -5,8 +5,10 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
+from app.core.ids import normalize_scx_id
 from ..db import SessionLocal
 from ..models.core import Artifact, ArtifactType, Job, JobStatus
+from ..models.file import UploadFile as UploadFileModel
 from ..storage import Storage, storage_key_for_2d, storage_key_for_3d, storage_key_for_render
 from app.core.config import settings
 from app.core.storage import get_s3_client
@@ -174,6 +176,7 @@ def write_3d_artifacts(db: Session, storage: Storage, project_id: str, revision_
     write_artifact(db, revision_id, ArtifactType.TREE_JSON, tree_key, "application/json", len(tree_bytes))
     write_artifact(db, revision_id, ArtifactType.META_JSON, meta_key, "application/json", len(meta_bytes))
     write_artifact(db, revision_id, ArtifactType.THUMB_WEBP, thumb_key, "image/webp", len(thumb_bytes))
+    _sync_legacy_upload_ready(db, project_id, revision_id, lod0_key, thumb_key)
 
 
 def get_session():
@@ -192,3 +195,40 @@ def _upload_file_if_enabled(storage: Storage, key: str, content_type: str) -> No
         return
     s3 = get_s3_client(settings)
     s3.upload_file(str(storage.root / key), settings.s3_bucket, key, ExtraArgs={"ContentType": content_type})
+
+
+def _sync_legacy_upload_ready(
+    db: Session,
+    project_id: str,
+    revision_id: str,
+    lod0_key: str,
+    thumb_key: str,
+) -> None:
+    file_id = normalize_scx_id(str(revision_id))
+    row = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
+    if row is None:
+        return
+
+    existing_meta = row.meta or {}
+    legacy_mapping = existing_meta.get("legacy_mapping") if isinstance(existing_meta.get("legacy_mapping"), dict) else {}
+    existing_lods = existing_meta.get("lods") if isinstance(existing_meta.get("lods"), dict) else {}
+    row.gltf_key = lod0_key
+    row.thumbnail_key = thumb_key
+    row.status = "ready"
+    row.meta = {
+        **existing_meta,
+        "legacy_mapping": {
+            **legacy_mapping,
+            "project_id": str(project_id),
+            "revision_id": str(revision_id),
+            "model_prefix": f"models/{project_id}/{revision_id}/",
+        },
+        "defaults": {"view_mode": "shaded_edge", "quality": "Ultra", "camera": "iso_default"},
+        "lods": {
+            **existing_lods,
+            "lod0": {"key": lod0_key, "ready": True},
+            "lod1": {"key": (existing_lods.get("lod1") or {}).get("key"), "ready": False},
+            "lod2": {"key": (existing_lods.get("lod2") or {}).get("key"), "ready": False},
+        },
+    }
+    db.add(row)

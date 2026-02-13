@@ -3,6 +3,7 @@ __pycache__/
 .codex/
 .env
 evidence_*.txt
+evidence/
 FINAL_EVIDENCE_REPORT.md
 
 frontend/.next/

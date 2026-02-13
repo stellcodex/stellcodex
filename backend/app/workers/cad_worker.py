@@ -2,13 +2,26 @@ from pathlib import Path
 
 from rq import Worker
 
+from app.core.ids import normalize_scx_id
 from ..db import SessionLocal
 from ..models.core import File, Job
+from ..models.file import UploadFile as UploadFileModel
 from ..queue import redis_conn
 from ..storage import Storage
 from app.core.config import settings
 from app.core.storage import get_s3_client
 from .common import mark_job_done, mark_job_failed, mark_job_running, write_3d_artifacts
+
+
+def _sync_legacy_file_status(db, revision_id: str, status: str, error: str | None = None) -> None:
+    file_id = normalize_scx_id(str(revision_id))
+    row = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
+    if row is None:
+        return
+    row.status = status
+    if error:
+        row.meta = {**(row.meta or {}), "error": error}
+    db.add(row)
 
 
 def process_cad_lod0(job_id: str) -> None:
@@ -19,6 +32,7 @@ def process_cad_lod0(job_id: str) -> None:
         if job is None:
             return
         mark_job_running(db, job)
+        _sync_legacy_file_status(db, str(job.revision_id), "running")
         db.commit()
 
         source_file = (
@@ -45,6 +59,7 @@ def process_cad_lod0(job_id: str) -> None:
         job = db.get(Job, job_id)
         if job is not None:
             mark_job_failed(db, job, str(exc))
+            _sync_legacy_file_status(db, str(job.revision_id), "failed", str(exc))
             db.commit()
     finally:
         db.close()

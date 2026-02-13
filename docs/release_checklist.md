@@ -5,7 +5,7 @@
 - Backend unittest
   - `cd /var/www/stellcodex && python3 -m unittest -q backend/tests/test_hybrid_v1_geometry_merge_policy.py`
 - Smoke gate
-  - `cd /var/www/stellcodex && ./scripts/smoke.sh`
+  - `cd /var/www/stellcodex && ./scripts/smoke_gate.sh`
 - Nginx syntax
   - `nginx -t`
 - Container health
