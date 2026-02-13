@@ -58,6 +58,8 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
+    volumes:
+      - /var/stellcodex/work:/var/stellcodex/work
     depends_on:
       - postgres
       - redis
@@ -80,8 +82,10 @@ services:
       STELLCODEX_S3_ACCESS_KEY_ID: stellcodex
       STELLCODEX_S3_SECRET_ACCESS_KEY: stellcodex123
       PUBLIC_S3_BASE_URL: https://stellcodex.com
+      WORKDIR: /var/stellcodex/work
+      ADMIN_TOKEN: change-me
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/api/v1/health || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 30
@@ -92,6 +96,8 @@ services:
       dockerfile: Dockerfile.worker
     container_name: stellcodex-worker
     restart: unless-stopped
+    volumes:
+      - /var/stellcodex/work:/var/stellcodex/work
     depends_on:
       - redis
       - postgres
@@ -114,6 +120,7 @@ services:
       STELLCODEX_S3_ACCESS_KEY_ID: stellcodex
       STELLCODEX_S3_SECRET_ACCESS_KEY: stellcodex123
       PUBLIC_S3_BASE_URL: https://stellcodex.com
+      WORKDIR: /var/stellcodex/work
 
 volumes:
   postgres_data: {}
