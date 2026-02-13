@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.codex/
+.env
+evidence_*.txt
+FINAL_EVIDENCE_REPORT.md
+
+frontend/.next/
+frontend/.next_broken_*/
