@@ -6,7 +6,8 @@ from .config import settings
 
 class Storage:
     def __init__(self, root: str | None = None) -> None:
-        self.root = Path(root or settings.storage_root)
+        base = root or getattr(settings, "workdir", None) or settings.storage_root
+        self.root = Path(base)
 
     def ensure_dir(self, key: str) -> Path:
         path = self.root / key

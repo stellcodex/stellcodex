@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import json
 import os
 from typing import Any
@@ -49,9 +50,30 @@ def _resolve_step_path(argv: list[str]) -> Path | None:
     return None
 
 
+def _parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run HYBRID V1 demo pipeline on a STEP file. "
+            "If STEP_PATH is omitted, default sample path is used when present."
+        ),
+    )
+    parser.add_argument(
+        "step_path",
+        nargs="?",
+        help=f"Path to STEP file (default: {DEFAULT_STEP_PATH})",
+    )
+    return parser.parse_args(argv[1:])
+
+
 def main(argv: list[str] | None = None) -> int:
     args = argv or sys.argv
-    step_path = _resolve_step_path(args)
+    parsed = _parse_args(args)
+
+    if parsed.step_path:
+        step_path = Path(parsed.step_path)
+    else:
+        step_path = _resolve_step_path(args)
+
     if step_path is None:
         print(f"SKIP: default STEP not found at {DEFAULT_STEP_PATH}")
         return 0

@@ -6,8 +6,3 @@ from app.startup import register_startup
 app = FastAPI()
 register_startup(app)
 app.include_router(api_router, prefix="/api/v1")
-
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}

@@ -47,5 +47,5 @@ COPY app /app/app
 CMD ["sh", "-lc", "\
   echo 'Waiting for redis:6379...' && until nc -z redis 6379; do sleep 1; done; \
   echo 'Starting RQ worker...' && \
-  rq worker cad drawing render --url ${REDIS_URL} \
+  python -m app.workers.worker_main \
 "]

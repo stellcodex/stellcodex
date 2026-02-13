@@ -4,22 +4,33 @@ import os
 import re
 import subprocess
 import tempfile
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
 
 from app.core.config import settings
+from app.core.formats import load_formats
+from app.core.hybrid_v1_rules import run_hybrid_v1_step_pipeline
+from app.core.render_presets import get_render_preset
 from app.core.storage import get_s3_client
 from app.db.session import SessionLocal
 from app.models.file import UploadFile
+from app.models.job_failure import JobFailure
 from app.queue import get_queue
+from app.services.audit import log_event
+from rq import Retry
 
 
-CAD_OCCT_EXTS = {"step", "stp", "iges", "igs", "brep", "brp"}
-CAD_FREECAD_EXTS = {"fcstd", "ifc"}
-MESH_EXTS = {"stl", "obj", "ply", "off", "3mf", "amf", "dae"}
+_FORMATS = load_formats()
+CAD_OCCT_EXTS = set(_FORMATS.get("brep", []))
+CAD_FREECAD_EXTS = set()  # FCStd/IFC only if explicitly added to formats.json
+MESH_EXTS = set(_FORMATS.get("mesh", []))
+DXF_EXTS = set(_FORMATS.get("dxf", []))
+IMAGE_EXTS = set(_FORMATS.get("images", []))
 
 DEFAULT_RESULT_TTL_SECONDS = 3600
 DEFAULT_JOB_TTL_SECONDS = 3600
+STEP_EXTS = {"step", "stp"}
 
 
 def _ext(name: str) -> str:
@@ -29,7 +40,7 @@ def _ext(name: str) -> str:
 def _is_2d(content_type: str, filename: str) -> bool:
     if content_type in {"application/pdf", "image/png", "image/jpeg"}:
         return True
-    return _ext(filename) in {"pdf", "png", "jpg", "jpeg", "dxf"}
+    return _ext(filename) in (DXF_EXTS | IMAGE_EXTS)
 
 
 def _is_gltf(content_type: str, filename: str) -> bool:
@@ -198,11 +209,22 @@ def _extract_metadata(glb_path: str) -> dict:
     return _parse_assimp_info(output)
 
 
-def _mark_failed(db: SessionLocal, f: UploadFile, detail: str) -> str:
+def _mark_failed(db: SessionLocal, f: UploadFile, detail: str, stage: str = "convert") -> str:
     error_id = str(uuid4())
     f.status = "failed"
     f.meta = {**(f.meta or {}), "error": detail, "error_id": error_id}
     db.add(f)
+    db.add(
+        JobFailure(
+            job_id=(f.meta or {}).get("job_id"),
+            file_id=f.file_id,
+            stage=stage,
+            error_class="ConversionError",
+            message=detail[:500],
+            traceback=None,
+        )
+    )
+    log_event(db, "job.failed", file_id=f.file_id, data={"stage": stage, "error": detail[:300]})
     db.commit()
     return error_id
 
@@ -265,6 +287,36 @@ def _extract_metadata_pipeline(f: UploadFile, s3) -> dict:
         return _extract_metadata(in_path)
 
 
+def _runner_mode_from_meta(meta: dict | None) -> str | None:
+    if not isinstance(meta, dict):
+        return None
+    direct = meta.get("runner_mode")
+    if isinstance(direct, str) and direct.strip():
+        return direct.strip()
+    process_meta = meta.get("process")
+    if isinstance(process_meta, dict):
+        nested = process_meta.get("runner_mode")
+        if isinstance(nested, str) and nested.strip():
+            return nested.strip()
+    return None
+
+
+def _hybrid_v1_step_artifacts(f: UploadFile, s3) -> tuple[dict | None, dict | None]:
+    ext = _ext(f.original_filename)
+    if ext not in STEP_EXTS:
+        return None, None
+    with tempfile.TemporaryDirectory() as tmp:
+        in_path = os.path.join(tmp, f"input.{ext}")
+        s3.download_file(f.bucket, f.object_key, in_path)
+        runner_mode = _runner_mode_from_meta(f.meta or {})
+        out = run_hybrid_v1_step_pipeline(in_path, runner_mode=runner_mode)
+    geometry_report = out.get("geometry_report")
+    dfm_findings = out.get("dfm_findings")
+    if not isinstance(geometry_report, dict) or not isinstance(dfm_findings, dict):
+        raise RuntimeError("Hybrid v1 pipeline did not return expected artifacts")
+    return geometry_report, dfm_findings
+
+
 def convert_cad_to_glb(file_id: str):
     return convert_file(file_id)
 
@@ -310,6 +362,69 @@ def extract_metadata(file_id: str):
         db.close()
 
 
+def render_preset(file_id: str, preset_name: str):
+    db = SessionLocal()
+    try:
+        f: UploadFile | None = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
+        if not f:
+            return {"status": "missing"}
+        _ = get_render_preset(preset_name)
+        if not f.gltf_key:
+            raise RuntimeError("GLB not ready for render")
+        s3 = get_s3_client(settings)
+        with tempfile.TemporaryDirectory() as tmp:
+            in_path = os.path.join(tmp, "model.glb")
+            out_path = os.path.join(tmp, f"{preset_name}.png")
+            s3.download_file(f.bucket, f.gltf_key, in_path)
+            _render_thumbnail(in_path, out_path)
+            render_key = f"renders/{f.file_id}/{preset_name}.png"
+            s3.upload_file(out_path, f.bucket, render_key, ExtraArgs={"ContentType": "image/png"})
+        f.meta = {**(f.meta or {}), "renders": {**((f.meta or {}).get("renders") or {}), preset_name: render_key}}
+        db.add(f)
+        log_event(db, "render.completed", file_id=f.file_id, data={"preset": preset_name})
+        db.commit()
+        return {"status": "ok", "render_key": render_key}
+    except Exception as e:
+        f = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
+        if f:
+            _mark_failed(db, f, str(e), stage="render")
+        raise
+    finally:
+        db.close()
+
+
+def retention_purge():
+    db = SessionLocal()
+    try:
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+        rows = (
+            db.query(UploadFile)
+            .filter(
+                UploadFile.is_anonymous.is_(True),
+                UploadFile.owner_user_id.is_(None),
+                UploadFile.created_at < cutoff,
+            )
+            .all()
+        )
+        s3 = get_s3_client(settings) if settings.s3_enabled else None
+        removed = 0
+        for f in rows:
+            if s3:
+                for key in [f.object_key, f.gltf_key, f.thumbnail_key]:
+                    if key:
+                        try:
+                            s3.delete_object(Bucket=f.bucket, Key=key)
+                        except Exception:
+                            pass
+            log_event(db, "retention.purge", actor_anon_sub=f.owner_anon_sub or f.owner_sub, file_id=f.file_id)
+            db.delete(f)
+            removed += 1
+        db.commit()
+        return {"status": "ok", "removed": removed}
+    finally:
+        db.close()
+
+
 def convert_file(file_id: str):
     db = SessionLocal()
     try:
@@ -320,7 +435,7 @@ def convert_file(file_id: str):
         if f.status == "ready" and f.gltf_key:
             return {"status": "ready", "mode": "cached"}
 
-        f.status = "processing"
+        f.status = "running"
         db.add(f)
         db.commit()
         db.refresh(f)
@@ -333,22 +448,42 @@ def convert_file(file_id: str):
             db.commit()
             return {"status": "ready", "mode": "2d"}
 
-        if _is_gltf(f.content_type, f.original_filename):
-            f.gltf_key = f.object_key
-            f.status = "ready"
-            db.add(f)
-            db.commit()
+        ext = _ext(f.original_filename)
+        geometry_report: dict | None = None
+        dfm_findings: dict | None = None
+
+        if ext in CAD_OCCT_EXTS or ext in CAD_FREECAD_EXTS:
+            f.gltf_key = _convert_cad_pipeline(f, s3)
+            geometry_report, dfm_findings = _hybrid_v1_step_artifacts(f, s3)
+        elif ext in MESH_EXTS:
+            f.gltf_key = _convert_mesh_pipeline(f, s3)
         else:
-            ext = _ext(f.original_filename)
-            if ext in CAD_OCCT_EXTS or ext in CAD_FREECAD_EXTS:
-                f.gltf_key = _convert_cad_pipeline(f, s3)
-            elif ext in MESH_EXTS:
-                f.gltf_key = _convert_mesh_pipeline(f, s3)
-            else:
-                raise RuntimeError(f"Unsupported format: {ext}")
-            f.status = "ready"
-            db.add(f)
-            db.commit()
+            raise RuntimeError(f"Unsupported format: {ext}")
+
+        # Canonical viewer contract: defaults + lod registry in metadata.
+        existing_meta = f.meta or {}
+        existing_lods = existing_meta.get("lods") if isinstance(existing_meta.get("lods"), dict) else {}
+        lods = {
+            "lod0": {"key": f.gltf_key, "ready": True},
+            "lod1": {"key": (existing_lods.get("lod1") or {}).get("key"), "ready": False},
+            "lod2": {"key": (existing_lods.get("lod2") or {}).get("key"), "ready": False},
+        }
+        artifacts = existing_meta.get("artifacts") if isinstance(existing_meta.get("artifacts"), dict) else {}
+        if geometry_report is not None:
+            artifacts = {**artifacts, "geometry_report": geometry_report}
+        if dfm_findings is not None:
+            artifacts = {**artifacts, "dfm_findings": dfm_findings}
+
+        f.meta = {
+            **existing_meta,
+            "defaults": {"view_mode": "shaded_edge", "quality": "Ultra", "camera": "iso_default"},
+            "lods": lods,
+            "artifacts": artifacts,
+            "job_status": (dfm_findings or {}).get("status_gate", (existing_meta or {}).get("job_status", "PASS")),
+        }
+        f.status = "ready"
+        db.add(f)
+        db.commit()
 
         # Best-effort metadata and thumbnail
         try:
@@ -366,19 +501,20 @@ def convert_file(file_id: str):
             f.meta = {**(f.meta or {}), "thumbnail_error": str(e)}
 
         db.add(f)
+        log_event(db, "job.succeeded", file_id=f.file_id, data={"mode": "converted"})
         db.commit()
-        return {"status": "ready", "mode": "converted"}
+        return {"status": "ready", "mode": "converted", "job_status": (f.meta or {}).get("job_status", "PASS")}
 
     except subprocess.CalledProcessError as e:
         f = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
         if f:
             detail = (e.stderr or e.stdout or "conversion failed").strip()
-            _mark_failed(db, f, detail)
+            _mark_failed(db, f, detail, stage="convert")
         raise
     except Exception as e:
         f = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
         if f:
-            _mark_failed(db, f, str(e))
+            _mark_failed(db, f, str(e), stage="convert")
         raise
     finally:
         db.close()
@@ -396,6 +532,7 @@ def enqueue_convert_file(file_id: str) -> str:
         job_timeout=settings.conversion_timeout_seconds + 60,
         result_ttl=DEFAULT_RESULT_TTL_SECONDS,
         ttl=DEFAULT_JOB_TTL_SECONDS,
+        retry=Retry(max=3),
     )
     return job.get_id()
 
@@ -418,6 +555,31 @@ def enqueue_extract_metadata(file_id: str) -> str:
         extract_metadata,
         file_id,
         job_timeout=settings.conversion_timeout_seconds + 60,
+        result_ttl=DEFAULT_RESULT_TTL_SECONDS,
+        ttl=DEFAULT_JOB_TTL_SECONDS,
+    )
+    return job.get_id()
+
+
+def enqueue_render_preset(file_id: str, preset_name: str) -> str:
+    q = get_queue("render")
+    job = q.enqueue(
+        render_preset,
+        file_id,
+        preset_name,
+        job_timeout=settings.blender_timeout_seconds + 60,
+        result_ttl=DEFAULT_RESULT_TTL_SECONDS,
+        ttl=DEFAULT_JOB_TTL_SECONDS,
+        retry=Retry(max=3),
+    )
+    return job.get_id()
+
+
+def enqueue_retention_purge() -> str:
+    q = get_queue("cad")
+    job = q.enqueue(
+        retention_purge,
+        job_timeout=300,
         result_ttl=DEFAULT_RESULT_TTL_SECONDS,
         ttl=DEFAULT_JOB_TTL_SECONDS,
     )

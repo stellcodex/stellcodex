@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import io
+import json
 import logging
-from uuid import uuid4
 import tempfile
+import zipfile
+from typing import Any
+from uuid import uuid4
 
 from botocore.exceptions import ClientError
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File as FastAPIFile, Response
@@ -12,11 +16,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.formats import is_allowed_filename, rejected_extensions
+from app.core.ids import normalize_scx_id
 from app.core.storage import get_s3_client, get_s3_presign_client
 from app.db.session import get_db
 from app.models.file import UploadFile as UploadFileModel
-from app.api.v1.routes.auth import oauth2_scheme, decode_token
+from app.security.deps import get_current_principal, Principal
 from app.services.dxf import load_doc, manifest_from_doc, render_svg
+from app.services.audit import log_event
 
 router = APIRouter(tags=["files"])
 log = logging.getLogger("uvicorn.error")
@@ -26,11 +33,8 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _require_user(token: str = Depends(oauth2_scheme)) -> dict:
-    payload = decode_token(token)
-    if payload.get("type") != "access":
-        raise HTTPException(status_code=401, detail="Invalid access token")
-    return payload
+def _require_principal(principal: Principal = Depends(get_current_principal)) -> Principal:
+    return principal
 
 
 def _feature_on() -> None:
@@ -39,34 +43,7 @@ def _feature_on() -> None:
 
 
 def _allowed_ext(filename: str) -> bool:
-    name = (filename or "").lower()
-    for ext in [
-        ".stl",
-        ".step",
-        ".stp",
-        ".iges",
-        ".igs",
-        ".brep",
-        ".brp",
-        ".fcstd",
-        ".ifc",
-        ".obj",
-        ".ply",
-        ".off",
-        ".3mf",
-        ".amf",
-        ".dae",
-        ".glb",
-        ".gltf",
-        ".dxf",
-        ".pdf",
-        ".png",
-        ".jpg",
-        ".jpeg",
-    ]:
-        if name.endswith(ext):
-            return True
-    return False
+    return is_allowed_filename(filename)
 
 
 def _validate_upload(content_type: str, size_bytes: int, filename: str) -> None:
@@ -77,10 +54,100 @@ def _validate_upload(content_type: str, size_bytes: int, filename: str) -> None:
     allow = getattr(settings, "allowed_content_types", [])
     if allow and (content_type not in allow) and not _allowed_ext(filename):
         raise HTTPException(status_code=415, detail="Unsupported content-type")
+    if not _allowed_ext(filename):
+        ext = (filename or "").lower().rsplit(".", 1)[-1]
+        if ext in rejected_extensions():
+            raise HTTPException(status_code=415, detail="Unsupported file type")
+        raise HTTPException(status_code=415, detail="Unsupported file type")
+
+
+def _normalize_file_id(value: str) -> str:
+    try:
+        return normalize_scx_id(value)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid file id")
 
 
 def _safe_object_key(owner_sub: str) -> str:
     return f"uploads/{owner_sub}/{uuid4()}/original"
+
+
+def _triangles_from_meta(f: UploadFileModel, lod_name: str) -> int | None:
+    meta = f.meta or {}
+    stats = meta.get("lod_stats")
+    if isinstance(stats, dict):
+        value = stats.get(lod_name)
+        if isinstance(value, dict):
+            tri = value.get("triangle_count")
+            if isinstance(tri, int):
+                return tri
+    return None
+
+
+def _build_lod_map(f: UploadFileModel) -> dict[str, dict[str, Any]]:
+    meta = f.meta or {}
+    lod_meta = meta.get("lods")
+    lods: dict[str, dict[str, Any]] = {}
+
+    if isinstance(lod_meta, dict):
+        for lod_name in ("lod0", "lod1", "lod2"):
+            raw = lod_meta.get(lod_name)
+            if not isinstance(raw, dict):
+                continue
+            key = raw.get("key")
+            if not isinstance(key, str) or not key:
+                continue
+            lods[lod_name] = {
+                "key": key,
+                "ready": bool(raw.get("ready", False)),
+                "url": f"/api/v1/files/{f.file_id}/lod/{lod_name}",
+                "triangle_count": _triangles_from_meta(f, lod_name),
+            }
+
+    if "lod0" not in lods and f.gltf_key:
+        lods["lod0"] = {
+            "key": f.gltf_key,
+            "ready": f.status == "ready",
+            "url": f"/api/v1/files/{f.file_id}/gltf",
+            "triangle_count": _triangles_from_meta(f, "lod0"),
+        }
+
+    return lods
+
+
+def _build_scx_manifest(f: UploadFileModel, lods: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    meta = f.meta or {}
+    defaults = meta.get("defaults") if isinstance(meta.get("defaults"), dict) else {}
+    assembly_tree = meta.get("assembly_tree") if isinstance(meta.get("assembly_tree"), list) else []
+    bbox = meta.get("bbox") if isinstance(meta.get("bbox"), dict) else {}
+    lod_stats = meta.get("lod_stats") if isinstance(meta.get("lod_stats"), dict) else {}
+
+    lod_paths: dict[str, str] = {}
+    for lod_name in ("lod0", "lod1", "lod2"):
+        if lod_name in lods:
+            lod_paths[lod_name] = f"assets/lod/{lod_name}.glb"
+
+    return {
+        "format_version": "1.0.0",
+        "app": "STELLCODEX",
+        "model_id": f.file_id,
+        "units": "mm",
+        "bbox": bbox,
+        "lod": lod_paths,
+        "thumbnails": {
+            "preview": "assets/thumbs/preview.png" if f.thumbnail_key else None,
+            "shaded": "assets/thumbs/shaded.png" if f.thumbnail_key else None,
+            "shaded_edge": "assets/thumbs/shaded_edge.png" if f.thumbnail_key else None,
+            "hiddenline": "assets/thumbs/hiddenline.png" if f.thumbnail_key else None,
+        },
+        "defaults": {
+            "view_mode": defaults.get("view_mode", "shaded_edge"),
+            "quality": defaults.get("quality", "Ultra"),
+            "camera": defaults.get("camera", "iso_default"),
+        },
+        "assembly_tree": assembly_tree,
+        "stats": lod_stats,
+    }
 
 
 def s3_client():
@@ -133,6 +200,9 @@ class FileOut(BaseModel):
 class FileDetailOut(FileOut):
     gltf_url: str | None = None
     original_url: str | None = None
+    lods: dict[str, dict[str, Any]] | None = None
+    quality_default: str = "Ultra"
+    view_mode_default: str = "shaded_edge"
 
 
 class PageOut(BaseModel):
@@ -147,6 +217,21 @@ class UrlOut(BaseModel):
     expires_in_seconds: int = 900
 
 
+class StatusOut(BaseModel):
+    state: str
+    derivatives_available: list[str]
+    progress_hint: str | None = None
+
+
+class RenderIn(BaseModel):
+    preset: str
+
+
+class RenderOut(BaseModel):
+    job_id: str
+    preset: str
+
+
 class VisibilityIn(BaseModel):
     visibility: str = Field(..., pattern="^(private|public|hidden)$")
 
@@ -155,19 +240,25 @@ class VisibilityIn(BaseModel):
 def initiate_upload(
     data: InitiateIn,
     db: Session = Depends(get_db),
-    user: dict = Depends(_require_user),
+    principal: Principal = Depends(_require_principal),
 ):
     _feature_on()
     if not data.filename:
         raise HTTPException(status_code=400, detail="filename required")
     _validate_upload(data.content_type, data.size_bytes, data.filename)
 
-    owner_sub = str(user.get("sub") or "")
+    owner_sub = principal.owner_sub or principal.user_id or ""
+    if not owner_sub:
+        raise HTTPException(status_code=401, detail="Unauthorized")
     bucket = settings.s3_bucket
     key = _safe_object_key(owner_sub)
 
     f = UploadFileModel(
         owner_sub=owner_sub,
+        owner_user_id=principal.user_id if principal.typ == "user" else None,
+        owner_anon_sub=principal.owner_sub if principal.typ == "guest" else None,
+        is_anonymous=principal.typ == "guest",
+        privacy="private",
         bucket=bucket,
         object_key=key,
         original_filename=data.filename,
@@ -201,7 +292,7 @@ def initiate_upload(
 async def direct_upload(
     upload: UploadFile = FastAPIFile(...),
     db: Session = Depends(get_db),
-    user: dict = Depends(_require_user),
+    principal: Principal = Depends(_require_principal),
 ):
     _feature_on()
     if not upload.filename:
@@ -215,12 +306,18 @@ async def direct_upload(
     content_type = (upload.content_type or "application/octet-stream").strip()
     _validate_upload(content_type, size_bytes, upload.filename)
 
-    owner_sub = str(user.get("sub") or "")
+    owner_sub = principal.owner_sub or principal.user_id or ""
+    if not owner_sub:
+        raise HTTPException(status_code=401, detail="Unauthorized")
     bucket = settings.s3_bucket
     key = _safe_object_key(owner_sub)
 
     f = UploadFileModel(
         owner_sub=owner_sub,
+        owner_user_id=principal.user_id if principal.typ == "user" else None,
+        owner_anon_sub=principal.owner_sub if principal.typ == "guest" else None,
+        is_anonymous=principal.typ == "guest",
+        privacy="private",
         bucket=bucket,
         object_key=key,
         original_filename=upload.filename,
@@ -261,6 +358,16 @@ async def direct_upload(
         )
         job_id = None
 
+    log_event(
+        db,
+        "upload.created",
+        actor_user_id=principal.user_id,
+        actor_anon_sub=principal.owner_sub,
+        file_id=f.file_id,
+        data={"filename": f.original_filename, "size_bytes": int(f.size_bytes)},
+    )
+    db.commit()
+
     return FileOut(
         file_id=f.file_id,
         object_key=f.object_key,
@@ -280,15 +387,23 @@ def complete_upload(
     file_id: str,
     _data: CompleteIn,
     db: Session = Depends(get_db),
-    user: dict = Depends(_require_user),
+    principal: Principal = Depends(_require_principal),
 ):
     _feature_on()
-    owner_sub = str(user.get("sub") or "")
+    owner_sub = principal.owner_sub or principal.user_id or ""
+    if not owner_sub:
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
+    file_id = _normalize_file_id(file_id)
     f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
-    if f.owner_sub != owner_sub:
+    if principal.typ == "guest":
+        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
+            raise HTTPException(status_code=403, detail="Forbidden")
+    else:
+        if str(f.owner_user_id or "") != owner_sub:
+            raise HTTPException(status_code=403, detail="Forbidden")
         raise HTTPException(status_code=403, detail="Forbidden")
 
     s3 = s3_client()
@@ -355,14 +470,19 @@ def list_files(
     page_size: int = 20,
     include_hidden: bool = False,
     db: Session = Depends(get_db),
-    user: dict = Depends(_require_user),
+    principal: Principal = Depends(_require_principal),
 ):
     _feature_on()
     if page < 1 or page_size < 1 or page_size > 100:
         raise HTTPException(status_code=400, detail="Invalid pagination")
 
-    owner_sub = str(user.get("sub") or "")
-    q = db.query(UploadFileModel).filter(UploadFileModel.owner_sub == owner_sub)
+    owner_sub = principal.owner_sub or ""
+    if principal.typ == "guest":
+        q = db.query(UploadFileModel).filter(
+            (UploadFileModel.owner_anon_sub == owner_sub) | (UploadFileModel.owner_sub == owner_sub)
+        )
+    else:
+        q = db.query(UploadFileModel).filter(UploadFileModel.owner_user_id == principal.user_id)
     if not include_hidden:
         q = q.filter(UploadFileModel.visibility != "hidden")
     total = q.count()
@@ -405,14 +525,20 @@ def list_files(
 def get_file(
     file_id: str,
     db: Session = Depends(get_db),
-    user: dict = Depends(_require_user),
+    principal: Principal = Depends(_require_principal),
 ):
     _feature_on()
-    owner_sub = str(user.get("sub") or "")
+    owner_sub = principal.owner_sub or ""
+    file_id = _normalize_file_id(file_id)
     f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
-    if f.owner_sub != owner_sub:
+    if principal.typ == "guest":
+        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
+            raise HTTPException(status_code=403, detail="Forbidden")
+    else:
+        if str(f.owner_user_id or "") != principal.user_id:
+            raise HTTPException(status_code=403, detail="Forbidden")
         raise HTTPException(status_code=403, detail="Forbidden")
 
     gltf_url = None
@@ -436,23 +562,194 @@ def get_file(
         thumbnail_key=f.thumbnail_key,
         gltf_url=gltf_url,
         original_url=original_url,
+        lods=_build_lod_map(f),
         error=(f.meta or {}).get("error") if f.status == "failed" else None,
     )
+
+
+@router.get("/{file_id}/manifest")
+def file_manifest(
+    file_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(_require_principal),
+):
+    _feature_on()
+    owner_sub = principal.owner_sub or ""
+    file_id = _normalize_file_id(file_id)
+    f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
+    if not f:
+        raise HTTPException(status_code=404, detail="File not found")
+    if principal.typ == "guest":
+        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
+            raise HTTPException(status_code=403, detail="Forbidden")
+    else:
+        if str(f.owner_user_id or "") != principal.user_id:
+            raise HTTPException(status_code=403, detail="Forbidden")
+    lods = _build_lod_map(f)
+    return _build_scx_manifest(f, lods)
+
+
+@router.get("/{file_id}/scx")
+def download_scx(
+    file_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(_require_principal),
+):
+    _feature_on()
+    owner_sub = principal.owner_sub or ""
+    file_id = _normalize_file_id(file_id)
+    f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
+    if not f:
+        raise HTTPException(status_code=404, detail="File not found")
+    if principal.typ == "guest":
+        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
+            raise HTTPException(status_code=403, detail="Forbidden")
+    else:
+        if str(f.owner_user_id or "") != principal.user_id:
+            raise HTTPException(status_code=403, detail="Forbidden")
+    if f.status != "ready":
+        raise HTTPException(status_code=409, detail="File not ready")
+
+    lods = _build_lod_map(f)
+    manifest = _build_scx_manifest(f, lods)
+    s3 = s3_client()
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("scx/manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+        zf.writestr("scx/materials/material_profile.json", "{}\n")
+        zf.writestr("scx/view/camera_presets.json", "[]\n")
+        zf.writestr("scx/view/render_presets.json", "[]\n")
+        zf.writestr("scx/annotations/measurements.json", "[]\n")
+        zf.writestr("scx/annotations/notes.json", "[]\n")
+        zf.writestr("scx/security/hashes.json", "{}\n")
+
+        for lod_name, lod in lods.items():
+            key = lod.get("key")
+            if not isinstance(key, str) or not key:
+                continue
+            try:
+                obj = s3.get_object(Bucket=f.bucket, Key=key)
+                zf.writestr(f"scx/assets/lod/{lod_name}.glb", obj["Body"].read())
+            except Exception:
+                continue
+
+        if f.thumbnail_key:
+            try:
+                thumb = s3.get_object(Bucket=f.bucket, Key=f.thumbnail_key)["Body"].read()
+                zf.writestr("scx/assets/thumbs/preview.png", thumb)
+                zf.writestr("scx/assets/thumbs/shaded.png", thumb)
+                zf.writestr("scx/assets/thumbs/shaded_edge.png", thumb)
+                zf.writestr("scx/assets/thumbs/hiddenline.png", thumb)
+            except Exception:
+                pass
+
+    zip_buffer.seek(0)
+    headers = {"Content-Disposition": f'attachment; filename="{f.file_id}.scx"'}
+    return StreamingResponse(zip_buffer, media_type="application/zip", headers=headers)
+
+
+@router.get("/{file_id}/status", response_model=StatusOut)
+def file_status(
+    file_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(_require_principal),
+):
+    _feature_on()
+    owner_sub = principal.owner_sub or ""
+    file_id = _normalize_file_id(file_id)
+    f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
+    if not f:
+        raise HTTPException(status_code=404, detail="File not found")
+    if principal.typ == "guest":
+        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
+            raise HTTPException(status_code=403, detail="Forbidden")
+    else:
+        if str(f.owner_user_id or "") != principal.user_id:
+            raise HTTPException(status_code=403, detail="Forbidden")
+
+    status = (f.status or "").lower()
+    if status in {"pending", "queued"}:
+        state = "queued"
+    elif status in {"processing", "running"}:
+        state = "running"
+    elif status in {"ready", "succeeded"}:
+        state = "succeeded"
+    elif status == "failed":
+        state = "failed"
+    else:
+        state = "queued"
+
+    derivatives: list[str] = []
+    if f.gltf_key:
+        derivatives.append("gltf")
+    if f.thumbnail_key:
+        derivatives.append("thumbnail")
+    if f.content_type.startswith("image/") or f.content_type == "application/pdf":
+        if f.status == "ready":
+            derivatives.append("original")
+    if (f.original_filename or "").lower().endswith(".dxf"):
+        if f.status == "ready":
+            derivatives.append("dxf")
+
+    progress_hint = None
+    if f.meta and isinstance(f.meta, dict):
+        progress_hint = f.meta.get("progress")
+    if not progress_hint:
+        progress_hint = f.status
+
+    return StatusOut(state=state, derivatives_available=derivatives, progress_hint=progress_hint)
+
+
+@router.post("/{file_id}/render", response_model=RenderOut)
+def enqueue_render(
+    file_id: str,
+    data: RenderIn,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(_require_principal),
+):
+    _feature_on()
+    owner_sub = principal.owner_sub or ""
+    file_id = _normalize_file_id(file_id)
+    f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
+    if not f:
+        raise HTTPException(status_code=404, detail="File not found")
+    if principal.typ == "guest":
+        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
+            raise HTTPException(status_code=403, detail="Forbidden")
+    else:
+        if str(f.owner_user_id or "") != principal.user_id:
+            raise HTTPException(status_code=403, detail="Forbidden")
+    if f.status != "ready":
+        raise HTTPException(status_code=409, detail="File not ready")
+
+    from app.workers.tasks import enqueue_render_preset
+
+    job_id = enqueue_render_preset(f.file_id, data.preset)
+    f.meta = {**(f.meta or {}), "render_job_id": job_id}
+    db.add(f)
+    db.commit()
+    return RenderOut(job_id=job_id, preset=data.preset)
 
 
 @router.post("/{file_id}/download-url", response_model=UrlOut)
 def download_url(
     file_id: str,
     db: Session = Depends(get_db),
-    user: dict = Depends(_require_user),
+    principal: Principal = Depends(_require_principal),
 ):
     _feature_on()
-    owner_sub = str(user.get("sub") or "")
+    owner_sub = principal.owner_sub or ""
 
+    file_id = _normalize_file_id(file_id)
     f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
-    if f.owner_sub != owner_sub:
+    if principal.typ == "guest":
+        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
+            raise HTTPException(status_code=403, detail="Forbidden")
+    else:
+        if str(f.owner_user_id or "") != principal.user_id:
+            raise HTTPException(status_code=403, detail="Forbidden")
         raise HTTPException(status_code=403, detail="Forbidden")
     if f.status != "ready":
         raise HTTPException(status_code=409, detail="File not ready")
@@ -470,14 +767,20 @@ def download_url(
 def download_content(
     file_id: str,
     db: Session = Depends(get_db),
-    user: dict = Depends(_require_user),
+    principal: Principal = Depends(_require_principal),
 ):
     _feature_on()
-    owner_sub = str(user.get("sub") or "")
+    owner_sub = principal.owner_sub or ""
+    file_id = _normalize_file_id(file_id)
     f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
-    if f.owner_sub != owner_sub:
+    if principal.typ == "guest":
+        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
+            raise HTTPException(status_code=403, detail="Forbidden")
+    else:
+        if str(f.owner_user_id or "") != principal.user_id:
+            raise HTTPException(status_code=403, detail="Forbidden")
         raise HTTPException(status_code=403, detail="Forbidden")
     if f.status != "ready":
         raise HTTPException(status_code=409, detail="File not ready")
@@ -492,14 +795,20 @@ def download_content(
 def download_gltf(
     file_id: str,
     db: Session = Depends(get_db),
-    user: dict = Depends(_require_user),
+    principal: Principal = Depends(_require_principal),
 ):
     _feature_on()
-    owner_sub = str(user.get("sub") or "")
+    owner_sub = principal.owner_sub or ""
+    file_id = _normalize_file_id(file_id)
     f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
-    if f.owner_sub != owner_sub:
+    if principal.typ == "guest":
+        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
+            raise HTTPException(status_code=403, detail="Forbidden")
+    else:
+        if str(f.owner_user_id or "") != principal.user_id:
+            raise HTTPException(status_code=403, detail="Forbidden")
         raise HTTPException(status_code=403, detail="Forbidden")
     if f.status != "ready":
         raise HTTPException(status_code=409, detail="File not ready")
@@ -512,19 +821,63 @@ def download_gltf(
     return StreamingResponse(stream, media_type="model/gltf-binary")
 
 
+@router.get("/{file_id}/lod/{lod_name}")
+def download_lod(
+    file_id: str,
+    lod_name: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(_require_principal),
+):
+    _feature_on()
+    owner_sub = principal.owner_sub or ""
+    file_id = _normalize_file_id(file_id)
+    if lod_name not in {"lod0", "lod1", "lod2"}:
+        raise HTTPException(status_code=400, detail="Invalid LOD")
+    f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
+    if not f:
+        raise HTTPException(status_code=404, detail="File not found")
+    if principal.typ == "guest":
+        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
+            raise HTTPException(status_code=403, detail="Forbidden")
+    else:
+        if str(f.owner_user_id or "") != principal.user_id:
+            raise HTTPException(status_code=403, detail="Forbidden")
+    if f.status != "ready":
+        raise HTTPException(status_code=409, detail="File not ready")
+
+    lods = _build_lod_map(f)
+    lod = lods.get(lod_name)
+    if not lod:
+        raise HTTPException(status_code=404, detail="LOD not found")
+    key = lod.get("key")
+    if not isinstance(key, str) or not key:
+        raise HTTPException(status_code=404, detail="LOD key not found")
+
+    s3 = s3_client()
+    obj = s3.get_object(Bucket=f.bucket, Key=key)
+    stream = obj["Body"].iter_chunks()
+    return StreamingResponse(stream, media_type="model/gltf-binary")
+
+
 @router.patch("/{file_id}/visibility", response_model=FileOut)
 def update_visibility(
     file_id: str,
     data: VisibilityIn,
     db: Session = Depends(get_db),
-    user: dict = Depends(_require_user),
+    principal: Principal = Depends(_require_principal),
 ):
     _feature_on()
-    owner_sub = str(user.get("sub") or "")
+    owner_sub = principal.owner_sub or ""
+    file_id = _normalize_file_id(file_id)
     f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
-    if f.owner_sub != owner_sub:
+    if principal.typ == "guest":
+        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
+            raise HTTPException(status_code=403, detail="Forbidden")
+    else:
+        if str(f.owner_user_id or "") != principal.user_id:
+            raise HTTPException(status_code=403, detail="Forbidden")
         raise HTTPException(status_code=403, detail="Forbidden")
 
     f.visibility = data.visibility
@@ -555,14 +908,20 @@ def _is_dxf(filename: str) -> bool:
 def dxf_manifest(
     file_id: str,
     db: Session = Depends(get_db),
-    user: dict = Depends(_require_user),
+    principal: Principal = Depends(_require_principal),
 ):
     _feature_on()
-    owner_sub = str(user.get("sub") or "")
+    owner_sub = principal.owner_sub or ""
+    file_id = _normalize_file_id(file_id)
     f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
-    if f.owner_sub != owner_sub:
+    if principal.typ == "guest":
+        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
+            raise HTTPException(status_code=403, detail="Forbidden")
+    else:
+        if str(f.owner_user_id or "") != principal.user_id:
+            raise HTTPException(status_code=403, detail="Forbidden")
         raise HTTPException(status_code=403, detail="Forbidden")
     if f.status != "ready":
         raise HTTPException(status_code=409, detail="File not ready")
@@ -584,14 +943,20 @@ def dxf_render(
     file_id: str,
     layers: str | None = None,
     db: Session = Depends(get_db),
-    user: dict = Depends(_require_user),
+    principal: Principal = Depends(_require_principal),
 ):
     _feature_on()
-    owner_sub = str(user.get("sub") or "")
+    owner_sub = principal.owner_sub or ""
+    file_id = _normalize_file_id(file_id)
     f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
-    if f.owner_sub != owner_sub:
+    if principal.typ == "guest":
+        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
+            raise HTTPException(status_code=403, detail="Forbidden")
+    else:
+        if str(f.owner_user_id or "") != principal.user_id:
+            raise HTTPException(status_code=403, detail="Forbidden")
         raise HTTPException(status_code=403, detail="Forbidden")
     if f.status != "ready":
         raise HTTPException(status_code=409, detail="File not ready")

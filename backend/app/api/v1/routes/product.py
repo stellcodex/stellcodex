@@ -4,10 +4,12 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File as FastFile, HTTPException, UploadFile
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.core.config import settings
+from app.core.render_presets import get_render_preset
 from app.core.storage import get_s3_client, get_s3_presign_client
 from app.models.core import File, FileKind, Job, JobStatus, JobType, Project, Revision
 from app.queue import get_queue
@@ -16,8 +18,19 @@ from app.storage import Storage, storage_key_for_2d, storage_key_for_3d
 from app.utils import revision_label
 from app.workers.cad_worker import process_cad_lod0
 from app.workers.drawing_worker import process_drawing
+from app.workers.render_worker import process_render
 
 router = APIRouter(tags=["product"])
+
+
+class RenderRequest(BaseModel):
+    revision_id: UUID
+    preset: str
+
+
+class RenderResponse(BaseModel):
+    job_id: UUID
+    preset: str
 
 
 @router.post("/upload", response_model=UploadResponse)
@@ -154,3 +167,21 @@ def status(revision_id: UUID, db: Session = Depends(get_db)):
             for a in artifacts
         ],
     )
+
+@router.post("/render", response_model=RenderResponse)
+def render(request: RenderRequest, db: Session = Depends(get_db)):
+    preset = get_render_preset(request.preset)
+    revision = db.get(Revision, request.revision_id)
+    if revision is None:
+        raise HTTPException(status_code=404, detail="revision not found")
+
+    job = Job(revision_id=revision.id, type=JobType.RENDER, status=JobStatus.QUEUED, queue="render")
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    q = get_queue("render")
+    q.enqueue(process_render, str(job.id), preset.name, job_id=str(job.id))
+
+    return RenderResponse(job_id=job.id, preset=preset.name)
+

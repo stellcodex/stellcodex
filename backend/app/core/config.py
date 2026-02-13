@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Optional, List
 
-from pydantic import AnyUrl, Field
+from pydantic import AnyUrl, Field, AliasChoices, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,12 +17,21 @@ class Settings(BaseSettings):
 
     # REQUIRED
     database_url: AnyUrl = Field(..., validation_alias="DATABASE_URL")
-    jwt_secret: str = Field(..., min_length=32, validation_alias="JWT_SECRET")
+    jwt_secret: str | None = Field(
+        default=None,
+        min_length=32,
+        validation_alias=AliasChoices("JWT_SECRET", "SECRET_KEY", "APP_SECRET", "SIGNING_KEY"),
+    )
     jwt_alg: str = Field(default="HS256", validation_alias="JWT_ALG")
 
     # Token settings
     access_token_minutes: int = Field(default=30, validation_alias="ACCESS_TOKEN_MINUTES")
     refresh_token_days: int = Field(default=14, validation_alias="REFRESH_TOKEN_DAYS")
+
+
+    # Admin bootstrap
+    bootstrap_admin_email: str | None = Field(default=None, validation_alias="BOOTSTRAP_ADMIN_EMAIL")
+    bootstrap_admin_token: str | None = Field(default=None, validation_alias="BOOTSTRAP_ADMIN_TOKEN")
 
     # OPTIONAL infra
     redis_url: Optional[AnyUrl] = Field(default=None, validation_alias="REDIS_URL")
@@ -52,19 +61,40 @@ class Settings(BaseSettings):
         return [x.strip() for x in raw.split(",") if x.strip()]
 
     # S3 / MinIO (optional)
-    s3_endpoint_url: Optional[str] = Field(default=None, validation_alias="STELLCODEX_S3_ENDPOINT_URL")
+    s3_endpoint_url: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("STELLCODEX_S3_ENDPOINT_URL", "MINIO_ENDPOINT"),
+    )
     s3_region: Optional[str] = Field(default=None, validation_alias="STELLCODEX_S3_REGION")
-    s3_bucket: Optional[str] = Field(default=None, validation_alias="STELLCODEX_S3_BUCKET")
-    s3_access_key_id: Optional[str] = Field(default=None, validation_alias="STELLCODEX_S3_ACCESS_KEY_ID")
-    s3_secret_access_key: Optional[str] = Field(default=None, validation_alias="STELLCODEX_S3_SECRET_ACCESS_KEY")
+    s3_bucket: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("STELLCODEX_S3_BUCKET", "MINIO_BUCKET"),
+    )
+    s3_access_key_id: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("STELLCODEX_S3_ACCESS_KEY_ID", "MINIO_ACCESS_KEY"),
+    )
+    s3_secret_access_key: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("STELLCODEX_S3_SECRET_ACCESS_KEY", "MINIO_SECRET_KEY"),
+    )
     s3_use_ssl: bool = Field(default=False, validation_alias="STELLCODEX_S3_USE_SSL")
     s3_verify_tls: bool = Field(default=True, validation_alias="STELLCODEX_S3_VERIFY_TLS")
     s3_force_path_style: bool = Field(default=True, validation_alias="STELLCODEX_S3_FORCE_PATH_STYLE")
-    public_s3_base_url: Optional[AnyUrl] = Field(default=None, validation_alias="PUBLIC_S3_BASE_URL")
+    public_s3_base_url: Optional[AnyUrl] = Field(
+        default=None,
+        validation_alias=AliasChoices("PUBLIC_S3_BASE_URL", "STORAGE_PUBLIC_BASE_URL"),
+    )
 
     @property
     def s3_enabled(self) -> bool:
         return all([self.s3_endpoint_url, self.s3_bucket, self.s3_access_key_id, self.s3_secret_access_key])
+
+    @model_validator(mode="after")
+    def _ensure_jwt_secret(self):
+        if not self.jwt_secret:
+            raise ValueError("JWT secret env missing: set JWT_SECRET or SECRET_KEY")
+        return self
 
     # ---- Legacy aliases (unused) ----
     @property
