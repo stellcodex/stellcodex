@@ -1,0 +1,69 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String?  @unique
+  createdAt DateTime @default(now())
+}
+
+model Project {
+  id        String   @id @default(cuid())
+  name      String
+  ownerId   String?
+  createdAt DateTime @default(now())
+}
+
+model Folder {
+  id        String   @id @default(cuid())
+  projectId String
+  name      String
+  parentId  String?
+  isSystem  Boolean  @default(false)
+  systemKey String?
+  createdAt DateTime @default(now())
+}
+
+model File {
+  id        String   @id @default(cuid())
+  projectId String
+  folderId  String
+  name      String
+  ext       String
+  mime      String
+  sizeBytes BigInt
+  kind      String
+  engine    String
+  storageKey String
+  createdAt DateTime @default(now())
+}
+
+model Job {
+  id        String   @id @default(cuid())
+  fileId    String
+  status    String
+  stage     String
+  progress  Int      @default(0)
+  error     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ShareLink {
+  id           String   @id @default(cuid())
+  fileId        String
+  token         String   @unique
+  canView       Boolean  @default(true)
+  canDownload   Boolean  @default(false)
+  passwordHash  String?
+  expiresAt     DateTime?
+  createdAt     DateTime @default(now())
+}
+

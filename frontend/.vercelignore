@@ -1,0 +1,7 @@
+.next
+node_modules
+_backups_*
+*.bak
+*.bak.*
+STELLCODEX_TAM_DURUM_RAPORU_*.doc
+

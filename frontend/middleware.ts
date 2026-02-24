@@ -22,6 +22,7 @@ function hasPerm(perms: string[], required: string): boolean {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   if (!pathname.startsWith("/admin")) return NextResponse.next();
+  if (process.env.STELLCODEX_ENABLE_MOCK_ADMIN === "1") return NextResponse.next();
 
   const token = req.cookies.get("admin_session")?.value;
   if (!token) {
@@ -34,7 +35,8 @@ export async function middleware(req: NextRequest) {
   const required = requiredPermFor(pathname);
   if (!required) return NextResponse.next();
 
-  const meResp = await fetch(`${req.nextUrl.origin}/api/v1/admin/auth/me`, {
+  const apiBase = resolveApiBase(req);
+  const meResp = await fetch(`${apiBase}/admin/auth/me`, {
     headers: { Authorization: `Bearer ${token}` },
   });
 
@@ -53,6 +55,13 @@ export async function middleware(req: NextRequest) {
   }
 
   return NextResponse.next();
+}
+
+function resolveApiBase(req: NextRequest): string {
+  const raw = (process.env.NEXT_PUBLIC_API_URL || "").trim().replace(/\/+$/, "");
+  if (!raw) return `${req.nextUrl.origin}/api/v1`;
+  if (raw.endsWith("/api/v1")) return raw;
+  return `${raw}/api/v1`;
 }
 
 export const config = {
