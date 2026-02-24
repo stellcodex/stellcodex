@@ -4,13 +4,23 @@
 Use Neon connection strings with `sslmode=require` and endpoint option:
 
 ```env
-DATABASE_URL=postgresql://USER:PASS@POOLED_HOST/neondb?sslmode=require&options=endpoint%3D<endpoint>
-DIRECT_URL=postgresql://USER:PASS@DIRECT_HOST/neondb?sslmode=require&options=endpoint%3D<endpoint>
+DATABASE_URL=postgresql://USER:PASS@POOLED_HOST/neondb?sslmode=require&schema=stellcodex_prod&options=endpoint%3D<endpoint>
+DIRECT_URL=postgresql://USER:PASS@DIRECT_HOST/neondb?sslmode=require&schema=stellcodex_prod&options=endpoint%3D<endpoint>
 STELLCODEX_ENABLE_MOCK_ADMIN=1   # local demo
 STELLCODEX_ENABLE_MOCK_ADMIN=0   # production
 NEXT_PUBLIC_API_URL=https://api.stellcodex.com
 NEXT_PUBLIC_API_BASE=https://api.stellcodex.com   # optional legacy alias
 ```
+
+## PROD Schema MUST Be Fixed
+- PROD must use a fixed schema name: `stellcodex_prod`
+- SMOKE/LOCAL may use timestamp schemas (ephemeral), e.g. `stellcodex_ui_smoke_<timestamp>`
+- `prisma migrate deploy` should use `DIRECT_URL`
+- App runtime should use `DATABASE_URL`
+
+Alternative Neon schema encoding:
+- Method A (query param): `...&schema=stellcodex_prod&options=endpoint%3D<endpoint>`
+- Method B (search_path via options): `...&options=endpoint%3D<endpoint>%20-c%20search_path%3Dstellcodex_prod`
 
 ## 2) Install Prisma (if missing)
 ```bash
@@ -29,8 +39,13 @@ npm run prisma:seed
 ```bash
 npm run prisma:generate
 npm run prisma:migrate:deploy
-npm run prisma:seed
+ALLOW_PROD_SEED=1 npm run prisma:seed
+# or
+npm run prisma:seed:prod
 ```
+
+Seed guard note:
+- `prisma/seed.js` refuses to run in `NODE_ENV=production` unless `ALLOW_PROD_SEED=1`
 
 ## 5) Seed Produces
 - Project: `Genel`

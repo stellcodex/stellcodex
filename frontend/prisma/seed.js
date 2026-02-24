@@ -1,4 +1,12 @@
 /* eslint-disable no-console */
+if (process.env.NODE_ENV === "production" && process.env.ALLOW_PROD_SEED !== "1") {
+  console.error(
+    "[seed-guard] Refusing to run seed in production without ALLOW_PROD_SEED=1. " +
+      "Use: ALLOW_PROD_SEED=1 npm run prisma:seed"
+  );
+  process.exit(1);
+}
+
 const { PrismaClient } = require("@prisma/client");
 
 const prisma = new PrismaClient();
@@ -96,4 +104,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-

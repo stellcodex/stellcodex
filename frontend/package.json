@@ -18,7 +18,8 @@
     "prisma:generate": "node scripts/prisma-safe.cjs generate",
     "prisma:migrate:dev": "node scripts/prisma-safe.cjs migrate dev",
     "prisma:migrate:deploy": "node scripts/prisma-safe.cjs migrate deploy",
-    "prisma:seed": "node scripts/prisma-safe.cjs db seed"
+    "prisma:seed": "node scripts/prisma-safe.cjs db seed",
+    "prisma:seed:prod": "ALLOW_PROD_SEED=1 NODE_ENV=production node scripts/prisma-safe.cjs db seed"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

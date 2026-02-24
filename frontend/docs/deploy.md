@@ -33,11 +33,29 @@
    - `NEXT_PUBLIC_API_URL=https://api.stellcodex.com`
    - `NEXT_PUBLIC_API_BASE=https://api.stellcodex.com` (optional legacy alias)
    - `STELLCODEX_ENABLE_MOCK_ADMIN=0`
-   - `DATABASE_URL=postgresql://USER:PASSWORD@POOLED_HOST/neondb?sslmode=require&options=endpoint%3DNEON_ENDPOINT`
-   - `DIRECT_URL=postgresql://USER:PASSWORD@DIRECT_HOST/neondb?sslmode=require&options=endpoint%3DNEON_ENDPOINT`
+   - `DATABASE_URL=postgresql://USER:PASSWORD@POOLED_HOST/neondb?sslmode=require&schema=stellcodex_prod&options=endpoint%3DNEON_ENDPOINT`
+   - `DIRECT_URL=postgresql://USER:PASSWORD@DIRECT_HOST/neondb?sslmode=require&schema=stellcodex_prod&options=endpoint%3DNEON_ENDPOINT`
+
+## PROD Schema MUST Be Fixed
+- Production schema must be a fixed name: `stellcodex_prod`
+- Runtime uses `DATABASE_URL` (pooled Neon)
+- Migration deploy uses `DIRECT_URL` (direct Neon)
+- Local/smoke runs may use timestamp schemas (ephemeral)
+
+Schema examples (Neon):
+- Method A (query param):
+  - `...?...sslmode=require&schema=stellcodex_prod&options=endpoint%3DNEON_ENDPOINT`
+- Method B (search_path in options):
+  - `...?...sslmode=require&options=endpoint%3DNEON_ENDPOINT%20-c%20search_path%3Dstellcodex_prod`
 
 ## Notes
 - This patch completes Share/View/Mold/Home UI with mock Next API routes for deterministic UX.
 - Route hygiene is enforced by middleware allowlist. Legacy routes stay in repo but return `404` at runtime.
 - Existing backend client uses `NEXT_PUBLIC_API_URL` (and middleware also supports optional `NEXT_PUBLIC_API_BASE` alias).
 - Build runs `node scripts/prisma-safe.cjs && next build` so Prisma generate is skipped only when packages/env are missing.
+
+## Rollback (Vercel)
+1. Vercel Dashboard -> Project -> `Deployments`
+2. Open the previous successful deployment
+3. Click `Promote to Production` (or equivalent)
+4. If DNS is unchanged, rollback is effective immediately after promotion
