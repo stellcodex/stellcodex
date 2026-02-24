@@ -16,3 +16,5 @@ This bundle is a production-grade skeleton that enforces V7 as the *single* bind
 
 Canonical constitution:
 docs/constitution/STELLCODEX_V7_MASTER.md
+
+redeploy trigger
