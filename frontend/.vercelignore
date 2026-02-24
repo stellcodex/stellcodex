@@ -1,7 +1,10 @@
 .next
 node_modules
 _backups_*
+tmp
+tmp/**
+public/uploads
+public/uploads/**
 *.bak
 *.bak.*
 STELLCODEX_TAM_DURUM_RAPORU_*.doc
-

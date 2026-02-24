@@ -7,7 +7,7 @@
     "dev:clean": "node -e \"const {execSync}=require('child_process'); const fs=require('fs'); try{execSync('fuser -k 3010/tcp || true',{stdio:'inherit'});}catch(e){}; try{fs.rmSync('.next/dev/lock',{force:true});}catch(e){}\"",
     "dev:ports": "ss -ltnp | egrep ':3000|:3010|:3002' || true",
     "dev:verify": "ss -ltnp | egrep ':3000|:3010' || true && curl -I http://127.0.0.1:3010/ | head -n 5 && curl -I http://127.0.0.1:3000/ | head -n 5 && curl -I http://$(hostname -I | awk '{print $1}'):3000/ | head -n 5",
-    "build": "node scripts/maybe-prisma-generate.cjs && next build",
+    "build": "node scripts/prisma-safe.cjs && next build",
     "start": "next start",
     "lint": "eslint",
     "gen:access": "TS_NODE_COMPILER_OPTIONS='{ \"module\": \"CommonJS\" }' ts-node scripts/generate-access-control.ts",
@@ -15,20 +15,25 @@
     "rbac:validate-routes": "python3 ../infrastructure/scripts/validate_route_permissions.py",
     "prebuild": "npm run gen:access && npm run rbac:validate && (npm run rbac:validate-routes || echo '[warn] route permission validation skipped for new STELLCODEX routes')",
     "postinstall": "node scripts/maybe-prisma-generate.cjs",
-    "db:migrate:deploy": "node scripts/prisma-safe.cjs migrate deploy",
-    "db:seed": "node scripts/prisma-safe.cjs db seed"
+    "prisma:generate": "node scripts/prisma-safe.cjs generate",
+    "prisma:migrate:dev": "node scripts/prisma-safe.cjs migrate dev",
+    "prisma:migrate:deploy": "node scripts/prisma-safe.cjs migrate deploy",
+    "prisma:seed": "node scripts/prisma-safe.cjs db seed"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   },
   "engines": {
     "node": ">=20.18.0 <23"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.2",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
     "clsx": "^2.1.1",
     "nanoid": "^5.1.6",
     "next": "16.1.6",
     "next-auth": "^4.24.7",
-    "@prisma/client": "^6.6.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "tailwind-merge": "^3.4.0",
@@ -46,7 +51,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "postcss": "^8.5.6",
-    "prisma": "^6.6.0",
+    "prisma": "^6.19.2",
     "tailwindcss": "^4.1.18",
     "ts-node": "^10.9.2",
     "typescript": "^5"

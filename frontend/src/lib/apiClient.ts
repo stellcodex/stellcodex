@@ -24,15 +24,27 @@ export class ApiTimeoutError extends Error {
   }
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "/api/v1";
+const API_VERSION_PATH = "/api/v1";
+const API_BASE = resolveApiBase(process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE);
 const DEFAULT_TIMEOUT_MS = 15_000;
 
 export function getApiBase() {
   return API_BASE;
 }
 
+function resolveApiBase(raw: string | undefined) {
+  const value = (raw || "").trim().replace(/\/+$/, "");
+  if (!value) return API_VERSION_PATH;
+  if (value === API_VERSION_PATH || value.endsWith(API_VERSION_PATH)) return value;
+  return `${value}${API_VERSION_PATH}`;
+}
+
 function resolveApiUrl(path: string) {
   if (/^https?:\/\//i.test(path)) return path;
+  if (path === API_VERSION_PATH || path.startsWith(`${API_VERSION_PATH}/`)) {
+    if (API_BASE === API_VERSION_PATH) return path;
+    return `${API_BASE}${path.slice(API_VERSION_PATH.length)}`;
+  }
   if (path === API_BASE || path.startsWith(`${API_BASE}/`)) return path;
   if (path.startsWith("/")) return `${API_BASE}${path}`;
   return `${API_BASE}/${path}`;
