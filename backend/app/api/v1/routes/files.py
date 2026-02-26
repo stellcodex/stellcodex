@@ -72,6 +72,151 @@ def _safe_object_key(owner_sub: str) -> str:
     return f"uploads/{owner_sub}/{uuid4()}/original"
 
 
+def _assert_file_access(f: UploadFileModel, principal: Principal) -> None:
+    if principal.typ == "guest":
+        owner_sub = principal.owner_sub or ""
+        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
+            raise HTTPException(status_code=403, detail="Forbidden")
+        return
+
+    if str(f.owner_user_id or "") != str(principal.user_id or ""):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+
+def _is_numeric_scalar(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _is_placeholder_map(data: dict[str, Any]) -> bool:
+    if bool(data.get("placeholder")) or bool(data.get("is_placeholder")):
+        return True
+    status = data.get("status")
+    if isinstance(status, str) and status.strip().lower() == "placeholder":
+        return True
+    kind = data.get("kind")
+    if isinstance(kind, str) and kind.strip().lower() == "placeholder":
+        return True
+    return False
+
+
+def _bbox_has_numeric_bounds(bbox: dict[str, Any]) -> bool:
+    keys_3d = ("min_x", "min_y", "min_z", "max_x", "max_y", "max_z")
+    if all(_is_numeric_scalar(bbox.get(key)) for key in keys_3d):
+        return True
+
+    keys_2d = ("min_x", "min_y", "max_x", "max_y")
+    if all(_is_numeric_scalar(bbox.get(key)) for key in keys_2d):
+        return True
+
+    min_vec = bbox.get("min")
+    max_vec = bbox.get("max")
+    if (
+        isinstance(min_vec, (list, tuple))
+        and isinstance(max_vec, (list, tuple))
+        and len(min_vec) == len(max_vec)
+        and len(min_vec) in {2, 3}
+        and all(_is_numeric_scalar(v) for v in min_vec)
+        and all(_is_numeric_scalar(v) for v in max_vec)
+    ):
+        return True
+
+    return False
+
+
+def _clean_bbox(bbox: dict[str, Any]) -> dict[str, Any]:
+    if _is_placeholder_map(bbox):
+        return {}
+    cleaned = {k: v for k, v in bbox.items() if k not in {"placeholder", "is_placeholder"}}
+    if not _bbox_has_numeric_bounds(cleaned):
+        return {}
+    return cleaned
+
+
+def _clean_lod_stats(lod_stats: dict[str, Any]) -> dict[str, Any]:
+    if _is_placeholder_map(lod_stats):
+        return {}
+    cleaned: dict[str, Any] = {}
+    for key, value in lod_stats.items():
+        if key in {"placeholder", "is_placeholder"}:
+            continue
+        if isinstance(value, dict):
+            if _is_placeholder_map(value):
+                continue
+            nested = {k: v for k, v in value.items() if k not in {"placeholder", "is_placeholder"}}
+            if nested:
+                cleaned[key] = nested
+            continue
+        cleaned[key] = value
+    return cleaned
+
+
+def _coerce_bbox(meta: dict[str, Any]) -> dict[str, Any]:
+    bbox = meta.get("bbox")
+    if isinstance(bbox, dict):
+        cleaned_bbox = _clean_bbox(bbox)
+        if cleaned_bbox:
+            return cleaned_bbox
+
+    nested = meta.get("metadata")
+    if isinstance(nested, dict):
+        nested_bbox = nested.get("bbox")
+        if isinstance(nested_bbox, dict):
+            cleaned_nested_bbox = _clean_bbox(nested_bbox)
+            if cleaned_nested_bbox:
+                return cleaned_nested_bbox
+
+    return {}
+
+
+def _coerce_lod_stats(meta: dict[str, Any]) -> dict[str, Any]:
+    lod_stats = meta.get("lod_stats")
+    if isinstance(lod_stats, dict):
+        cleaned_lod_stats = _clean_lod_stats(lod_stats)
+        if cleaned_lod_stats:
+            return cleaned_lod_stats
+
+    nested = meta.get("metadata")
+    if not isinstance(nested, dict):
+        return {}
+
+    lod0: dict[str, Any] = {}
+    faces = nested.get("faces")
+    if isinstance(faces, int):
+        lod0["triangle_count"] = faces
+    vertices = nested.get("vertices")
+    if isinstance(vertices, int):
+        lod0["vertex_count"] = vertices
+    meshes = nested.get("meshes")
+    if isinstance(meshes, int):
+        lod0["mesh_count_assimp"] = meshes
+
+    return {"lod0": lod0} if lod0 else {}
+
+
+def _count_parts_in_tree(nodes: Any) -> int:
+    if not isinstance(nodes, list):
+        return 0
+
+    def _walk(items: list[Any]) -> int:
+        total = 0
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            children = item.get("children")
+            explicit = item.get("part_count")
+            kind = str(item.get("kind") or "").lower()
+            has_children = isinstance(children, list) and len(children) > 0
+            if isinstance(explicit, int) and explicit >= 0 and not has_children:
+                total += explicit
+            elif kind == "part":
+                total += 1
+            if isinstance(children, list):
+                total += _walk(children)
+        return total
+
+    return _walk(nodes)
+
+
 def _triangles_from_meta(f: UploadFileModel, lod_name: str) -> int | None:
     meta = f.meta or {}
     stats = meta.get("lod_stats")
@@ -119,8 +264,15 @@ def _build_scx_manifest(f: UploadFileModel, lods: dict[str, dict[str, Any]]) -> 
     meta = f.meta or {}
     defaults = meta.get("defaults") if isinstance(meta.get("defaults"), dict) else {}
     assembly_tree = meta.get("assembly_tree") if isinstance(meta.get("assembly_tree"), list) else []
-    bbox = meta.get("bbox") if isinstance(meta.get("bbox"), dict) else {}
-    lod_stats = meta.get("lod_stats") if isinstance(meta.get("lod_stats"), dict) else {}
+    bbox = _coerce_bbox(meta)
+    lod_stats = _coerce_lod_stats(meta)
+    part_count = _count_parts_in_tree(assembly_tree)
+    if part_count:
+        lod0_stats = lod_stats.get("lod0") if isinstance(lod_stats.get("lod0"), dict) else {}
+        lod_stats = {
+            **lod_stats,
+            "lod0": {**lod0_stats, "part_count": int(lod0_stats.get("part_count") or part_count)},
+        }
 
     lod_paths: dict[str, str] = {}
     for lod_name in ("lod0", "lod1", "lod2"):
@@ -147,6 +299,7 @@ def _build_scx_manifest(f: UploadFileModel, lods: dict[str, dict[str, Any]]) -> 
         },
         "assembly_tree": assembly_tree,
         "stats": lod_stats,
+        "part_count": part_count or None,
     }
 
 
@@ -398,13 +551,7 @@ def complete_upload(
     f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
-    if principal.typ == "guest":
-        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
-            raise HTTPException(status_code=403, detail="Forbidden")
-    else:
-        if str(f.owner_user_id or "") != owner_sub:
-            raise HTTPException(status_code=403, detail="Forbidden")
-        raise HTTPException(status_code=403, detail="Forbidden")
+    _assert_file_access(f, principal)
 
     s3 = s3_client()
     try:
@@ -533,13 +680,7 @@ def get_file(
     f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
-    if principal.typ == "guest":
-        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
-            raise HTTPException(status_code=403, detail="Forbidden")
-    else:
-        if str(f.owner_user_id or "") != principal.user_id:
-            raise HTTPException(status_code=403, detail="Forbidden")
-        raise HTTPException(status_code=403, detail="Forbidden")
+    _assert_file_access(f, principal)
 
     gltf_url = None
     original_url = None
@@ -579,12 +720,7 @@ def file_manifest(
     f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
-    if principal.typ == "guest":
-        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
-            raise HTTPException(status_code=403, detail="Forbidden")
-    else:
-        if str(f.owner_user_id or "") != principal.user_id:
-            raise HTTPException(status_code=403, detail="Forbidden")
+    _assert_file_access(f, principal)
     lods = _build_lod_map(f)
     return _build_scx_manifest(f, lods)
 
@@ -601,12 +737,7 @@ def download_scx(
     f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
-    if principal.typ == "guest":
-        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
-            raise HTTPException(status_code=403, detail="Forbidden")
-    else:
-        if str(f.owner_user_id or "") != principal.user_id:
-            raise HTTPException(status_code=403, detail="Forbidden")
+    _assert_file_access(f, principal)
     if f.status != "ready":
         raise HTTPException(status_code=409, detail="File not ready")
 
@@ -660,12 +791,7 @@ def file_status(
     f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
-    if principal.typ == "guest":
-        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
-            raise HTTPException(status_code=403, detail="Forbidden")
-    else:
-        if str(f.owner_user_id or "") != principal.user_id:
-            raise HTTPException(status_code=403, detail="Forbidden")
+    _assert_file_access(f, principal)
 
     status = (f.status or "").lower()
     if status in {"pending", "queued"}:
@@ -713,12 +839,7 @@ def enqueue_render(
     f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
-    if principal.typ == "guest":
-        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
-            raise HTTPException(status_code=403, detail="Forbidden")
-    else:
-        if str(f.owner_user_id or "") != principal.user_id:
-            raise HTTPException(status_code=403, detail="Forbidden")
+    _assert_file_access(f, principal)
     if f.status != "ready":
         raise HTTPException(status_code=409, detail="File not ready")
 
@@ -744,13 +865,7 @@ def download_url(
     f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
-    if principal.typ == "guest":
-        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
-            raise HTTPException(status_code=403, detail="Forbidden")
-    else:
-        if str(f.owner_user_id or "") != principal.user_id:
-            raise HTTPException(status_code=403, detail="Forbidden")
-        raise HTTPException(status_code=403, detail="Forbidden")
+    _assert_file_access(f, principal)
     if f.status != "ready":
         raise HTTPException(status_code=409, detail="File not ready")
 
@@ -775,13 +890,7 @@ def download_content(
     f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
-    if principal.typ == "guest":
-        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
-            raise HTTPException(status_code=403, detail="Forbidden")
-    else:
-        if str(f.owner_user_id or "") != principal.user_id:
-            raise HTTPException(status_code=403, detail="Forbidden")
-        raise HTTPException(status_code=403, detail="Forbidden")
+    _assert_file_access(f, principal)
     if f.status != "ready":
         raise HTTPException(status_code=409, detail="File not ready")
 
@@ -803,13 +912,7 @@ def download_gltf(
     f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
-    if principal.typ == "guest":
-        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
-            raise HTTPException(status_code=403, detail="Forbidden")
-    else:
-        if str(f.owner_user_id or "") != principal.user_id:
-            raise HTTPException(status_code=403, detail="Forbidden")
-        raise HTTPException(status_code=403, detail="Forbidden")
+    _assert_file_access(f, principal)
     if f.status != "ready":
         raise HTTPException(status_code=409, detail="File not ready")
     if not f.gltf_key:
@@ -836,12 +939,7 @@ def download_lod(
     f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
-    if principal.typ == "guest":
-        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
-            raise HTTPException(status_code=403, detail="Forbidden")
-    else:
-        if str(f.owner_user_id or "") != principal.user_id:
-            raise HTTPException(status_code=403, detail="Forbidden")
+    _assert_file_access(f, principal)
     if f.status != "ready":
         raise HTTPException(status_code=409, detail="File not ready")
 
@@ -872,13 +970,7 @@ def update_visibility(
     f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
-    if principal.typ == "guest":
-        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
-            raise HTTPException(status_code=403, detail="Forbidden")
-    else:
-        if str(f.owner_user_id or "") != principal.user_id:
-            raise HTTPException(status_code=403, detail="Forbidden")
-        raise HTTPException(status_code=403, detail="Forbidden")
+    _assert_file_access(f, principal)
 
     f.visibility = data.visibility
     f.updated_at = _now()
@@ -916,13 +1008,7 @@ def dxf_manifest(
     f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
-    if principal.typ == "guest":
-        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
-            raise HTTPException(status_code=403, detail="Forbidden")
-    else:
-        if str(f.owner_user_id or "") != principal.user_id:
-            raise HTTPException(status_code=403, detail="Forbidden")
-        raise HTTPException(status_code=403, detail="Forbidden")
+    _assert_file_access(f, principal)
     if f.status != "ready":
         raise HTTPException(status_code=409, detail="File not ready")
     if not _is_dxf(f.original_filename):
@@ -951,13 +1037,7 @@ def dxf_render(
     f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
-    if principal.typ == "guest":
-        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
-            raise HTTPException(status_code=403, detail="Forbidden")
-    else:
-        if str(f.owner_user_id or "") != principal.user_id:
-            raise HTTPException(status_code=403, detail="Forbidden")
-        raise HTTPException(status_code=403, detail="Forbidden")
+    _assert_file_access(f, principal)
     if f.status != "ready":
         raise HTTPException(status_code=409, detail="File not ready")
     if not _is_dxf(f.original_filename):
