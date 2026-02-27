@@ -11,9 +11,19 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { tokens } from "@/lib/tokens";
 import { SCX_ID_REGEX } from "@/data/system-constants";
 import { DxfViewer } from "@/components/viewer/DxfViewer";
-import { ThreeViewer, RenderMode, ProjectionMode, ViewerNode } from "@/components/viewer/ThreeViewer";
+import { ThreeViewer, RenderMode, ProjectionMode } from "@/components/viewer/ThreeViewer";
 import { CAMERA_PRESETS, QUALITY_DEFAULT, QUALITY_TO_LOD, QualityLevel, VIEWER_MODE_LABEL, VIEWER_MODE_ORDER } from "@/components/viewer/viewer-quality-config";
-import { createShare, downloadScx, fetchAuthedBlobUrl, getFile, getFileStatus, FileDetail } from "@/services/api";
+import {
+  createShare,
+  downloadScx,
+  fetchAuthedBlobUrl,
+  getFile,
+  getFileManifest,
+  getFileStatus,
+  AssemblyTreeNode,
+  FileDetail,
+  FileManifest,
+} from "@/services/api";
 
 const STATUS_POLL_MS = 1500;
 
@@ -27,6 +37,88 @@ function is2dFile(file: FileDetail) {
 function shortName(name: string) {
   if (name.length <= 32) return name;
   return name.slice(0, 16) + "..." + name.slice(-12);
+}
+
+type AssemblyRow = {
+  key: string;
+  label: string;
+  depth: number;
+};
+
+function readAssemblyChildren(node: AssemblyTreeNode): AssemblyTreeNode[] {
+  return Array.isArray(node.children) ? node.children : [];
+}
+
+function readAssemblyLabel(node: AssemblyTreeNode, fallback: string): string {
+  const labelCandidates = [node.display_name, node.name, node.label, node.id];
+  for (const candidate of labelCandidates) {
+    if (typeof candidate === "string" && candidate.trim().length > 0) return candidate;
+  }
+  return fallback;
+}
+
+function normalizeAssemblyTree(value: unknown): AssemblyTreeNode[] {
+  if (!Array.isArray(value)) return [];
+  const normalized: AssemblyTreeNode[] = [];
+  value.forEach((node) => {
+    if (!node || typeof node !== "object") return;
+    const typed = node as AssemblyTreeNode;
+    normalized.push({
+      ...typed,
+      children: normalizeAssemblyTree(typed.children),
+    });
+  });
+  return normalized;
+}
+
+function filterAssemblyTree(nodes: AssemblyTreeNode[], queryLower: string): AssemblyTreeNode[] {
+  if (!queryLower) return nodes;
+  const filtered: AssemblyTreeNode[] = [];
+  nodes.forEach((node, index) => {
+    const label = readAssemblyLabel(node, `Item ${index + 1}`);
+    const children = readAssemblyChildren(node);
+    const filteredChildren = filterAssemblyTree(children, queryLower);
+    if (label.toLowerCase().includes(queryLower) || filteredChildren.length > 0) {
+      filtered.push({
+        ...node,
+        children: filteredChildren,
+      });
+    }
+  });
+  return filtered;
+}
+
+function flattenAssemblyTree(nodes: AssemblyTreeNode[], depth = 0, parentKey = "root"): AssemblyRow[] {
+  const rows: AssemblyRow[] = [];
+  nodes.forEach((node, index) => {
+    const label = readAssemblyLabel(node, `Item ${index + 1}`);
+    const rawKey =
+      (typeof node.id === "string" && node.id) ||
+      (typeof node.name === "string" && node.name) ||
+      (typeof node.display_name === "string" && node.display_name) ||
+      (typeof node.label === "string" && node.label) ||
+      `node-${index}`;
+    const key = `${parentKey}.${rawKey}.${index}`;
+    rows.push({ key, label, depth });
+    const children = readAssemblyChildren(node);
+    rows.push(...flattenAssemblyTree(children, depth + 1, key));
+  });
+  return rows;
+}
+
+function hasAssemblyMapping(nodes: AssemblyTreeNode[]): boolean {
+  for (const node of nodes) {
+    const mappedList = node["gltf_nodes"];
+    const hasMappedList =
+      Array.isArray(mappedList) && mappedList.some((item) => typeof item === "string" && item.trim().length > 0);
+    const hasMappedSingle =
+      (typeof node["gltf_node"] === "string" && node["gltf_node"].trim().length > 0) ||
+      (typeof node["node_ref"] === "string" && node["node_ref"].trim().length > 0) ||
+      (typeof node["mesh_ref"] === "string" && node["mesh_ref"].trim().length > 0);
+    if (hasMappedList || hasMappedSingle) return true;
+    if (hasAssemblyMapping(readAssemblyChildren(node))) return true;
+  }
+  return false;
 }
 
 export default function ViewPage() {
@@ -45,9 +137,10 @@ export default function ViewPage() {
   const [projection, setProjection] = useState<ProjectionMode>("perspective");
   const [clip, setClip] = useState(false);
   const [clipOffset, setClipOffset] = useState(0);
-  const [nodes, setNodes] = useState<ViewerNode[]>([]);
-  const [hiddenNodes, setHiddenNodes] = useState<Set<string>>(new Set());
-  const [selected, setSelected] = useState<ViewerNode | null>(null);
+  const [manifest, setManifest] = useState<FileManifest | null>(null);
+  const [assemblyTree, setAssemblyTree] = useState<AssemblyTreeNode[]>([]);
+  const [partCount, setPartCount] = useState(0);
+  const [selectedTreeKey, setSelectedTreeKey] = useState<string | null>(null);
   const [measureEnabled, setMeasureEnabled] = useState(false);
   const [measureValue, setMeasureValue] = useState<number | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
@@ -67,14 +160,6 @@ export default function ViewPage() {
   const lastResolvedUrlRef = useRef<string | null>(null);
 
   const is2d = file ? is2dFile(file) : false;
-
-  const handleNodes = useCallback((next: ViewerNode[]) => {
-    setNodes(next);
-  }, []);
-
-  const handleSelect = useCallback((node: ViewerNode | null) => {
-    setSelected(node);
-  }, []);
 
   const handleMeasure = useCallback((dist: number | null) => {
     setMeasureValue(dist);
@@ -98,8 +183,16 @@ export default function ViewPage() {
   useEffect(() => {
     if (!fileId || !SCX_ID_REGEX.test(fileId)) {
       setError("Geçersiz dosya kimliği. Yeniden yükleyin.");
+      setManifest(null);
+      setAssemblyTree([]);
+      setPartCount(0);
+      setSelectedTreeKey(null);
       return;
     }
+    setManifest(null);
+    setAssemblyTree([]);
+    setPartCount(0);
+    setSelectedTreeKey(null);
     let cancelled = false;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     const schedule = () => {
@@ -126,8 +219,17 @@ export default function ViewPage() {
           return;
         }
 
-        const f = await getFile(fileId);
+        const [f, manifestData] = await Promise.all([
+          getFile(fileId),
+          getFileManifest(fileId).catch(() => null),
+        ]);
         if (cancelled) return;
+        const nextAssemblyTree = normalizeAssemblyTree(manifestData?.assembly_tree);
+        setManifest(manifestData);
+        setAssemblyTree(nextAssemblyTree);
+        setPartCount(typeof manifestData?.part_count === "number" && manifestData.part_count >= 0 ? manifestData.part_count : 0);
+        setSelectedTreeKey(null);
+        setTreeQuery("");
         setFile(f);
         if (f.quality_default && ["Ultra", "High", "Medium", "Low"].includes(f.quality_default)) {
           setQuality(f.quality_default as QualityLevel);
@@ -252,11 +354,19 @@ export default function ViewPage() {
     }
   };
 
-  const filteredNodes = useMemo(() => {
+  const filteredAssemblyTree = useMemo(() => {
     const q = treeQuery.trim().toLowerCase();
-    if (!q) return nodes;
-    return nodes.filter((n) => n.name.toLowerCase().includes(q));
-  }, [nodes, treeQuery]);
+    return filterAssemblyTree(assemblyTree, q);
+  }, [assemblyTree, treeQuery]);
+
+  const assemblyRows = useMemo(() => flattenAssemblyTree(filteredAssemblyTree), [filteredAssemblyTree]);
+  const mappingAvailable = useMemo(() => hasAssemblyMapping(assemblyTree), [assemblyTree]);
+  const partOpsEnabled = assemblyTree.length > 0 && mappingAvailable;
+  const partOpsDisabledReason =
+    assemblyTree.length === 0
+      ? "Assembly tree not available for this model yet."
+      : "Mapping not available.";
+  const manifestLoaded = manifest !== null;
 
   const viewerBody = useMemo(() => {
     if (!fileId) {
@@ -345,18 +455,14 @@ export default function ViewPage() {
             cameraPreset={cameraPreset}
             clip={clip}
             clipOffset={clipOffset}
-            hiddenNodes={hiddenNodes}
-            selectedId={selected?.id ?? null}
             measureEnabled={measureEnabled}
-            onNodes={handleNodes}
-            onSelect={handleSelect}
             onMeasure={handleMeasure}
             onScreenshotReady={handleScreenshotReady}
           />
         </div>
       </Card>
     );
-  }, [fileId, error, processing, blobUrl, is2d, file, statusInfo, contentType, pdfPage, renderMode, projection, clip, clipOffset, hiddenNodes, selected, measureEnabled]);
+  }, [fileId, error, processing, blobUrl, is2d, file, statusInfo, contentType, pdfPage, renderMode, projection, clip, clipOffset, measureEnabled]);
 
   return (
     <main className="py-6 sm:py-8">
@@ -381,6 +487,9 @@ export default function ViewPage() {
               <button className={`rounded px-1 py-1 ${leftTab === "display" ? "bg-white font-semibold" : ""}`} onClick={() => setLeftTab("display")}>View/Display</button>
               <button className={`rounded px-1 py-1 ${leftTab === "section" ? "bg-white font-semibold" : ""}`} onClick={() => setLeftTab("section")}>Section</button>
             </div>
+            <div className="mt-2 rounded-lg border border-[#d1d5db] bg-[#f9fafb] px-2 py-1 text-[11px] text-[#4b5563]">
+              Parts: <span className="font-semibold text-[#111827]">{manifestLoaded ? partCount : 0}</span>
+            </div>
 
             {leftTab === "assembly" ? (
               <div className="mt-3">
@@ -388,27 +497,58 @@ export default function ViewPage() {
                   value={treeQuery}
                   onChange={(e) => setTreeQuery(e.target.value)}
                   placeholder="Ağaçta ara..."
+                  disabled={assemblyTree.length === 0}
                   className="h-8 w-full rounded-lg border border-[#d1d5db] bg-white px-2 text-xs"
                 />
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  <button
+                    disabled={!partOpsEnabled}
+                    title={!partOpsEnabled ? partOpsDisabledReason : undefined}
+                    className={`rounded border px-2 py-1 text-[10px] ${
+                      partOpsEnabled ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"
+                    }`}
+                  >
+                    Select
+                  </button>
+                  <button
+                    disabled={!partOpsEnabled}
+                    title={!partOpsEnabled ? partOpsDisabledReason : undefined}
+                    className={`rounded border px-2 py-1 text-[10px] ${
+                      partOpsEnabled ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"
+                    }`}
+                  >
+                    Hide/Show
+                  </button>
+                  <button
+                    disabled={!partOpsEnabled}
+                    title={!partOpsEnabled ? partOpsDisabledReason : undefined}
+                    className={`rounded border px-2 py-1 text-[10px] ${
+                      partOpsEnabled ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"
+                    }`}
+                  >
+                    Isolate
+                  </button>
+                </div>
                 <div className="mt-2 max-h-[56vh] overflow-auto text-xs text-[#374151]">
-                  {filteredNodes.length === 0 ? (
+                  {assemblyTree.length === 0 ? (
+                    <div className="rounded-lg border border-[#d1d5db] bg-[#f9fafb] p-3 text-[#6b7280]">
+                      Assembly tree not available for this model yet.
+                    </div>
+                  ) : assemblyRows.length === 0 ? (
                     <div className="text-[#8a9895]">Düğüm bulunamadı.</div>
                   ) : (
-                    filteredNodes.map((n) => (
-                      <div key={n.id} className="flex items-center justify-between gap-2 py-1">
-                        <button className="truncate text-left hover:text-[#111827]" onClick={() => setSelected(n)}>
-                          {n.name}
-                        </button>
+                    assemblyRows.map((row) => (
+                      <div key={row.key} className="py-0.5">
                         <button
-                          className="rounded border border-[#d1d5db] px-2 py-0.5 text-[10px]"
-                          onClick={() => {
-                            const next = new Set(hiddenNodes);
-                            if (next.has(n.id)) next.delete(n.id);
-                            else next.add(n.id);
-                            setHiddenNodes(next);
-                          }}
+                          className={`w-full truncate rounded px-1 py-1 text-left ${
+                            selectedTreeKey === row.key ? "bg-[#eef2ff] text-[#111827]" : "text-[#374151] hover:bg-[#f8fafc] hover:text-[#111827]"
+                          } ${partOpsEnabled ? "" : "cursor-not-allowed opacity-70"}`}
+                          style={{ paddingLeft: `${Math.min(row.depth * 12 + 4, 96)}px` }}
+                          disabled={!partOpsEnabled}
+                          title={!partOpsEnabled ? partOpsDisabledReason : undefined}
+                          onClick={() => setSelectedTreeKey(row.key)}
                         >
-                          {hiddenNodes.has(n.id) ? "Göster" : "Gizle"}
+                          {row.label}
                         </button>
                       </div>
                     ))

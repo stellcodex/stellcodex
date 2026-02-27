@@ -40,6 +40,7 @@ type ViewerProps = {
 const EDGE_THRESHOLD_ANGLE = 30;
 const EDGE_KEY = "__scx_edge";
 const MIN_BOUNDS_EXTENT = 1e-6;
+const EMIT_TRAVERSE_NODES = false;
 
 type MeshBounds = {
   box: THREE.Box3;
@@ -179,6 +180,7 @@ function SceneModel({
   const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, -1, 0), clipOffset), [clipOffset]);
 
   useEffect(() => {
+    if (!onNodes || !EMIT_TRAVERSE_NODES) return;
     const nodes: ViewerNode[] = [];
     scene.traverse((obj) => {
       if (obj.name) {
@@ -188,7 +190,7 @@ function SceneModel({
     const hash = nodes.map((n) => `${n.id}:${n.visible ? "1" : "0"}`).join("|");
     if (hash !== lastNodesHashRef.current) {
       lastNodesHashRef.current = hash;
-      onNodes?.(nodes);
+      onNodes(nodes);
     }
   }, [scene, onNodes]);
 
@@ -304,19 +306,21 @@ function SceneModel({
   }, [scene, clip, plane]);
 
   useEffect(() => {
-    const nextNodes: ViewerNode[] = [];
     scene.traverse((obj) => {
       if (hiddenNodes && hiddenNodes.has(obj.uuid)) obj.visible = false;
       else obj.visible = true;
+    });
+    if (!onNodes || !EMIT_TRAVERSE_NODES) return;
+    const nextNodes: ViewerNode[] = [];
+    scene.traverse((obj) => {
       if (obj.name) {
         nextNodes.push({ id: obj.uuid, name: obj.name, type: obj.type, visible: obj.visible });
       }
     });
     const hash = nextNodes.map((n) => `${n.id}:${n.visible ? "1" : "0"}`).join("|");
-    if (hash !== lastNodesHashRef.current) {
-      lastNodesHashRef.current = hash;
-      onNodes?.(nextNodes);
-    }
+    if (hash === lastNodesHashRef.current) return;
+    lastNodesHashRef.current = hash;
+    onNodes(nextNodes);
   }, [scene, hiddenNodes, onNodes]);
 
   useEffect(() => {

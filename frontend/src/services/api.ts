@@ -29,6 +29,26 @@ export type FileDetail = FileItem & {
   view_mode_default?: string | null;
 };
 
+export type AssemblyTreeNode = {
+  id?: string;
+  name?: string;
+  display_name?: string;
+  label?: string;
+  kind?: string;
+  selectable?: boolean;
+  children?: AssemblyTreeNode[];
+  [key: string]: unknown;
+};
+
+export type FileManifest = {
+  format_version?: string;
+  app?: string;
+  model_id?: string;
+  assembly_tree?: AssemblyTreeNode[];
+  part_count?: number | null;
+  [key: string]: unknown;
+};
+
 export type DxfLayer = {
   name: string;
   color: string;
@@ -291,7 +311,7 @@ export async function setVisibility(fileId: string, visibility: "private" | "pub
   return res.json();
 }
 
-export async function getFileManifest(fileId: string) {
+export async function getFileManifest(fileId: string): Promise<FileManifest> {
   const res = await authFetch(`${API_BASE}/files/${fileId}/manifest`);
   if (!res.ok) {
     const err = await res.json().catch(() => null);
