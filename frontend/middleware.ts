@@ -23,7 +23,7 @@ function isAllowedPath(pathname: string): boolean {
   if (pathname === "/") return true;
   if (pathname.startsWith("/api/")) return true;
   if (pathname === "/share" || pathname.startsWith("/share/file/")) return true;
-  if (pathname === "/view" || pathname.startsWith("/view/file/")) return true;
+  if (pathname === "/view" || pathname.startsWith("/view/")) return true;
   if (pathname === "/mold") return true;
   if (pathname.startsWith("/s/")) return true;
   if (pathname === "/admin" || pathname.startsWith("/admin/job/")) return true;
