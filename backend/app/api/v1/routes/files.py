@@ -290,6 +290,16 @@ def _build_scx_manifest(f: UploadFileModel, lods: dict[str, dict[str, Any]]) -> 
     bbox = _coerce_bbox(meta)
     lod_stats = _coerce_lod_stats(meta)
     part_count = _count_parts_in_tree(assembly_tree)
+    if part_count <= 0:
+        metadata = meta.get("metadata") if isinstance(meta.get("metadata"), dict) else {}
+        mesh_count = metadata.get("mesh_count_assimp")
+        if not isinstance(mesh_count, int):
+            mesh_count = metadata.get("meshes")
+        if not isinstance(mesh_count, int):
+            lod0 = lod_stats.get("lod0") if isinstance(lod_stats.get("lod0"), dict) else {}
+            mesh_count = lod0.get("mesh_count_assimp")
+        if isinstance(mesh_count, int) and mesh_count > 0:
+            part_count = mesh_count
     if part_count:
         lod0_stats = lod_stats.get("lod0") if isinstance(lod_stats.get("lod0"), dict) else {}
         lod_stats = {
@@ -317,7 +327,7 @@ def _build_scx_manifest(f: UploadFileModel, lods: dict[str, dict[str, Any]]) -> 
         },
         "defaults": {
             "view_mode": defaults.get("view_mode", "shaded_edge"),
-            "quality": defaults.get("quality", "Ultra"),
+            "quality": defaults.get("quality", "Medium"),
             "camera": defaults.get("camera", "iso_default"),
         },
         "assembly_tree": assembly_tree,
@@ -375,7 +385,7 @@ class FileOut(BaseModel):
 
 class FileDetailOut(FileOut):
     lods: dict[str, dict[str, Any]] | None = None
-    quality_default: str = "Ultra"
+    quality_default: str = "Medium"
     view_mode_default: str = "shaded_edge"
 
 
@@ -409,6 +419,8 @@ class StatusOut(BaseModel):
     state: str
     derivatives_available: list[str]
     progress_hint: str | None = None
+    progress_percent: int | None = None
+    stage: str | None = None
 
 
 class RenderIn(BaseModel):
@@ -743,7 +755,7 @@ def get_file(
     return FileDetailOut(
         **payload.model_dump(),
         lods=_build_lod_map(f, include_key=False),
-        quality_default=str(defaults.get("quality") or "Ultra"),
+        quality_default=str(defaults.get("quality") or "Medium"),
         view_mode_default=str(defaults.get("view_mode") or "shaded_edge"),
     )
 
@@ -852,12 +864,35 @@ def file_status(
             derivatives.append("dxf")
 
     progress_hint = None
+    progress_percent: int | None = None
+    stage: str | None = None
     if f.meta and isinstance(f.meta, dict):
         progress_hint = f.meta.get("progress")
+        percent_raw = f.meta.get("progress_percent")
+        stage_raw = f.meta.get("stage")
+        if isinstance(percent_raw, int):
+            progress_percent = max(0, min(100, percent_raw))
+        if isinstance(stage_raw, str) and stage_raw.strip():
+            stage = stage_raw.strip()
     if not progress_hint:
         progress_hint = f.status
+    if progress_percent is None:
+        if state == "queued":
+            progress_percent = 5
+        elif state == "running":
+            progress_percent = 55
+        elif state == "succeeded":
+            progress_percent = 100
+        elif state == "failed":
+            progress_percent = 100
 
-    return StatusOut(state=state, derivatives_available=derivatives, progress_hint=progress_hint)
+    return StatusOut(
+        state=state,
+        derivatives_available=derivatives,
+        progress_hint=progress_hint,
+        progress_percent=progress_percent,
+        stage=stage,
+    )
 
 
 @router.post("/{file_id}/render", response_model=RenderOut)

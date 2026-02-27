@@ -44,6 +44,9 @@ class Bounds:
 
 def _layer_color_hex(aci: int) -> str:
     r, g, b = aci2rgb(aci)
+    # ACI 7 is typically white/black depending background. Viewer is light, keep it visible.
+    if (r, g, b) == (255, 255, 255):
+        return "#111827"
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
@@ -218,8 +221,9 @@ def render_svg(doc, visible_layers: Optional[set[str]] = None) -> str:
         f'viewBox="{view_box}" width="100%" height="100%" '
         f'preserveAspectRatio="xMidYMid meet">'
     )
-    # flip Y axis to match DXF coordinate system
-    body = '<g transform="scale(1,-1)">'
+    # Flip Y axis to match DXF coordinate system while keeping content inside the viewBox.
+    y_flip_translate = min_y + max_y
+    body = f'<g transform="translate(0,{y_flip_translate}) scale(1,-1)">'
     body += "".join(entities)
     body += "</g>"
     footer = "</svg>"
