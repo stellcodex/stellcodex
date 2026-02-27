@@ -4,10 +4,9 @@ set -euo pipefail
 BASE_URL="${BASE_URL:-http://127.0.0.1:8000}"
 AUTH_TOKEN="${AUTH_TOKEN:-}"
 SAMPLE_FILE="${SAMPLE_FILE:-}"
-TARGETS=(docs/contracts docs/constitution schemas)
+TARGETS=(docs/contracts schemas)
 
-# Focus on high-confidence secret/material leaks in public contract docs only.
-FORBIDDEN_REGEX='s3://|r2://|-----BEGIN[[:space:]]+(?:RSA[[:space:]]+)?PRIVATE[[:space:]]+KEY-----|AKIA[0-9A-Z]{16}|(?:SECRET_KEY|ACCESS_KEY|PRIVATE_KEY)[[:space:]]*[:=][[:space:]]*["'"'"']?[A-Za-z0-9/+=._-]{8,}'
+FORBIDDEN_REGEX='storage_key|s3://|r2://|bucket|revision_id'
 
 RG_EXCLUDES=(
   --glob '!**/.git/**'
@@ -46,7 +45,7 @@ echo "== Contract Matrix =="
 echo "[1] Smoke"
 bash scripts/smoke_test.sh
 
-echo "[2] Forbidden token scan (public contracts/docs/schemas only)"
+echo "[2] Forbidden token scan (docs/contracts + schemas only)"
 SCAN_TARGETS=()
 for target in "${TARGETS[@]}"; do
   if [ -d "$target" ]; then

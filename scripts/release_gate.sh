@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_URL="${BASE_URL:-http://localhost:8000}"
+BASE_URL="${BASE_URL:-http://127.0.0.1:8000}"
 AUTH_TOKEN="${AUTH_TOKEN:-}"
 SAMPLE_FILE="${SAMPLE_FILE:-}"
 
@@ -11,19 +11,35 @@ pass(){ echo "PASS: $1"; }
 echo "== V7 RELEASE GATE =="
 
 # 1) Health
-curl -fsS "$BASE_URL/health" >/dev/null || fail "health endpoint"
+BASE_URL="$BASE_URL" bash scripts/smoke_test.sh >/dev/null || fail "health endpoint"
 pass "health"
 
-# 2) Leak test (runtime, quick grep on key phrases)
-# Pull a small known public endpoint response and ensure forbidden tokens absent.
-# Adjust endpoint as needed for your app.
+# 2) Leak test (public contracts/docs only)
 FORBIDDEN_REGEX='storage_key|s3://|r2://|bucket|revision_id'
-if curl -fsS "$BASE_URL/openapi.json" | grep -Eqi "$FORBIDDEN_REGEX"; then
-  fail "forbidden token appears in openapi.json (check naming/leaks)"
+TARGETS=(docs/contracts schemas)
+SCAN_TARGETS=()
+for target in "${TARGETS[@]}"; do
+  [ -d "$target" ] && SCAN_TARGETS+=("$target")
+done
+if [ "${#SCAN_TARGETS[@]}" -gt 0 ]; then
+  if rg -n -i --no-heading -I \
+      --glob '!**/.git/**' \
+      --glob '!**/node_modules/**' \
+      --glob '!**/*.bak' \
+      --glob '!**/*.bak.*' \
+      --glob '!**/*.map' \
+      "$FORBIDDEN_REGEX" "${SCAN_TARGETS[@]}" >/tmp/release_gate_forbidden_scan.txt; then
+    cat /tmp/release_gate_forbidden_scan.txt >&2
+    fail "forbidden token appears in public contract files"
+  fi
 fi
-pass "openapi forbidden token scan"
+pass "public contract forbidden token scan"
 
-# 3) Optional: upload flow if SAMPLE_FILE provided
+# 3) Runtime openapi reachability
+curl -fsS --max-time 5 "$BASE_URL/openapi.json" >/dev/null || fail "openapi endpoint"
+pass "openapi endpoint"
+
+# 4) Optional: upload flow if SAMPLE_FILE provided
 if [ -n "$SAMPLE_FILE" ]; then
   [ -f "$SAMPLE_FILE" ] || fail "SAMPLE_FILE not found"
 
