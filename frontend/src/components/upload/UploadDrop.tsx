@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { tokens } from "@/lib/tokens";
-import { uploadDirect } from "@/services/api";
+import { getFileStatus, uploadDirect } from "@/services/api";
 import { ALLOWED_FORMATS } from "@/lib/formats.generated";
 import {
   DEFAULT_PROJECT_ID,
@@ -15,6 +15,8 @@ import {
 } from "@/lib/workspace-store";
 
 const allowedExt = ALLOWED_FORMATS.map((ext) => `.${ext}`);
+const STATUS_POLL_MS = 1500;
+const STATUS_POLL_MAX = 100;
 
 function hasAllowedExt(name: string) {
   const lower = name.toLowerCase();
@@ -58,9 +60,28 @@ export function UploadDrop({ onUploaded }: { onUploaded?: (fileId: string) => vo
           projectId: DEFAULT_PROJECT_ID,
           projectName: DEFAULT_PROJECT_NAME,
         });
-        setStatus("Yükleme tamamlandı. Dosya projeye eklendi.");
-        onUploaded?.(registered.fileId);
+        setStatus("Yükleme tamamlandı. İşleniyor...");
+        for (let i = 0; i < STATUS_POLL_MAX; i += 1) {
+          const current = await getFileStatus(registered.fileId);
+          const state = String(current?.state || "").toLowerCase();
+          const hint =
+            typeof current?.progress_hint === "string" && current.progress_hint.trim().length > 0
+              ? ` (${current.progress_hint})`
+              : "";
+          if (state === "failed") {
+            throw new Error("Dönüştürme başarısız. Lütfen farklı bir dosya deneyin.");
+          }
+          if (state === "succeeded" || state === "ready") {
+            setStatus("Viewer’a yönlendiriliyor...");
+            onUploaded?.(registered.fileId);
+            return;
+          }
+          setStatus(`İşleniyor...${hint}`);
+          await new Promise((resolve) => setTimeout(resolve, STATUS_POLL_MS));
+        }
+        throw new Error("İşleme beklenenden uzun sürdü. Lütfen tekrar deneyin.");
       } catch (error: unknown) {
+        setStatus(null);
         setError(error instanceof Error ? error.message : "Yükleme başarısız.");
       } finally {
         setBusy(false);

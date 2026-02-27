@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { UploadDrop } from "@/components/upload/UploadDrop";
-import { getWorkspaceFileById } from "@/lib/workspace-store";
 
 export default function UploadPage() {
   const router = useRouter();
@@ -24,13 +23,7 @@ export default function UploadPage() {
       <section className="mt-8">
         <UploadDrop
           onUploaded={(fileId) => {
-            const record = getWorkspaceFileById(fileId);
-            const mode = record?.mode || "3d";
-            const params = new URLSearchParams({
-              file: fileId,
-              project: record?.projectId || "genel-proje",
-            });
-            router.push(`${mode === "2d" ? "/app/2d" : "/app/3d"}?${params.toString()}`);
+            router.push(`/view/${fileId}`);
           }}
         />
       </section>

@@ -8,9 +8,12 @@ export const metadata: Metadata = {
   description: "2D ve 3D mühendislik görüntüleyicisi",
   manifest: "/site.webmanifest",
   icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon-32x32.png",
-    apple: "/apple-touch-icon.png",
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/stellcodex-logo.png", type: "image/png" },
+    ],
+    shortcut: "/stellcodex-logo.png",
+    apple: "/stellcodex-logo.png",
   },
 };
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { SecondaryButton } from "@/components/ui/SecondaryButton";
 import { Card } from "@/components/ui/Card";
@@ -123,7 +123,6 @@ function hasAssemblyMapping(nodes: AssemblyTreeNode[]): boolean {
 
 export default function ViewPage() {
   const params = useParams();
-  const router = useRouter();
   const fileId = typeof params.scx_id === "string" ? params.scx_id : "";
   const [file, setFile] = useState<FileDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -154,6 +153,8 @@ export default function ViewPage() {
   const [leftTab, setLeftTab] = useState<"assembly" | "display" | "section">("assembly");
   const [bottomTab, setBottomTab] = useState<"section" | "explode" | "quality">("quality");
   const [treeQuery, setTreeQuery] = useState("");
+  const [leftDrawerOpen, setLeftDrawerOpen] = useState(false);
+  const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
   const screenshotRef = useRef<(() => string | null) | null>(null);
   const viewRef = useRef<HTMLDivElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
@@ -297,6 +298,11 @@ export default function ViewPage() {
     };
   }, [fileId, retryTick, quality, resolveTarget3dUrl]);
 
+  useEffect(() => {
+    setLeftDrawerOpen(false);
+    setRightDrawerOpen(false);
+  }, [fileId]);
+
   const handleShare = async () => {
     if (!fileId) return;
     setShareBusy(true);
@@ -367,6 +373,152 @@ export default function ViewPage() {
       ? "Assembly tree not available for this model yet."
       : "Mapping not available.";
   const manifestLoaded = manifest !== null;
+
+  const leftPanelCard = (
+    <Card className="p-3">
+      <div className="grid grid-cols-3 gap-1 rounded-lg border border-[#d1d5db] bg-[#f8f8f8] p-1 text-[11px]">
+        <button className={`rounded px-1 py-1 ${leftTab === "assembly" ? "bg-white font-semibold" : ""}`} onClick={() => setLeftTab("assembly")}>Assembly Tree</button>
+        <button className={`rounded px-1 py-1 ${leftTab === "display" ? "bg-white font-semibold" : ""}`} onClick={() => setLeftTab("display")}>View/Display</button>
+        <button className={`rounded px-1 py-1 ${leftTab === "section" ? "bg-white font-semibold" : ""}`} onClick={() => setLeftTab("section")}>Section</button>
+      </div>
+      <div className="mt-2 rounded-lg border border-[#d1d5db] bg-[#f9fafb] px-2 py-1 text-[11px] text-[#4b5563]">
+        Parts: <span className="font-semibold text-[#111827]">{manifestLoaded ? partCount : 0}</span>
+      </div>
+
+      {leftTab === "assembly" ? (
+        <div className="mt-3">
+          <input
+            value={treeQuery}
+            onChange={(e) => setTreeQuery(e.target.value)}
+            placeholder="Ağaçta ara..."
+            disabled={assemblyTree.length === 0}
+            className="h-8 w-full rounded-lg border border-[#d1d5db] bg-white px-2 text-xs"
+          />
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            <button
+              disabled={!partOpsEnabled}
+              title={!partOpsEnabled ? partOpsDisabledReason : undefined}
+              className={`rounded border px-2 py-1 text-[10px] ${
+                partOpsEnabled ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"
+              }`}
+            >
+              Select
+            </button>
+            <button
+              disabled={!partOpsEnabled}
+              title={!partOpsEnabled ? partOpsDisabledReason : undefined}
+              className={`rounded border px-2 py-1 text-[10px] ${
+                partOpsEnabled ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"
+              }`}
+            >
+              Hide/Show
+            </button>
+            <button
+              disabled={!partOpsEnabled}
+              title={!partOpsEnabled ? partOpsDisabledReason : undefined}
+              className={`rounded border px-2 py-1 text-[10px] ${
+                partOpsEnabled ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"
+              }`}
+            >
+              Isolate
+            </button>
+          </div>
+          <div className="mt-2 max-h-[min(56vh,calc(100dvh-18rem))] overflow-auto text-xs text-[#374151]">
+            {assemblyTree.length === 0 ? (
+              <div className="rounded-lg border border-[#d1d5db] bg-[#f9fafb] p-3 text-[#6b7280]">
+                Assembly tree not available for this model yet.
+              </div>
+            ) : assemblyRows.length === 0 ? (
+              <div className="text-[#8a9895]">Düğüm bulunamadı.</div>
+            ) : (
+              assemblyRows.map((row) => (
+                <div key={row.key} className="py-0.5">
+                  <button
+                    className={`w-full truncate rounded px-1 py-1 text-left ${
+                      selectedTreeKey === row.key ? "bg-[#eef2ff] text-[#111827]" : "text-[#374151] hover:bg-[#f8fafc] hover:text-[#111827]"
+                    } ${partOpsEnabled ? "" : "cursor-not-allowed opacity-70"}`}
+                    style={{ paddingLeft: `${Math.min(row.depth * 12 + 4, 96)}px` }}
+                    disabled={!partOpsEnabled}
+                    title={!partOpsEnabled ? partOpsDisabledReason : undefined}
+                    onClick={() => setSelectedTreeKey(row.key)}
+                  >
+                    {row.label}
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      {leftTab === "display" ? (
+        <div className="mt-3 grid gap-3 text-xs">
+          <div className="font-semibold text-[#111827]">Görünüm modu</div>
+          <div className="grid gap-2">
+            {VIEWER_MODE_ORDER.map((mode) => (
+              <button
+                key={mode}
+                className={`rounded-lg border px-2 py-1 text-left ${
+                  renderMode === mode ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white text-[#374151]"
+                }`}
+                onClick={() => setRenderMode(mode)}
+              >
+                {VIEWER_MODE_LABEL[mode]}
+              </button>
+            ))}
+          </div>
+          <div className="font-semibold text-[#111827]">Projeksiyon</div>
+          <div className="grid grid-cols-2 gap-2">
+            {(["perspective", "orthographic"] as ProjectionMode[]).map((mode) => (
+              <button
+                key={mode}
+                className={`rounded-lg border px-2 py-1 ${
+                  projection === mode ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white text-[#374151]"
+                }`}
+                onClick={() => setProjection(mode)}
+              >
+                {mode === "perspective" ? "Persp" : "Ortho"}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {leftTab === "section" ? (
+        <div className="mt-3 grid gap-3 text-xs">
+          <label className="flex items-center justify-between">
+            Kesit aktif
+            <input type="checkbox" checked={clip} onChange={(e) => setClip(e.target.checked)} />
+          </label>
+          {clip ? (
+            <input
+              type="range"
+              min={-2}
+              max={2}
+              step={0.01}
+              value={clipOffset}
+              onChange={(e) => setClipOffset(Number(e.target.value))}
+            />
+          ) : null}
+          <div className="text-[11px] text-[#6b7280]">X/Y/Z ve serbest düzlem ayarları bu panelde genişletilecek.</div>
+        </div>
+      ) : null}
+    </Card>
+  );
+
+  const rightPanelCard = (
+    <Card className="p-2">
+      <div className="grid gap-2">
+        <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs" onClick={() => setCameraPreset("iso")}>Orbit</button>
+        <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs">Pan</button>
+        <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs">Zoom +</button>
+        <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs">Zoom -</button>
+        <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs" onClick={() => setCameraPreset("iso")}>Fit</button>
+        <button className={`rounded border px-2 py-2 text-xs ${clip ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db]"}`} onClick={() => setClip((v) => !v)}>Section</button>
+        <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs" onClick={() => setBottomTab("explode")}>Explode</button>
+      </div>
+    </Card>
+  );
 
   const viewerBody = useMemo(() => {
     if (!fileId) {
@@ -465,250 +617,172 @@ export default function ViewPage() {
   }, [fileId, error, processing, blobUrl, is2d, file, statusInfo, contentType, pdfPage, renderMode, projection, clip, clipOffset, measureEnabled]);
 
   return (
-    <main className="py-6 sm:py-8">
-      <Container>
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <SecondaryButton href="/dashboard">Geri</SecondaryButton>
-            <div style={tokens.typography.body} className="text-[#6b7280]">
-              {file ? shortName(file.original_filename) : "Görüntüleyici"}
+    <main className="h-full overflow-hidden">
+      <Container className="h-full">
+        <div className="flex h-full flex-col gap-3 overflow-y-auto py-3 sm:py-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <SecondaryButton href="/dashboard">Geri</SecondaryButton>
+              <div style={tokens.typography.body} className="max-w-[40vw] truncate text-[#6b7280] sm:max-w-none">
+                {file ? shortName(file.original_filename) : "Görüntüleyici"}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 lg:hidden">
+                <button
+                  type="button"
+                  className="rounded-lg border border-[#d1d5db] bg-white px-2 py-1 text-xs text-[#374151]"
+                  onClick={() => setLeftDrawerOpen(true)}
+                >
+                  Assembly
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg border border-[#d1d5db] bg-white px-2 py-1 text-xs text-[#374151]"
+                  onClick={() => setRightDrawerOpen(true)}
+                >
+                  Tools
+                </button>
+              </div>
+              <SecondaryButton onClick={() => setShareOpen((v) => !v)}>Paylaş</SecondaryButton>
+              <PrimaryButton onClick={toggleFullscreen}>Tam ekran</PrimaryButton>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <SecondaryButton onClick={() => setShareOpen((v) => !v)}>Paylaş</SecondaryButton>
-            <PrimaryButton onClick={toggleFullscreen}>Tam ekran</PrimaryButton>
-          </div>
-        </div>
 
-        <div className="grid gap-4 lg:grid-cols-[280px_1fr_64px]">
-          <Card className="p-3">
-            <div className="grid grid-cols-3 gap-1 rounded-lg border border-[#d1d5db] bg-[#f8f8f8] p-1 text-[11px]">
-              <button className={`rounded px-1 py-1 ${leftTab === "assembly" ? "bg-white font-semibold" : ""}`} onClick={() => setLeftTab("assembly")}>Assembly Tree</button>
-              <button className={`rounded px-1 py-1 ${leftTab === "display" ? "bg-white font-semibold" : ""}`} onClick={() => setLeftTab("display")}>View/Display</button>
-              <button className={`rounded px-1 py-1 ${leftTab === "section" ? "bg-white font-semibold" : ""}`} onClick={() => setLeftTab("section")}>Section</button>
-            </div>
-            <div className="mt-2 rounded-lg border border-[#d1d5db] bg-[#f9fafb] px-2 py-1 text-[11px] text-[#4b5563]">
-              Parts: <span className="font-semibold text-[#111827]">{manifestLoaded ? partCount : 0}</span>
-            </div>
+          <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[280px_minmax(0,1fr)_64px]">
+            <div className="hidden lg:block">{leftPanelCard}</div>
 
-            {leftTab === "assembly" ? (
-              <div className="mt-3">
-                <input
-                  value={treeQuery}
-                  onChange={(e) => setTreeQuery(e.target.value)}
-                  placeholder="Ağaçta ara..."
-                  disabled={assemblyTree.length === 0}
-                  className="h-8 w-full rounded-lg border border-[#d1d5db] bg-white px-2 text-xs"
-                />
-                <div className="mt-2 grid grid-cols-3 gap-2">
-                  <button
-                    disabled={!partOpsEnabled}
-                    title={!partOpsEnabled ? partOpsDisabledReason : undefined}
-                    className={`rounded border px-2 py-1 text-[10px] ${
-                      partOpsEnabled ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"
-                    }`}
-                  >
-                    Select
-                  </button>
-                  <button
-                    disabled={!partOpsEnabled}
-                    title={!partOpsEnabled ? partOpsDisabledReason : undefined}
-                    className={`rounded border px-2 py-1 text-[10px] ${
-                      partOpsEnabled ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"
-                    }`}
-                  >
-                    Hide/Show
-                  </button>
-                  <button
-                    disabled={!partOpsEnabled}
-                    title={!partOpsEnabled ? partOpsDisabledReason : undefined}
-                    className={`rounded border px-2 py-1 text-[10px] ${
-                      partOpsEnabled ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"
-                    }`}
-                  >
-                    Isolate
-                  </button>
-                </div>
-                <div className="mt-2 max-h-[56vh] overflow-auto text-xs text-[#374151]">
-                  {assemblyTree.length === 0 ? (
-                    <div className="rounded-lg border border-[#d1d5db] bg-[#f9fafb] p-3 text-[#6b7280]">
-                      Assembly tree not available for this model yet.
-                    </div>
-                  ) : assemblyRows.length === 0 ? (
-                    <div className="text-[#8a9895]">Düğüm bulunamadı.</div>
-                  ) : (
-                    assemblyRows.map((row) => (
-                      <div key={row.key} className="py-0.5">
+            <div className="min-w-0">
+              <div className="grid gap-3">
+                <Card className="p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {CAMERA_PRESETS.map((preset) => (
                         <button
-                          className={`w-full truncate rounded px-1 py-1 text-left ${
-                            selectedTreeKey === row.key ? "bg-[#eef2ff] text-[#111827]" : "text-[#374151] hover:bg-[#f8fafc] hover:text-[#111827]"
-                          } ${partOpsEnabled ? "" : "cursor-not-allowed opacity-70"}`}
-                          style={{ paddingLeft: `${Math.min(row.depth * 12 + 4, 96)}px` }}
-                          disabled={!partOpsEnabled}
-                          title={!partOpsEnabled ? partOpsDisabledReason : undefined}
-                          onClick={() => setSelectedTreeKey(row.key)}
+                          key={preset.key}
+                          className={`rounded-lg border px-3 py-1 text-xs ${
+                            cameraPreset === preset.key ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white text-[#374151]"
+                          }`}
+                          onClick={() => setCameraPreset(preset.key)}
                         >
-                          {row.label}
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            ) : null}
-
-            {leftTab === "display" ? (
-              <div className="mt-3 grid gap-3 text-xs">
-                <div className="font-semibold text-[#111827]">Görünüm modu</div>
-                <div className="grid gap-2">
-                  {VIEWER_MODE_ORDER.map((mode) => (
-                    <button
-                      key={mode}
-                      className={`rounded-lg border px-2 py-1 text-left ${
-                        renderMode === mode ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white text-[#374151]"
-                      }`}
-                      onClick={() => setRenderMode(mode)}
-                    >
-                      {VIEWER_MODE_LABEL[mode]}
-                    </button>
-                  ))}
-                </div>
-                <div className="font-semibold text-[#111827]">Projeksiyon</div>
-                <div className="grid grid-cols-2 gap-2">
-                  {(["perspective", "orthographic"] as ProjectionMode[]).map((mode) => (
-                    <button
-                      key={mode}
-                      className={`rounded-lg border px-2 py-1 ${
-                        projection === mode ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white text-[#374151]"
-                      }`}
-                      onClick={() => setProjection(mode)}
-                    >
-                      {mode === "perspective" ? "Persp" : "Ortho"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
-            {leftTab === "section" ? (
-              <div className="mt-3 grid gap-3 text-xs">
-                <label className="flex items-center justify-between">
-                  Kesit aktif
-                  <input type="checkbox" checked={clip} onChange={(e) => setClip(e.target.checked)} />
-                </label>
-                {clip ? (
-                  <input
-                    type="range"
-                    min={-2}
-                    max={2}
-                    step={0.01}
-                    value={clipOffset}
-                    onChange={(e) => setClipOffset(Number(e.target.value))}
-                  />
-                ) : null}
-                <div className="text-[11px] text-[#6b7280]">X/Y/Z ve serbest düzlem ayarları bu panelde genişletilecek.</div>
-              </div>
-            ) : null}
-          </Card>
-
-          <div className="grid gap-3">
-            <Card className="p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  {CAMERA_PRESETS.map((preset) => (
-                    <button
-                      key={preset.key}
-                      className={`rounded-lg border px-3 py-1 text-xs ${
-                        cameraPreset === preset.key ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white text-[#374151]"
-                      }`}
-                      onClick={() => setCameraPreset(preset.key)}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button className="rounded-lg border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={() => setCameraPreset("iso")}>Home</button>
-                  <button className="rounded-lg border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={handleScreenshot}>Screenshot</button>
-                  <button className="rounded-lg border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={handleDownloadScx}>Download .scx</button>
-                </div>
-              </div>
-            </Card>
-
-            {viewerBody}
-
-            {!is2d ? (
-              <Card className="p-3">
-                <div className="mb-2 grid grid-cols-3 gap-2 text-xs">
-                  <button className={`rounded border px-2 py-1 ${bottomTab === "section" ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white"}`} onClick={() => setBottomTab("section")}>Section</button>
-                  <button className={`rounded border px-2 py-1 ${bottomTab === "explode" ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white"}`} onClick={() => setBottomTab("explode")}>Explode</button>
-                  <button className={`rounded border px-2 py-1 ${bottomTab === "quality" ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white"}`} onClick={() => setBottomTab("quality")}>Quality</button>
-                </div>
-                {bottomTab === "section" ? (
-                  <div className="text-xs text-[#374151]">Çoklu düzlem section ayarları burada toplanır.</div>
-                ) : null}
-                {bottomTab === "explode" ? (
-                  <div className="text-xs text-[#374151]">Auto explode/axis explode kontrolü bu panelde genişletilecek.</div>
-                ) : null}
-                {bottomTab === "quality" ? (
-                  <div className="grid gap-2 text-xs">
-                    <div className="text-[#6b7280]">Varsayılan kalite: maksimum (Ultra)</div>
-                    <div className="grid grid-cols-4 gap-2">
-                      {(["Ultra", "High", "Medium", "Low"] as QualityLevel[]).map((lvl) => (
-                        <button
-                          key={lvl}
-                          onClick={() => setQuality(lvl)}
-                          className={`rounded border px-2 py-1 ${quality === lvl ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white text-[#374151]"}`}
-                        >
-                          {lvl}
+                          {preset.label}
                         </button>
                       ))}
                     </div>
-                    <div className="text-[11px] text-[#6b7280]">Offline render viewer modu değildir; ayrı render job hattı kullanılır.</div>
+                    <div className="flex items-center gap-2">
+                      <button className="rounded-lg border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={() => setCameraPreset("iso")}>Home</button>
+                      <button className="rounded-lg border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={handleScreenshot}>Screenshot</button>
+                      <button className="rounded-lg border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={handleDownloadScx}>Download .scx</button>
+                    </div>
                   </div>
+                </Card>
+
+                {viewerBody}
+
+                {!is2d ? (
+                  <Card className="p-3">
+                    <div className="mb-2 grid grid-cols-3 gap-2 text-xs">
+                      <button className={`rounded border px-2 py-1 ${bottomTab === "section" ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white"}`} onClick={() => setBottomTab("section")}>Section</button>
+                      <button className={`rounded border px-2 py-1 ${bottomTab === "explode" ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white"}`} onClick={() => setBottomTab("explode")}>Explode</button>
+                      <button className={`rounded border px-2 py-1 ${bottomTab === "quality" ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white"}`} onClick={() => setBottomTab("quality")}>Quality</button>
+                    </div>
+                    {bottomTab === "section" ? (
+                      <div className="text-xs text-[#374151]">Çoklu düzlem section ayarları burada toplanır.</div>
+                    ) : null}
+                    {bottomTab === "explode" ? (
+                      <div className="text-xs text-[#374151]">Auto explode/axis explode kontrolü bu panelde genişletilecek.</div>
+                    ) : null}
+                    {bottomTab === "quality" ? (
+                      <div className="grid gap-2 text-xs">
+                        <div className="text-[#6b7280]">Varsayılan kalite: maksimum (Ultra)</div>
+                        <div className="grid grid-cols-4 gap-2">
+                          {(["Ultra", "High", "Medium", "Low"] as QualityLevel[]).map((lvl) => (
+                            <button
+                              key={lvl}
+                              onClick={() => setQuality(lvl)}
+                              className={`rounded border px-2 py-1 ${quality === lvl ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white text-[#374151]"}`}
+                            >
+                              {lvl}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="text-[11px] text-[#6b7280]">Offline render viewer modu değildir; ayrı render job hattı kullanılır.</div>
+                      </div>
+                    ) : null}
+                  </Card>
                 ) : null}
-              </Card>
-            ) : null}
+              </div>
+            </div>
+
+            <div className="hidden lg:block">{rightPanelCard}</div>
           </div>
 
-          <Card className="p-2">
-            <div className="grid gap-2">
-              <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs" onClick={() => setCameraPreset("iso")}>Orbit</button>
-              <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs">Pan</button>
-              <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs">Zoom +</button>
-              <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs">Zoom -</button>
-              <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs" onClick={() => setCameraPreset("iso")}>Fit</button>
-              <button className={`rounded border px-2 py-2 text-xs ${clip ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db]"}`} onClick={() => setClip((v) => !v)}>Section</button>
-              <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs" onClick={() => setBottomTab("explode")}>Explode</button>
-            </div>
-          </Card>
-        </div>
-
-        {shareOpen ? (
-          <Card className="mt-6 p-5">
-            <div className="text-sm font-semibold text-[#111827]">Paylaş</div>
-            <p className="mt-1 text-xs text-[#6b7280]">Varsayılan izin: sadece görüntüleme.</p>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <PrimaryButton onClick={handleShare} disabled={shareBusy}>Link oluştur</PrimaryButton>
-              {shareLink ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <input readOnly value={shareLink} className="h-9 w-[320px] rounded-lg border border-[#d1d5db] bg-white px-2 text-xs" />
-                  <SecondaryButton onClick={handleCopy}>Kopyala</SecondaryButton>
+          {shareOpen ? (
+            <Card className="p-5">
+              <div className="text-sm font-semibold text-[#111827]">Paylaş</div>
+              <p className="mt-1 text-xs text-[#6b7280]">Varsayılan izin: sadece görüntüleme.</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <PrimaryButton onClick={handleShare} disabled={shareBusy}>Link oluştur</PrimaryButton>
+                {shareLink ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input readOnly value={shareLink} className="h-9 w-[320px] rounded-lg border border-[#d1d5db] bg-white px-2 text-xs" />
+                    <SecondaryButton onClick={handleCopy}>Kopyala</SecondaryButton>
+                  </div>
+                ) : null}
+              </div>
+              {shareError ? <div className="mt-2 text-xs text-red-600">{shareError}</div> : null}
+              <button className="mt-4 text-xs font-semibold text-[#374151]" onClick={() => setAdvancedOpen((v) => !v)}>Gelişmiş</button>
+              {advancedOpen ? (
+                <div className="mt-3 grid gap-2 text-xs text-[#6b7280]">
+                  <label className="flex items-center gap-2"><input type="checkbox" disabled />Yorumlar (V1 kapalı)</label>
+                  <label className="flex items-center gap-2"><input type="checkbox" disabled />İndirme (V1 kapalı)</label>
+                  <label className="flex items-center gap-2">Süre (V1 kapalı)<input type="number" disabled className="h-8 w-20 rounded border border-[#d1d5db] px-2" /></label>
                 </div>
               ) : null}
-            </div>
-            {shareError ? <div className="mt-2 text-xs text-red-600">{shareError}</div> : null}
-            <button className="mt-4 text-xs font-semibold text-[#374151]" onClick={() => setAdvancedOpen((v) => !v)}>Gelişmiş</button>
-            {advancedOpen ? (
-              <div className="mt-3 grid gap-2 text-xs text-[#6b7280]">
-                <label className="flex items-center gap-2"><input type="checkbox" disabled />Yorumlar (V1 kapalı)</label>
-                <label className="flex items-center gap-2"><input type="checkbox" disabled />İndirme (V1 kapalı)</label>
-                <label className="flex items-center gap-2">Süre (V1 kapalı)<input type="number" disabled className="h-8 w-20 rounded border border-[#d1d5db] px-2" /></label>
-              </div>
-            ) : null}
-          </Card>
-        ) : null}
+            </Card>
+          ) : null}
+        </div>
       </Container>
+
+      {leftDrawerOpen ? (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/35"
+            onClick={() => setLeftDrawerOpen(false)}
+            aria-label="Assembly drawer kapat"
+          />
+          <aside className="absolute left-0 top-0 h-full w-[86vw] max-w-[360px] overflow-y-auto p-3">
+            <div className="mb-2 flex items-center justify-between rounded-lg border border-[#d1d5db] bg-white px-3 py-2 text-xs font-semibold text-[#374151]">
+              <span>Assembly Panel</span>
+              <button type="button" className="rounded border border-[#d1d5db] px-2 py-1" onClick={() => setLeftDrawerOpen(false)}>
+                Kapat
+              </button>
+            </div>
+            {leftPanelCard}
+          </aside>
+        </div>
+      ) : null}
+
+      {rightDrawerOpen ? (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/35"
+            onClick={() => setRightDrawerOpen(false)}
+            aria-label="Tools drawer kapat"
+          />
+          <aside className="absolute right-0 top-0 h-full w-[70vw] max-w-[280px] overflow-y-auto p-3">
+            <div className="mb-2 flex items-center justify-between rounded-lg border border-[#d1d5db] bg-white px-3 py-2 text-xs font-semibold text-[#374151]">
+              <span>Viewer Tools</span>
+              <button type="button" className="rounded border border-[#d1d5db] px-2 py-1" onClick={() => setRightDrawerOpen(false)}>
+                Kapat
+              </button>
+            </div>
+            {rightPanelCard}
+          </aside>
+        </div>
+      ) : null}
     </main>
   );
 }
