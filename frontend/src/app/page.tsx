@@ -120,35 +120,6 @@ export default function HomePage() {
     };
   }, [selected?.file_id, selectedStatus]);
 
-  const handleUploaded = useCallback(
-    async (fileId: string) => {
-      setShareLink(null);
-      setShareError(null);
-      try {
-        const file = await getFile(fileId);
-        setSelected({
-          file_id: file.file_id,
-          original_name: file.original_name,
-          kind: file.kind,
-          status: file.status,
-          created_at: file.created_at,
-          thumbnail_url: file.thumbnail_url || null,
-        });
-      } catch {
-        setSelected({
-          file_id: fileId,
-          original_name: fileId,
-          kind: "3d",
-          status: "queued",
-          created_at: new Date().toISOString(),
-          thumbnail_url: null,
-        });
-      }
-      await refreshRecent();
-    },
-    [refreshRecent]
-  );
-
   const handleCreateShare = useCallback(async () => {
     if (!selected || !viewerReady) return;
     setShareBusy(true);
@@ -261,7 +232,7 @@ export default function HomePage() {
           <section className="order-1 grid gap-4 lg:order-2">
             <div className="rounded-2xl border border-[#e7e5e4] bg-white p-4">
               <h2 className="mb-3 text-sm font-semibold text-[#111827]">Dosya Yükle</h2>
-              <UploadDrop onUploaded={handleUploaded} />
+              <UploadDrop />
             </div>
 
             <div className="rounded-2xl border border-[#e7e5e4] bg-white p-4">

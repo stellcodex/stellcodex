@@ -1,11 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { UploadDrop } from "@/components/upload/UploadDrop";
 
 export default function UploadPage() {
-  const router = useRouter();
-
   return (
     <main className="mx-auto max-w-6xl px-6 py-6 sm:py-8">
       <header className="max-w-2xl">
@@ -21,11 +18,7 @@ export default function UploadPage() {
       </header>
 
       <section className="mt-8">
-        <UploadDrop
-          onUploaded={(fileId) => {
-            router.push(`/view/${fileId}`);
-          }}
-        />
+        <UploadDrop />
       </section>
     </main>
   );

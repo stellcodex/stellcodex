@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { tokens } from "@/lib/tokens";
-import { getFileStatus, uploadDirect } from "@/services/api";
+import { uploadDirect } from "@/services/api";
 import { ALLOWED_FORMATS } from "@/lib/formats.generated";
 import {
   DEFAULT_PROJECT_ID,
@@ -15,8 +16,8 @@ import {
 } from "@/lib/workspace-store";
 
 const allowedExt = ALLOWED_FORMATS.map((ext) => `.${ext}`);
-const STATUS_POLL_MS = 1500;
-const STATUS_POLL_MAX = 100;
+const MAX_UPLOAD_MB = 200;
+const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 
 function hasAllowedExt(name: string) {
   const lower = name.toLowerCase();
@@ -25,6 +26,7 @@ function hasAllowedExt(name: string) {
 
 export function UploadDrop({ onUploaded }: { onUploaded?: (fileId: string) => void }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -40,8 +42,8 @@ export function UploadDrop({ onUploaded }: { onUploaded?: (fileId: string) => vo
         );
         return;
       }
-      if (file.size > 100 * 1024 * 1024) {
-        setError("Dosya boyutu 100MB limitini aşıyor.");
+      if (file.size > MAX_UPLOAD_BYTES) {
+        setError(`Dosya boyutu ${MAX_UPLOAD_MB}MB limitini aşıyor.`);
         return;
       }
 
@@ -60,26 +62,15 @@ export function UploadDrop({ onUploaded }: { onUploaded?: (fileId: string) => vo
           projectId: DEFAULT_PROJECT_ID,
           projectName: DEFAULT_PROJECT_NAME,
         });
-        setStatus("Yükleme tamamlandı. İşleniyor...");
-        for (let i = 0; i < STATUS_POLL_MAX; i += 1) {
-          const current = await getFileStatus(registered.fileId);
-          const state = String(current?.state || "").toLowerCase();
-          const hint =
-            typeof current?.progress_hint === "string" && current.progress_hint.trim().length > 0
-              ? ` (${current.progress_hint})`
-              : "";
-          if (state === "failed") {
-            throw new Error("Dönüştürme başarısız. Lütfen farklı bir dosya deneyin.");
+        setStatus("Viewer’a yönlendiriliyor...");
+        onUploaded?.(registered.fileId);
+        const target = `/view/${registered.fileId}`;
+        router.push(target);
+        window.setTimeout(() => {
+          if (window.location.pathname !== target) {
+            window.location.assign(target);
           }
-          if (state === "succeeded" || state === "ready") {
-            setStatus("Viewer’a yönlendiriliyor...");
-            onUploaded?.(registered.fileId);
-            return;
-          }
-          setStatus(`İşleniyor...${hint}`);
-          await new Promise((resolve) => setTimeout(resolve, STATUS_POLL_MS));
-        }
-        throw new Error("İşleme beklenenden uzun sürdü. Lütfen tekrar deneyin.");
+        }, 1500);
       } catch (error: unknown) {
         setStatus(null);
         setError(error instanceof Error ? error.message : "Yükleme başarısız.");
@@ -127,7 +118,7 @@ export function UploadDrop({ onUploaded }: { onUploaded?: (fileId: string) => vo
         >
           Dosya seç
         </PrimaryButton>
-        <span className="text-xs text-[#6b7280]">Maks: 100MB</span>
+        <span className="text-xs text-[#6b7280]">Maks: {MAX_UPLOAD_MB}MB</span>
       </div>
 
       {status ? <div className="mt-4 text-sm text-[#6b7280]">{status}</div> : null}
