@@ -126,7 +126,7 @@ export default function HomePage() {
     setShareError(null);
     try {
       const result = await createShare(selected.file_id);
-      setShareLink(`${window.location.origin}/share/${result.token}`);
+      setShareLink(`${window.location.origin}/s/${result.token}`);
     } catch (error) {
       setShareError(error instanceof Error ? error.message : "Paylaşım linki oluşturulamadı.");
     } finally {

@@ -5,6 +5,14 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Iterable
 
+from app.core.format_registry import (
+    find_mode,
+    get_rule_by_ext,
+    is_allowed_filename as _registry_allowed_filename,
+    rejected_extensions as _registry_rejected_extensions,
+    to_legacy_groups,
+)
+
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[3]
@@ -24,10 +32,9 @@ def _formats_path() -> Path:
 
 @lru_cache(maxsize=1)
 def load_formats() -> dict:
-    path = _formats_path()
-    if not path.exists():
-        raise FileNotFoundError(f"Formats allow-list missing: {path}")
-    return json.loads(path.read_text(encoding="utf-8"))
+    # V7 single-source registry lives in format_registry.py.
+    # Keep this function for backward compatibility with legacy callers.
+    return to_legacy_groups()
 
 
 def allowed_extensions() -> list[str]:
@@ -39,22 +46,23 @@ def allowed_extensions() -> list[str]:
 
 
 def rejected_extensions() -> list[str]:
-    data = load_formats()
-    return sorted({str(x).lower() for x in data.get("rejected", [])})
+    return _registry_rejected_extensions()
 
 
 def is_allowed_filename(filename: str) -> bool:
-    name = (filename or "").lower()
-    for ext in allowed_extensions():
-        if name.endswith(f".{ext}"):
-            return True
-    return False
+    return _registry_allowed_filename(filename)
 
 
 def categorize_extension(ext: str) -> str | None:
     ext = (ext or "").lower().lstrip(".")
-    data = load_formats()
-    for key in ("brep", "mesh", "dxf", "images"):
-        if ext in [str(x).lower() for x in data.get(key, [])]:
-            return key
+    mode = find_mode(ext)
+    if mode == "brep":
+        return "brep"
+    if mode in {"mesh_approx", "visual_only"}:
+        return "mesh"
+    if mode == "2d_only":
+        return "dxf"
+    rule = get_rule_by_ext(ext)
+    if rule and rule.kind in {"doc", "image"}:
+        return "images"
     return None

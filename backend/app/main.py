@@ -14,3 +14,8 @@ app.include_router(api_router, prefix="/api/v1")
 @app.get("/s/{token}")
 def resolve_share_short(token: str, db: Session = Depends(get_db)):
     return resolve_share_token(token=token, db=db)
+
+
+@app.get("/share/{token}")
+def resolve_share_alias(token: str, db: Session = Depends(get_db)):
+    return resolve_share_token(token=token, db=db)

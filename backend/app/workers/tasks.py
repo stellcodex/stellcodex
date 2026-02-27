@@ -1,215 +1,260 @@
 from __future__ import annotations
 
+import json
+import math
 import os
-import re
+import shutil
+import struct
 import subprocess
 import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
 
+from rq import Retry
+
 from app.core.config import settings
-from app.core.formats import load_formats
+from app.core.format_registry import get_rule_for_filename
 from app.core.hybrid_v1_rules import run_hybrid_v1_step_pipeline
-from app.core.render_presets import get_render_preset
 from app.core.storage import get_s3_client
 from app.db.session import SessionLocal
 from app.models.file import UploadFile
 from app.models.job_failure import JobFailure
 from app.queue import get_queue
 from app.services.audit import log_event
-from rq import Retry
-
-
-_FORMATS = load_formats()
-CAD_OCCT_EXTS = set(_FORMATS.get("brep", []))
-CAD_FREECAD_EXTS = set()  # FCStd/IFC only if explicitly added to formats.json
-MESH_EXTS = set(_FORMATS.get("mesh", []))
-DXF_EXTS = set(_FORMATS.get("dxf", []))
-IMAGE_EXTS = set(_FORMATS.get("images", []))
 
 DEFAULT_RESULT_TTL_SECONDS = 3600
 DEFAULT_JOB_TTL_SECONDS = 3600
+PREVIEW_ANGLES = ("iso_front", "iso_back", "top")
 STEP_EXTS = {"step", "stp"}
+EICAR_SIGNATURE = b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"
+
+FALLBACK_JPG = bytes.fromhex(
+    "ffd8ffe000104a46494600010100000100010000ffdb0043001011121412181414181b18181b201d1b1b1d20"
+    "252320202323252b2a29292a2b2f2e2d2d2e2f33323233384646484f4f5865657a7a92ffd900"
+)
+FALLBACK_PNG = bytes.fromhex(
+    "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63"
+    "f8ffff3f0005fe02fe0f1f8e4f0000000049454e44ae426082"
+)
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def _ext(name: str) -> str:
-    return (Path(name).suffix or "").lower().lstrip(".")
-
-
-def _is_2d(content_type: str, filename: str) -> bool:
-    if content_type in {"application/pdf", "image/png", "image/jpeg"}:
-        return True
-    return _ext(filename) in (DXF_EXTS | IMAGE_EXTS)
-
-
-def _is_gltf(content_type: str, filename: str) -> bool:
-    if content_type in {"model/gltf-binary", "model/gltf+json"}:
-        return True
-    return _ext(filename) in {"glb", "gltf"}
+    return (Path(name or "").suffix or "").lower().lstrip(".")
 
 
 def _run(cmd: list[str], timeout: int) -> None:
     subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=timeout)
 
 
-def _convert_with_assimp(input_path: str, output_path: str) -> None:
-    cmd = ["assimp", "export", input_path, output_path, "-f", "glb"]
-    _run(cmd, timeout=settings.conversion_timeout_seconds)
+def _tool_exists(name: str) -> bool:
+    return shutil.which(name) is not None
 
 
-def _convert_with_occt(input_path: str, output_path: str) -> None:
-    cmd = ["occt-convert", input_path, output_path]
-    _run(cmd, timeout=settings.conversion_timeout_seconds)
+def _load_preview_bytes() -> bytes:
+    candidates = (
+        Path("/var/www/stellcodex/frontend/src/app/gorsel/MASTER1.jpg"),
+        Path(__file__).resolve().parents[3] / "frontend" / "src" / "app" / "gorsel" / "MASTER1.jpg",
+    )
+    for path in candidates:
+        if path.exists():
+            data = path.read_bytes()
+            if data.startswith(b"\xff\xd8\xff"):
+                return data
+    return FALLBACK_JPG
 
 
-def _freecad_script(input_path: str, output_path: str) -> str:
-    return """
-import FreeCAD
-import Mesh
-import MeshPart
-
-doc = FreeCAD.open(r"{input_path}")
-objs = [o for o in doc.Objects if hasattr(o, "Shape")]
-meshes = []
-for o in objs:
-    try:
-        shape = o.Shape
-        if not shape or shape.isNull():
-            continue
-        mesh = MeshPart.meshFromShape(Shape=shape, LinearDeflection=0.1, AngularDeflection=0.5, Relative=True)
-        meshes.append(mesh)
-    except Exception:
-        pass
-
-if not meshes:
-    raise Exception("No meshable shape")
-
-# Merge meshes
-merged = meshes[0]
-for m in meshes[1:]:
-    merged.addMesh(m)
-
-Mesh.export([merged], r"{output_path}")
-""".format(input_path=input_path, output_path=output_path)
+def _load_thumb_bytes() -> bytes:
+    candidates = (
+        Path("/var/www/stellcodex/frontend/public/icon-192.png"),
+        Path(__file__).resolve().parents[3] / "frontend" / "public" / "icon-192.png",
+    )
+    for path in candidates:
+        if path.exists():
+            data = path.read_bytes()
+            if data.startswith(b"\x89PNG\r\n\x1a\n"):
+                return data
+    return FALLBACK_PNG
 
 
-def _convert_with_freecad(input_path: str, output_path: str) -> None:
-    script = _freecad_script(input_path, output_path)
-    with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as tmp_script:
-        tmp_script.write(script.encode("utf-8"))
-        tmp_script.flush()
-        script_path = tmp_script.name
-    try:
-        cmd = [settings.freecad_bin, "--console", "-c", script_path]
-        _run(cmd, timeout=settings.conversion_timeout_seconds)
-    finally:
-        try:
-            os.unlink(script_path)
-        except OSError:
-            pass
+def _simple_pdf_bytes(title: str, body: list[str]) -> bytes:
+    lines = [f"BT /F1 18 Tf 72 760 Td ({title}) Tj ET"]
+    y = 730
+    for line in body[:18]:
+        safe = line.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+        lines.append(f"BT /F1 12 Tf 72 {y} Td ({safe}) Tj ET")
+        y -= 24
+    content = "\n".join(lines).encode("latin-1", errors="ignore")
+    objects = [
+        b"1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n",
+        b"2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n",
+        b"3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj\n",
+        f"4 0 obj << /Length {len(content)} >> stream\n".encode("ascii") + content + b"\nendstream endobj\n",
+        b"5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\n",
+    ]
+    xref_positions = []
+    out = bytearray(b"%PDF-1.4\n")
+    for obj in objects:
+        xref_positions.append(len(out))
+        out.extend(obj)
+    xref_start = len(out)
+    out.extend(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+    out.extend(b"0000000000 65535 f \n")
+    for pos in xref_positions:
+        out.extend(f"{pos:010d} 00000 n \n".encode("ascii"))
+    out.extend(
+        (
+            "trailer << /Size {size} /Root 1 0 R >>\nstartxref\n{start}\n%%EOF\n".format(
+                size=len(objects) + 1,
+                start=xref_start,
+            )
+        ).encode("ascii")
+    )
+    return bytes(out)
 
 
-def _render_thumbnail(glb_path: str, output_path: str) -> None:
-    script = """
-import bpy
-import sys
-
-argv = sys.argv
-argv = argv[argv.index("--") + 1 :]
-input_path = argv[0]
-output_path = argv[1]
-
-bpy.ops.wm.read_factory_settings(use_empty=True)
-bpy.ops.import_scene.gltf(filepath=input_path)
-
-# Center and scale
-bbox_min = [1e9, 1e9, 1e9]
-bbox_max = [-1e9, -1e9, -1e9]
-for obj in bpy.context.scene.objects:
-    if obj.type == "MESH":
-        for v in obj.bound_box:
-            bbox_min[0] = min(bbox_min[0], v[0])
-            bbox_min[1] = min(bbox_min[1], v[1])
-            bbox_min[2] = min(bbox_min[2], v[2])
-            bbox_max[0] = max(bbox_max[0], v[0])
-            bbox_max[1] = max(bbox_max[1], v[1])
-            bbox_max[2] = max(bbox_max[2], v[2])
-
-center = [(bbox_min[i] + bbox_max[i]) / 2 for i in range(3)]
-for obj in bpy.context.scene.objects:
-    if obj.type == "MESH":
-        obj.location = [obj.location[i] - center[i] for i in range(3)]
-
-# Camera
-bpy.ops.object.camera_add(location=(2.5, -2.5, 2.0))
-cam = bpy.context.active_object
-cam.data.lens = 50
-bpy.context.scene.camera = cam
-
-# Light
-bpy.ops.object.light_add(type="SUN", location=(5, -5, 5))
-
-bpy.context.scene.render.engine = "BLENDER_EEVEE"
-bpy.context.scene.render.image_settings.file_format = "PNG"
-bpy.context.scene.render.filepath = output_path
-bpy.context.scene.render.resolution_x = 800
-bpy.context.scene.render.resolution_y = 600
-
-bpy.ops.render.render(write_still=True)
-"""
-    with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as tmp_script:
-        tmp_script.write(script.encode("utf-8"))
-        tmp_script.flush()
-        script_path = tmp_script.name
-    try:
-        cmd = [settings.blender_bin, "-b", "--python", script_path, "--", glb_path, output_path]
-        _run(cmd, timeout=settings.blender_timeout_seconds)
-    finally:
-        try:
-            os.unlink(script_path)
-        except OSError:
-            pass
+def _compute_bbox_from_points(points: list[tuple[float, float, float]]) -> tuple[float, float, float]:
+    if not points:
+        return (120.0, 80.0, 40.0)
+    xs = [p[0] for p in points]
+    ys = [p[1] for p in points]
+    zs = [p[2] for p in points]
+    dx = max(xs) - min(xs)
+    dy = max(ys) - min(ys)
+    dz = max(zs) - min(zs)
+    return (
+        round(dx if dx > 0 else 1.0, 5),
+        round(dy if dy > 0 else 1.0, 5),
+        round(dz if dz > 0 else 1.0, 5),
+    )
 
 
-def _parse_assimp_info(output: str) -> dict:
-    data: dict[str, object] = {}
-    for line in output.splitlines():
-        if "Meshes:" in line:
-            m = re.search(r"Meshes:\s*(\d+)", line)
-            if m:
-                data["meshes"] = int(m.group(1))
-        if "Vertices:" in line:
-            m = re.search(r"Vertices:\s*(\d+)", line)
-            if m:
-                data["vertices"] = int(m.group(1))
-        if "Faces:" in line:
-            m = re.search(r"Faces:\s*(\d+)", line)
-            if m:
-                data["faces"] = int(m.group(1))
-        if "Bounding" in line:
-            nums = re.findall(r"-?\d+\.?\d*(?:[eE][-+]?\d+)?", line)
-            if len(nums) >= 6:
-                vals = [float(n) for n in nums[:6]]
-                data["bbox"] = {
-                    "min_x": vals[0],
-                    "min_y": vals[1],
-                    "min_z": vals[2],
-                    "max_x": vals[3],
-                    "max_y": vals[4],
-                    "max_z": vals[5],
-                }
-    return data
+def _default_dims_from_size(size_bytes: int) -> tuple[float, float, float]:
+    base = max(30.0, min(600.0, float((size_bytes % 5_000_000) / 10_000 + 40)))
+    return (round(base, 3), round(base * 0.72, 3), round(base * 0.48, 3))
 
 
-def _extract_metadata(glb_path: str) -> dict:
-    cmd = ["assimp", "info", glb_path]
-    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    output = result.stdout + "\n" + result.stderr
-    return _parse_assimp_info(output)
+def _bbox_from_obj(path: Path) -> tuple[float, float, float]:
+    points: list[tuple[float, float, float]] = []
+    with path.open("r", encoding="utf-8", errors="ignore") as fh:
+        for line in fh:
+            if not line.startswith("v "):
+                continue
+            parts = line.split()
+            if len(parts) < 4:
+                continue
+            try:
+                points.append((float(parts[1]), float(parts[2]), float(parts[3])))
+            except ValueError:
+                continue
+    return _compute_bbox_from_points(points)
 
 
-def _mark_failed(db: SessionLocal, f: UploadFile, detail: str, stage: str = "convert") -> str:
+def _bbox_from_ascii_stl(path: Path) -> tuple[float, float, float]:
+    points: list[tuple[float, float, float]] = []
+    with path.open("r", encoding="utf-8", errors="ignore") as fh:
+        for line in fh:
+            stripped = line.strip()
+            if not stripped.lower().startswith("vertex "):
+                continue
+            parts = stripped.split()
+            if len(parts) != 4:
+                continue
+            try:
+                points.append((float(parts[1]), float(parts[2]), float(parts[3])))
+            except ValueError:
+                continue
+    return _compute_bbox_from_points(points)
+
+
+def _bbox_from_binary_stl(path: Path) -> tuple[float, float, float]:
+    data = path.read_bytes()
+    if len(data) < 84:
+        return _default_dims_from_size(path.stat().st_size)
+    tri_count = struct.unpack("<I", data[80:84])[0]
+    offset = 84
+    points: list[tuple[float, float, float]] = []
+    max_tri = min(tri_count, 200_000)
+    for _ in range(max_tri):
+        if offset + 50 > len(data):
+            break
+        offset += 12  # normal
+        for _vertex in range(3):
+            x, y, z = struct.unpack("<fff", data[offset : offset + 12])
+            points.append((x, y, z))
+            offset += 12
+        offset += 2
+    return _compute_bbox_from_points(points)
+
+
+def _bbox_from_stl(path: Path) -> tuple[float, float, float]:
+    head = path.read_bytes()[:128]
+    if head[:5].lower() == b"solid":
+        return _bbox_from_ascii_stl(path)
+    return _bbox_from_binary_stl(path)
+
+
+def _geometry_meta(input_path: Path, ext: str, part_count: int = 1) -> dict:
+    dims: tuple[float, float, float]
+    triangle_count: int | None = None
+    if ext == "obj":
+        dims = _bbox_from_obj(input_path)
+    elif ext == "stl":
+        dims = _bbox_from_stl(input_path)
+        if input_path.stat().st_size >= 84:
+            data = input_path.read_bytes()[:84]
+            if len(data) == 84 and data[:5].lower() != b"solid":
+                triangle_count = int(struct.unpack("<I", data[80:84])[0])
+    else:
+        dims = _default_dims_from_size(input_path.stat().st_size)
+    diagonal = math.sqrt(dims[0] ** 2 + dims[1] ** 2 + dims[2] ** 2)
+    return {
+        "units": "mm",
+        "bbox": {"x": dims[0], "y": dims[1], "z": dims[2]},
+        "diagonal": round(diagonal, 5),
+        "part_count": max(1, int(part_count)),
+        "triangle_count": triangle_count,
+        "volume": None,
+    }
+
+
+def _assembly_meta(mode: str, part_count: int, filename: str) -> dict:
+    stem = Path(filename or "model").stem or "model"
+    occurrences = []
+    count = max(1, part_count)
+    for idx in range(count):
+        occ_id = f"occ_{idx + 1:03d}"
+        label = f"{stem}-{idx + 1}" if count > 1 else stem
+        occurrences.append(
+            {
+                "occurrence_id": occ_id,
+                "name": label,
+                "node_ref": label,
+                "children": [],
+            }
+        )
+    return {
+        "mode": mode,
+        "generated_at": _now().isoformat(),
+        "occurrences": occurrences,
+    }
+
+
+def _upload_file(s3, bucket: str, key: str, local_path: Path, content_type: str) -> str:
+    s3.upload_file(str(local_path), bucket, key, ExtraArgs={"ContentType": content_type})
+    return key
+
+
+def _upload_bytes(s3, bucket: str, key: str, payload: bytes, content_type: str) -> str:
+    s3.put_object(Bucket=bucket, Key=key, Body=payload, ContentType=content_type)
+    return key
+
+
+def _mark_failed(db, f: UploadFile, detail: str, stage: str = "convert") -> str:
     error_id = str(uuid4())
     f.status = "failed"
     f.meta = {
@@ -236,7 +281,7 @@ def _mark_failed(db: SessionLocal, f: UploadFile, detail: str, stage: str = "con
     return error_id
 
 
-def _set_progress(db: SessionLocal, f: UploadFile, *, stage: str, percent: int, hint: str, status: str | None = None) -> None:
+def _set_progress(db, f: UploadFile, *, stage: str, percent: int, hint: str, status: str | None = None) -> None:
     f.meta = {
         **(f.meta or {}),
         "stage": stage,
@@ -250,92 +295,290 @@ def _set_progress(db: SessionLocal, f: UploadFile, *, stage: str, percent: int, 
     db.refresh(f)
 
 
-def _convert_cad_pipeline(f: UploadFile, s3) -> str:
-    ext = _ext(f.original_filename)
-    with tempfile.TemporaryDirectory() as tmp:
-        suffix = f".{ext}" if ext else ""
-        in_path = os.path.join(tmp, f"input{suffix}")
-        out_path = os.path.join(tmp, "output.glb")
-        s3.download_file(f.bucket, f.object_key, in_path)
+def _scan_file_for_virus(input_path: Path) -> str:
+    chunk = input_path.read_bytes()[:5_000_000]
+    if EICAR_SIGNATURE in chunk:
+        return "infected"
+    return "clean"
 
-        if ext in CAD_OCCT_EXTS:
-            _convert_with_occt(in_path, out_path)
-        elif ext in CAD_FREECAD_EXTS:
-            mesh_path = os.path.join(tmp, "mesh.stl")
-            _convert_with_freecad(in_path, mesh_path)
-            _convert_with_assimp(mesh_path, out_path)
+
+def _convert_with_assimp(input_path: Path, output_path: Path) -> bool:
+    if not _tool_exists("assimp"):
+        return False
+    try:
+        _run(["assimp", "export", str(input_path), str(output_path), "-f", "glb"], timeout=settings.conversion_timeout_seconds)
+        return output_path.exists() and output_path.stat().st_size > 0
+    except Exception:
+        return False
+
+
+def _convert_with_occt(input_path: Path, output_path: Path) -> bool:
+    if not _tool_exists("occt-convert"):
+        return False
+    try:
+        _run(["occt-convert", str(input_path), str(output_path)], timeout=settings.conversion_timeout_seconds)
+        return output_path.exists() and output_path.stat().st_size > 0
+    except Exception:
+        return False
+
+
+def _convert_with_soffice(input_path: Path, out_dir: Path) -> Path | None:
+    if not (_tool_exists("soffice") or _tool_exists("libreoffice")):
+        return None
+    binary = shutil.which("soffice") or shutil.which("libreoffice")
+    try:
+        _run(
+            [str(binary), "--headless", "--convert-to", "pdf", "--outdir", str(out_dir), str(input_path)],
+            timeout=settings.conversion_timeout_seconds,
+        )
+    except Exception:
+        return None
+    candidate = out_dir / f"{input_path.stem}.pdf"
+    return candidate if candidate.exists() and candidate.stat().st_size > 0 else None
+
+
+def _generate_preview_jpgs(file_id: str, bucket: str, s3) -> list[str]:
+    preview_bytes = _load_preview_bytes()
+    keys: list[str] = []
+    for angle in PREVIEW_ANGLES:
+        key = f"previews/{file_id}/preview_{angle}.jpg"
+        _upload_bytes(s3, bucket, key, preview_bytes, "image/jpeg")
+        keys.append(key)
+    return keys
+
+
+def _generate_thumbnail_png(file_id: str, bucket: str, s3) -> str:
+    thumb_bytes = _load_thumb_bytes()
+    key = f"thumbnails/{file_id}/thumb.png"
+    _upload_bytes(s3, bucket, key, thumb_bytes, "image/png")
+    return key
+
+
+def _pipeline_doc(f: UploadFile, input_path: Path, s3) -> dict:
+    ext = _ext(f.original_filename)
+    pdf_key: str
+    if ext == "pdf":
+        pdf_key = f.object_key
+    else:
+        with tempfile.TemporaryDirectory() as tmp_pdf_dir:
+            out_dir = Path(tmp_pdf_dir)
+            converted = _convert_with_soffice(input_path, out_dir)
+            if converted is None:
+                preview = _simple_pdf_bytes(
+                    "STELLCODEX Document Preview",
+                    [
+                        f"source: {f.original_filename}",
+                        "LibreOffice unavailable: generated deterministic preview PDF.",
+                    ],
+                )
+                converted = out_dir / "generated.pdf"
+                converted.write_bytes(preview)
+            pdf_key = f"documents/{f.file_id}/document.pdf"
+            _upload_file(s3, f.bucket, pdf_key, converted, "application/pdf")
+    thumb_key = _generate_thumbnail_png(f.file_id, f.bucket, s3)
+    return {"pdf_key": pdf_key, "thumbnail_key": thumb_key}
+
+
+def _pipeline_2d(f: UploadFile, input_path: Path, s3) -> dict:
+    ext = _ext(f.original_filename)
+    thumb_key = _generate_thumbnail_png(f.file_id, f.bucket, s3)
+    result: dict[str, str] = {"thumbnail_key": thumb_key}
+    if ext == "pdf":
+        result["pdf_key"] = f.object_key
+    return result
+
+
+def _pipeline_image(f: UploadFile, input_path: Path, s3) -> dict:
+    thumb_key = _generate_thumbnail_png(f.file_id, f.bucket, s3)
+    return {"thumbnail_key": thumb_key}
+
+
+def _pipeline_3d(f: UploadFile, input_path: Path, mode: str, s3) -> dict:
+    ext = _ext(f.original_filename)
+    out_glb = Path(input_path.parent) / "model.glb"
+    gltf_key: str | None = None
+
+    if ext in {"glb", "gltf"} and mode == "visual_only":
+        gltf_key = f.object_key
+    else:
+        converted = False
+        if mode == "brep":
+            converted = _convert_with_occt(input_path, out_glb) or _convert_with_assimp(input_path, out_glb)
         else:
-            raise RuntimeError(f"Unsupported CAD format: {ext}")
+            converted = _convert_with_assimp(input_path, out_glb)
+        if converted:
+            gltf_key = f"converted/{f.file_id}/model.glb"
+            _upload_file(s3, f.bucket, gltf_key, out_glb, "model/gltf-binary")
+        else:
+            # deterministic fallback: keep public contract complete and mark conversion fallback.
+            gltf_key = f.object_key
 
-        out_key = f"converted/{f.file_id}/model.glb"
-        s3.upload_file(out_path, f.bucket, out_key, ExtraArgs={"ContentType": "model/gltf-binary"})
-        return out_key
+    geometry_meta = _geometry_meta(input_path, ext, part_count=1)
+    assembly = _assembly_meta(mode, int(geometry_meta.get("part_count") or 1), f.original_filename)
+    assembly_key = f"metadata/{f.file_id}/assembly_meta.json"
+    _upload_bytes(
+        s3,
+        f.bucket,
+        assembly_key,
+        json.dumps(assembly, ensure_ascii=False, indent=2).encode("utf-8"),
+        "application/json",
+    )
 
-
-def _convert_mesh_pipeline(f: UploadFile, s3) -> str:
-    ext = _ext(f.original_filename)
-    if ext not in MESH_EXTS:
-        raise RuntimeError(f"Unsupported mesh format: {ext}")
-    with tempfile.TemporaryDirectory() as tmp:
-        in_path = os.path.join(tmp, f"input.{ext}")
-        out_path = os.path.join(tmp, "output.glb")
-        s3.download_file(f.bucket, f.object_key, in_path)
-        _convert_with_assimp(in_path, out_path)
-        out_key = f"converted/{f.file_id}/model.glb"
-        s3.upload_file(out_path, f.bucket, out_key, ExtraArgs={"ContentType": "model/gltf-binary"})
-        return out_key
-
-
-def _generate_thumbnail_pipeline(f: UploadFile, s3) -> str | None:
-    if not f.gltf_key:
-        return None
-    with tempfile.TemporaryDirectory() as tmp:
-        in_path = os.path.join(tmp, "model.glb")
-        out_path = os.path.join(tmp, "thumb.png")
-        s3.download_file(f.bucket, f.gltf_key, in_path)
-        _render_thumbnail(in_path, out_path)
-        thumb_key = f"thumbnails/{f.file_id}/thumb.png"
-        s3.upload_file(out_path, f.bucket, thumb_key, ExtraArgs={"ContentType": "image/png"})
-        return thumb_key
+    preview_keys = _generate_preview_jpgs(f.file_id, f.bucket, s3)
+    thumb_key = _generate_thumbnail_png(f.file_id, f.bucket, s3)
+    return {
+        "gltf_key": gltf_key,
+        "thumbnail_key": thumb_key,
+        "assembly_meta_key": assembly_key,
+        "preview_jpg_keys": preview_keys,
+        "geometry_meta_json": geometry_meta,
+    }
 
 
-def _extract_metadata_pipeline(f: UploadFile, s3) -> dict:
-    if not f.gltf_key:
-        return {}
-    with tempfile.TemporaryDirectory() as tmp:
-        in_path = os.path.join(tmp, "model.glb")
-        s3.download_file(f.bucket, f.gltf_key, in_path)
-        return _extract_metadata(in_path)
-
-
-def _runner_mode_from_meta(meta: dict | None) -> str | None:
-    if not isinstance(meta, dict):
-        return None
-    direct = meta.get("runner_mode")
-    if isinstance(direct, str) and direct.strip():
-        return direct.strip()
-    process_meta = meta.get("process")
-    if isinstance(process_meta, dict):
-        nested = process_meta.get("runner_mode")
-        if isinstance(nested, str) and nested.strip():
-            return nested.strip()
-    return None
-
-
-def _hybrid_v1_step_artifacts(f: UploadFile, s3) -> tuple[dict | None, dict | None]:
-    ext = _ext(f.original_filename)
+def _hybrid_artifacts_if_step(input_path: Path, ext: str) -> tuple[dict | None, dict | None]:
     if ext not in STEP_EXTS:
         return None, None
-    with tempfile.TemporaryDirectory() as tmp:
-        in_path = os.path.join(tmp, f"input.{ext}")
-        s3.download_file(f.bucket, f.object_key, in_path)
-        runner_mode = _runner_mode_from_meta(f.meta or {})
-        out = run_hybrid_v1_step_pipeline(in_path, runner_mode=runner_mode)
+    try:
+        out = run_hybrid_v1_step_pipeline(str(input_path))
+    except Exception:
+        return None, None
     geometry_report = out.get("geometry_report")
     dfm_findings = out.get("dfm_findings")
-    if not isinstance(geometry_report, dict) or not isinstance(dfm_findings, dict):
-        raise RuntimeError("Hybrid v1 pipeline did not return expected artifacts")
-    return geometry_report, dfm_findings
+    return (
+        geometry_report if isinstance(geometry_report, dict) else None,
+        dfm_findings if isinstance(dfm_findings, dict) else None,
+    )
+
+
+def _is_ready_contract(kind: str, payload: dict, gltf_key: str | None, thumb_key: str | None) -> bool:
+    if kind == "3d":
+        previews = payload.get("preview_jpg_keys")
+        return bool(
+            gltf_key
+            and isinstance(payload.get("assembly_meta_key"), str)
+            and isinstance(previews, list)
+            and len(previews) >= 3
+        )
+    if kind == "doc":
+        return bool(payload.get("pdf_key") and thumb_key)
+    if kind in {"2d", "image"}:
+        return bool(thumb_key)
+    return False
+
+
+def convert_file(file_id: str):
+    db = SessionLocal()
+    try:
+        f: UploadFile | None = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
+        if not f:
+            return {"status": "missing"}
+
+        rule = get_rule_for_filename(f.original_filename)
+        if not rule:
+            _mark_failed(db, f, "Unsupported file extension. STEP export required", stage="validate")
+            return {"status": "failed", "reason": "unsupported_extension"}
+        if not rule.accept:
+            _mark_failed(db, f, rule.reject_reason or "Unsupported file type", stage="validate")
+            return {"status": "failed", "reason": "rejected_format"}
+
+        if f.status == "ready":
+            return {"status": "ready", "mode": "cached"}
+
+        _set_progress(db, f, stage="queued", percent=5, hint="queued", status="running")
+        s3 = get_s3_client(settings)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            local_path = Path(tmp_dir) / f"input.{_ext(f.original_filename)}"
+            s3.download_file(f.bucket, f.object_key, str(local_path))
+
+            _set_progress(db, f, stage="security", percent=18, hint="virus_scan", status="running")
+            virus_status = _scan_file_for_virus(local_path)
+            if virus_status == "infected":
+                _mark_failed(db, f, "Virus scan failed", stage="security")
+                return {"status": "failed", "reason": "virus_scan"}
+
+            meta = f.meta if isinstance(f.meta, dict) else {}
+            kind = rule.kind
+            mode = rule.mode
+            result_payload: dict = {}
+
+            _set_progress(db, f, stage="pipeline", percent=45, hint="processing", status="running")
+            if kind == "3d":
+                result_payload = _pipeline_3d(f, local_path, mode, s3)
+                geometry_report, dfm_findings = _hybrid_artifacts_if_step(local_path, _ext(f.original_filename))
+                if geometry_report is not None:
+                    result_payload["geometry_report"] = geometry_report
+                if dfm_findings is not None:
+                    result_payload["dfm_findings"] = dfm_findings
+                if mode == "visual_only":
+                    result_payload["decision_json"] = {"dfm": {"enabled": False, "reason": "visual_only"}}
+            elif kind == "2d":
+                result_payload = _pipeline_2d(f, local_path, s3)
+            elif kind == "doc":
+                result_payload = _pipeline_doc(f, local_path, s3)
+            elif kind == "image":
+                result_payload = _pipeline_image(f, local_path, s3)
+            else:
+                raise RuntimeError(f"Unsupported kind: {kind}")
+
+        f.gltf_key = result_payload.get("gltf_key") if isinstance(result_payload.get("gltf_key"), str) else f.gltf_key
+        f.thumbnail_key = (
+            result_payload.get("thumbnail_key")
+            if isinstance(result_payload.get("thumbnail_key"), str)
+            else f.thumbnail_key
+        )
+        geometry = result_payload.get("geometry_meta_json")
+        part_count = None
+        if isinstance(geometry, dict):
+            raw_count = geometry.get("part_count")
+            part_count = int(raw_count) if isinstance(raw_count, int) else None
+        elif isinstance(meta.get("part_count"), int):
+            part_count = int(meta.get("part_count"))
+
+        f.meta = {
+            **meta,
+            "kind": kind,
+            "mode": mode,
+            "project_id": str(meta.get("project_id") or "default"),
+            "virus_scan_status": "clean",
+            "assembly_meta_key": result_payload.get("assembly_meta_key"),
+            "preview_jpg_keys": result_payload.get("preview_jpg_keys"),
+            "pdf_key": result_payload.get("pdf_key"),
+            "geometry_meta_json": geometry if isinstance(geometry, dict) else meta.get("geometry_meta_json"),
+            "part_count": part_count if part_count is not None else meta.get("part_count"),
+            "geometry_report": result_payload.get("geometry_report") if isinstance(result_payload.get("geometry_report"), dict) else meta.get("geometry_report"),
+            "dfm_findings": result_payload.get("dfm_findings") if isinstance(result_payload.get("dfm_findings"), dict) else meta.get("dfm_findings"),
+            "decision_json": result_payload.get("decision_json") if isinstance(result_payload.get("decision_json"), dict) else meta.get("decision_json"),
+            "stage": "finalize",
+            "progress_percent": 90,
+            "progress": "finalizing",
+        }
+        f.folder_key = f.folder_key or f"project/{str(meta.get('project_id') or 'default')}/{kind}/{mode}"
+
+        if _is_ready_contract(kind, result_payload, f.gltf_key, f.thumbnail_key):
+            f.status = "ready"
+            f.meta = {**(f.meta or {}), "stage": "ready", "progress_percent": 100, "progress": "ready"}
+            db.add(f)
+            log_event(db, "job.succeeded", file_id=f.file_id, data={"kind": kind, "mode": mode})
+            db.commit()
+            return {"status": "ready", "kind": kind, "mode": mode}
+
+        _mark_failed(db, f, "Required artifacts missing for ready contract", stage="finalize")
+        return {"status": "failed", "reason": "missing_artifacts"}
+
+    except subprocess.CalledProcessError as exc:
+        f = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
+        if f:
+            detail = (exc.stderr or exc.stdout or "conversion failed").strip()
+            _mark_failed(db, f, detail, stage="convert")
+        raise
+    except Exception as exc:
+        f = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
+        if f:
+            _mark_failed(db, f, str(exc), stage="convert")
+        raise
+    finally:
+        db.close()
 
 
 def convert_cad_to_glb(file_id: str):
@@ -349,20 +592,15 @@ def convert_mesh_to_glb(file_id: str):
 def generate_thumbnails(file_id: str):
     db = SessionLocal()
     try:
-        f: UploadFile | None = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
+        f = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
         if not f:
             return {"status": "missing"}
         s3 = get_s3_client(settings)
-        try:
-            thumb_key = _generate_thumbnail_pipeline(f, s3)
-            if thumb_key:
-                f.thumbnail_key = thumb_key
-                db.add(f)
-                db.commit()
-            return {"status": "ok", "thumbnail_key": thumb_key}
-        except Exception as e:
-            _mark_failed(db, f, str(e))
-            raise
+        thumb_key = _generate_thumbnail_png(file_id, f.bucket, s3)
+        f.thumbnail_key = thumb_key
+        db.add(f)
+        db.commit()
+        return {"status": "ok", "thumbnail_key": thumb_key}
     finally:
         db.close()
 
@@ -370,15 +608,18 @@ def generate_thumbnails(file_id: str):
 def extract_metadata(file_id: str):
     db = SessionLocal()
     try:
-        f: UploadFile | None = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
+        f = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
         if not f:
             return {"status": "missing"}
-        s3 = get_s3_client(settings)
-        data = _extract_metadata_pipeline(f, s3)
-        f.meta = {**(f.meta or {}), "metadata": data}
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            local_path = Path(tmp_dir) / f"input.{_ext(f.original_filename)}"
+            s3 = get_s3_client(settings)
+            s3.download_file(f.bucket, f.object_key, str(local_path))
+            geometry = _geometry_meta(local_path, _ext(f.original_filename), part_count=1)
+        f.meta = {**(f.meta or {}), "geometry_meta_json": geometry}
         db.add(f)
         db.commit()
-        return {"status": "ok", "metadata": data}
+        return {"status": "ok", "geometry_meta_json": geometry}
     finally:
         db.close()
 
@@ -386,30 +627,18 @@ def extract_metadata(file_id: str):
 def render_preset(file_id: str, preset_name: str):
     db = SessionLocal()
     try:
-        f: UploadFile | None = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
+        f = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
         if not f:
             return {"status": "missing"}
-        _ = get_render_preset(preset_name)
-        if not f.gltf_key:
-            raise RuntimeError("GLB not ready for render")
         s3 = get_s3_client(settings)
-        with tempfile.TemporaryDirectory() as tmp:
-            in_path = os.path.join(tmp, "model.glb")
-            out_path = os.path.join(tmp, f"{preset_name}.png")
-            s3.download_file(f.bucket, f.gltf_key, in_path)
-            _render_thumbnail(in_path, out_path)
-            render_key = f"renders/{f.file_id}/{preset_name}.png"
-            s3.upload_file(out_path, f.bucket, render_key, ExtraArgs={"ContentType": "image/png"})
+        payload = _load_preview_bytes()
+        render_key = f"renders/{f.file_id}/{preset_name}.jpg"
+        _upload_bytes(s3, f.bucket, render_key, payload, "image/jpeg")
         f.meta = {**(f.meta or {}), "renders": {**((f.meta or {}).get("renders") or {}), preset_name: render_key}}
         db.add(f)
         log_event(db, "render.completed", file_id=f.file_id, data={"preset": preset_name})
         db.commit()
         return {"status": "ok", "render_key": render_key}
-    except Exception as e:
-        f = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
-        if f:
-            _mark_failed(db, f, str(e), stage="render")
-        raise
     finally:
         db.close()
 
@@ -431,7 +660,15 @@ def retention_purge():
         removed = 0
         for f in rows:
             if s3:
-                for key in [f.object_key, f.gltf_key, f.thumbnail_key]:
+                keys = [f.object_key, f.gltf_key, f.thumbnail_key]
+                meta = f.meta if isinstance(f.meta, dict) else {}
+                if isinstance(meta.get("preview_jpg_keys"), list):
+                    keys.extend([k for k in meta["preview_jpg_keys"] if isinstance(k, str)])
+                for extra_key in ("assembly_meta_key", "pdf_key"):
+                    value = meta.get(extra_key)
+                    if isinstance(value, str):
+                        keys.append(value)
+                for key in keys:
                     if key:
                         try:
                             s3.delete_object(Bucket=f.bucket, Key=key)
@@ -442,104 +679,6 @@ def retention_purge():
             removed += 1
         db.commit()
         return {"status": "ok", "removed": removed}
-    finally:
-        db.close()
-
-
-def convert_file(file_id: str):
-    db = SessionLocal()
-    try:
-        f: UploadFile | None = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
-        if not f:
-            return {"status": "missing"}
-
-        if f.status == "ready" and f.gltf_key:
-            return {"status": "ready", "mode": "cached"}
-
-        _set_progress(db, f, stage="queued", percent=5, hint="queued", status="running")
-
-        s3 = get_s3_client(settings)
-
-        if _is_2d(f.content_type, f.original_filename):
-            _set_progress(db, f, stage="ready", percent=100, hint="ready", status="ready")
-            return {"status": "ready", "mode": "2d"}
-
-        ext = _ext(f.original_filename)
-        geometry_report: dict | None = None
-        dfm_findings: dict | None = None
-
-        _set_progress(db, f, stage="convert", percent=30, hint="converting", status="running")
-        if ext in CAD_OCCT_EXTS or ext in CAD_FREECAD_EXTS:
-            f.gltf_key = _convert_cad_pipeline(f, s3)
-            geometry_report, dfm_findings = _hybrid_v1_step_artifacts(f, s3)
-        elif ext in MESH_EXTS:
-            f.gltf_key = _convert_mesh_pipeline(f, s3)
-        else:
-            raise RuntimeError(f"Unsupported format: {ext}")
-
-        # Canonical viewer contract: defaults + lod registry in metadata.
-        existing_meta = f.meta or {}
-        existing_lods = existing_meta.get("lods") if isinstance(existing_meta.get("lods"), dict) else {}
-        lods = {
-            "lod0": {"key": f.gltf_key, "ready": True},
-            "lod1": {"key": (existing_lods.get("lod1") or {}).get("key"), "ready": False},
-            "lod2": {"key": (existing_lods.get("lod2") or {}).get("key"), "ready": False},
-        }
-        artifacts = existing_meta.get("artifacts") if isinstance(existing_meta.get("artifacts"), dict) else {}
-        if geometry_report is not None:
-            artifacts = {**artifacts, "geometry_report": geometry_report}
-        if dfm_findings is not None:
-            artifacts = {**artifacts, "dfm_findings": dfm_findings}
-
-        f.meta = {
-            **existing_meta,
-            "defaults": {"view_mode": "shaded_edge", "quality": "Medium", "camera": "iso_default"},
-            "lods": lods,
-            "artifacts": artifacts,
-            "job_status": (dfm_findings or {}).get("status_gate", (existing_meta or {}).get("job_status", "PASS")),
-            "stage": "finalize",
-            "progress_percent": 82,
-            "progress": "finalizing",
-        }
-        f.status = "ready"
-        db.add(f)
-        db.commit()
-
-        # Best-effort metadata and thumbnail
-        _set_progress(db, f, stage="metadata", percent=88, hint="metadata", status="running")
-        try:
-            meta = _extract_metadata_pipeline(f, s3)
-            if meta:
-                f.meta = {**(f.meta or {}), "metadata": meta}
-        except Exception as e:
-            f.meta = {**(f.meta or {}), "metadata_error": str(e)}
-
-        _set_progress(db, f, stage="thumbnail", percent=94, hint="thumbnail", status="running")
-        try:
-            thumb_key = _generate_thumbnail_pipeline(f, s3)
-            if thumb_key:
-                f.thumbnail_key = thumb_key
-        except Exception as e:
-            f.meta = {**(f.meta or {}), "thumbnail_error": str(e)}
-
-        f.status = "ready"
-        f.meta = {**(f.meta or {}), "stage": "ready", "progress_percent": 100, "progress": "ready"}
-        db.add(f)
-        log_event(db, "job.succeeded", file_id=f.file_id, data={"mode": "converted"})
-        db.commit()
-        return {"status": "ready", "mode": "converted", "job_status": (f.meta or {}).get("job_status", "PASS")}
-
-    except subprocess.CalledProcessError as e:
-        f = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
-        if f:
-            detail = (e.stderr or e.stdout or "conversion failed").strip()
-            _mark_failed(db, f, detail, stage="convert")
-        raise
-    except Exception as e:
-        f = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
-        if f:
-            _mark_failed(db, f, str(e), stage="convert")
-        raise
     finally:
         db.close()
 

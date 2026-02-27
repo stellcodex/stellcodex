@@ -1,7 +1,6 @@
-import { PublicSharePage } from "@/components/share/PublicSharePage";
+import { redirect } from "next/navigation";
 
-export default async function ShareTokenPublicPage({ params }: { params: Promise<{ token: string }> }) {
+export default async function CanonicalShareRoute({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  return <PublicSharePage token={token} />;
+  redirect(`/share/${token}`);
 }
-

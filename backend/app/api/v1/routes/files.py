@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import io
 import json
 import logging
+import os
 import tempfile
 import zipfile
 from typing import Any
@@ -16,7 +17,15 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.formats import is_allowed_filename, rejected_extensions
+from app.core.format_registry import (
+    allowed_extensions as registry_allowed_extensions,
+    extension_from_filename,
+    get_rule_for_filename,
+    grouped_payload,
+    infer_mime_from_bytes,
+    match_content_type,
+    rejected_extensions as registry_rejected_extensions,
+)
 from app.core.ids import format_scx_file_id, normalize_scx_file_id, normalize_scx_id
 from app.core.storage import get_s3_client, get_s3_presign_client
 from app.db.session import get_db
@@ -27,6 +36,9 @@ from app.services.audit import log_event
 
 router = APIRouter(tags=["files"])
 log = logging.getLogger("uvicorn.error")
+
+UPLOAD_RATE_LIMIT_PER_HOUR = int(os.getenv("UPLOAD_RATE_LIMIT_PER_HOUR", "120"))
+_UPLOAD_RATE_BUCKET: dict[str, tuple[int, int]] = {}
 
 
 def _now() -> datetime:
@@ -43,22 +55,57 @@ def _feature_on() -> None:
 
 
 def _allowed_ext(filename: str) -> bool:
-    return is_allowed_filename(filename)
+    rule = get_rule_for_filename(filename)
+    return bool(rule and rule.accept)
+
+def _upload_rate_key(principal: Principal) -> str:
+    if principal.typ == "guest":
+        return f"guest:{principal.owner_sub or 'anon'}"
+    return f"user:{principal.user_id or principal.owner_sub or 'unknown'}"
 
 
-def _validate_upload(content_type: str, size_bytes: int, filename: str) -> None:
+def _check_upload_rate(principal: Principal) -> None:
+    now = int(datetime.now(timezone.utc).timestamp())
+    slot = now // 3600
+    key = _upload_rate_key(principal)
+    seen_slot, count = _UPLOAD_RATE_BUCKET.get(key, (slot, 0))
+    if seen_slot != slot:
+        seen_slot = slot
+        count = 0
+    count += 1
+    _UPLOAD_RATE_BUCKET[key] = (seen_slot, count)
+    if count > UPLOAD_RATE_LIMIT_PER_HOUR:
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+
+
+def _validate_upload(content_type: str, size_bytes: int, filename: str, sniffed_content_type: str | None = None) -> None:
     max_bytes = getattr(settings, "max_upload_bytes", 100 * 1024 * 1024)
     if size_bytes > max_bytes:
         raise HTTPException(status_code=413, detail=f"File too large (max {max_bytes} bytes)")
 
+    ext = extension_from_filename(filename)
+    rule = get_rule_for_filename(filename)
+    if not rule:
+        supported = ", ".join(registry_allowed_extensions())
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported file type '.{ext}'. STEP export required for unsupported CAD. Supported: {supported}",
+        )
+    if not rule.accept:
+        supported = ", ".join(registry_allowed_extensions())
+        reason = rule.reject_reason or "Unsupported file type"
+        raise HTTPException(status_code=415, detail=f"{reason}. Supported: {supported}")
+
     allow = getattr(settings, "allowed_content_types", [])
-    if allow and (content_type not in allow) and not _allowed_ext(filename):
+    if allow and content_type and (content_type not in allow) and not rule.accept:
         raise HTTPException(status_code=415, detail="Unsupported content-type")
-    if not _allowed_ext(filename):
-        ext = (filename or "").lower().rsplit(".", 1)[-1]
-        if ext in rejected_extensions():
-            raise HTTPException(status_code=415, detail="Unsupported file type")
-        raise HTTPException(status_code=415, detail="Unsupported file type")
+
+    if content_type and not match_content_type(content_type, ext):
+        raise HTTPException(status_code=415, detail=f"Content-Type mismatch for .{ext}")
+
+    if sniffed_content_type:
+        if not match_content_type(sniffed_content_type, ext):
+            raise HTTPException(status_code=415, detail=f"MIME sniff mismatch for .{ext}")
 
 
 def _normalize_file_uuid(value: str) -> UUID:
@@ -88,6 +135,21 @@ def _get_file_by_identifier(db: Session, value: str) -> UploadFileModel | None:
 
 def _safe_object_key(owner_sub: str) -> str:
     return f"uploads/{owner_sub}/{uuid4()}/original"
+
+
+def _derive_kind_mode(filename: str, meta: dict[str, Any] | None = None) -> tuple[str, str]:
+    payload = meta if isinstance(meta, dict) else {}
+    rule = get_rule_for_filename(filename)
+    kind = str(payload.get("kind") or (rule.kind if rule else "3d"))
+    mode = str(payload.get("mode") or (rule.mode if rule else "brep"))
+    return kind, mode
+
+
+def _derive_folder_key(filename: str, meta: dict[str, Any] | None = None) -> str:
+    payload = meta if isinstance(meta, dict) else {}
+    project_id = str(payload.get("project_id") or "default")
+    kind, mode = _derive_kind_mode(filename, payload)
+    return f"project/{project_id}/{kind}/{mode}"
 
 
 def _assert_file_access(f: UploadFileModel, principal: Principal) -> None:
@@ -371,6 +433,7 @@ class FileOut(BaseModel):
     file_id: str
     original_name: str
     kind: str
+    mode: str | None = None
     created_at: datetime
     content_type: str
     size_bytes: int
@@ -378,8 +441,11 @@ class FileOut(BaseModel):
     visibility: str
     thumbnail_url: str | None = None
     preview_url: str | None = None
+    preview_urls: list[str] | None = None
     gltf_url: str | None = None
     original_url: str | None = None
+    bbox_meta: dict[str, Any] | None = None
+    part_count: int | None = None
     error: str | None = None
 
 
@@ -437,50 +503,125 @@ class VisibilityIn(BaseModel):
 
 
 def _file_kind(content_type: str, filename: str) -> str:
+    rule = get_rule_for_filename(filename)
+    if rule:
+        return rule.kind
     ctype = (content_type or "").strip().lower()
-    name = (filename or "").strip().lower()
-    if (
-        name.endswith(".dxf")
-        or ctype in {"application/dxf", "application/x-dxf", "image/vnd.dxf"}
-        or ctype.startswith("image/")
-        or ctype == "application/pdf"
-    ):
-        return "2d"
+    if ctype.startswith("image/"):
+        return "image"
+    if ctype == "application/pdf":
+        return "doc"
     return "3d"
 
 
 def _build_file_urls(f: UploadFileModel) -> tuple[str | None, str | None, str | None]:
-    if f.status != "ready":
+    if (_effective_status(f) or "").lower() != "ready":
         return None, None, None
     public_id = _public_file_id(f.file_id)
     if f.gltf_key:
         gltf_url = f"/api/v1/files/{public_id}/gltf"
-        return gltf_url, gltf_url, None
+        previews = _preview_urls(f)
+        return (previews[0] if previews else gltf_url), gltf_url, None
+    if _file_kind(f.content_type, f.original_filename) == "doc":
+        if (f.meta or {}).get("pdf_key"):
+            return f"/api/v1/files/{public_id}/pdf", None, f"/api/v1/files/{public_id}/pdf"
     original_url = f"/api/v1/files/{public_id}/content"
     return original_url, None, original_url
 
 
 def _file_thumbnail_url(f: UploadFileModel) -> str | None:
-    # Thumbnail binary endpoint is not exposed yet; keep null until ready.
+    if not f.thumbnail_key or (_effective_status(f) or "").lower() != "ready":
+        return None
+    return f"/api/v1/files/{_public_file_id(f.file_id)}/thumbnail"
+
+
+def _file_mode(f: UploadFileModel) -> str | None:
+    meta = f.meta or {}
+    raw_mode = meta.get("mode")
+    if isinstance(raw_mode, str) and raw_mode:
+        return raw_mode
+    rule = get_rule_for_filename(f.original_filename)
+    return rule.mode if rule else None
+
+
+def _preview_urls(f: UploadFileModel) -> list[str]:
+    if (_effective_status(f) or "").lower() != "ready":
+        return []
+    meta = f.meta or {}
+    urls: list[str] = []
+    preview_keys = meta.get("preview_jpg_keys")
+    if isinstance(preview_keys, list):
+        for idx, _key in enumerate(preview_keys):
+            urls.append(f"/api/v1/files/{_public_file_id(f.file_id)}/preview/{idx}")
+    elif isinstance(meta.get("pdf_key"), str):
+        urls.append(f"/api/v1/files/{_public_file_id(f.file_id)}/pdf")
+    elif f.thumbnail_key:
+        urls.append(f"/api/v1/files/{_public_file_id(f.file_id)}/thumbnail")
+    return urls
+
+
+def _geometry_meta(f: UploadFileModel) -> dict[str, Any] | None:
+    meta = f.meta or {}
+    data = meta.get("geometry_meta_json")
+    return data if isinstance(data, dict) else None
+
+
+def _part_count_meta(f: UploadFileModel) -> int | None:
+    meta = f.meta or {}
+    value = meta.get("part_count")
+    if isinstance(value, int):
+        return value
+    geometry = _geometry_meta(f) or {}
+    gcount = geometry.get("part_count")
+    if isinstance(gcount, int):
+        return gcount
     return None
+
+
+def _meets_ready_contract(f: UploadFileModel) -> bool:
+    kind = _file_kind(f.content_type, f.original_filename)
+    meta = f.meta if isinstance(f.meta, dict) else {}
+    if kind == "3d":
+        previews = meta.get("preview_jpg_keys")
+        return bool(f.gltf_key and isinstance(meta.get("assembly_meta_key"), str) and isinstance(previews, list) and len(previews) >= 3)
+    if kind == "doc":
+        return bool(isinstance(meta.get("pdf_key"), str) and f.thumbnail_key)
+    if kind in {"2d", "image"}:
+        return bool(f.thumbnail_key)
+    return True
+
+
+def _effective_status(f: UploadFileModel) -> str:
+    raw = (f.status or "").lower()
+    if raw == "ready" and not _meets_ready_contract(f):
+        return "failed"
+    return f.status
 
 
 def _serialize_file_out(f: UploadFileModel) -> FileOut:
     preview_url, gltf_url, original_url = _build_file_urls(f)
-    err = (f.meta or {}).get("error") if f.status == "failed" else None
+    previews = _preview_urls(f)
+    effective_status = _effective_status(f)
+    err = (f.meta or {}).get("error") if effective_status == "failed" else None
+    if effective_status == "failed" and not err and (f.status or "").lower() == "ready":
+        err = "assembly_meta_key and preview_jpg_keys are mandatory for ready status"
     return FileOut(
         file_id=_public_file_id(f.file_id),
         original_name=f.original_filename,
         kind=_file_kind(f.content_type, f.original_filename),
+        mode=_file_mode(f),
         created_at=f.created_at,
         content_type=f.content_type,
         size_bytes=int(f.size_bytes),
-        status=f.status,
+        status=effective_status,
         visibility=f.visibility,
         thumbnail_url=_file_thumbnail_url(f),
         preview_url=preview_url,
+        preview_urls=previews or None,
         gltf_url=gltf_url,
         original_url=original_url,
+        bbox_meta=(_geometry_meta(f) or {}).get("bbox"),
+        part_count=_part_count_meta(f),
         error=err,
     )
 
@@ -492,6 +633,7 @@ def initiate_upload(
     principal: Principal = Depends(_require_principal),
 ):
     _feature_on()
+    _check_upload_rate(principal)
     if not data.filename:
         raise HTTPException(status_code=400, detail="filename required")
     _validate_upload(data.content_type, data.size_bytes, data.filename)
@@ -501,6 +643,8 @@ def initiate_upload(
         raise HTTPException(status_code=401, detail="Unauthorized")
     bucket = settings.s3_bucket
     key = _safe_object_key(owner_sub)
+    kind, mode = _derive_kind_mode(data.filename)
+    file_meta = {"kind": kind, "mode": mode, "project_id": "default", "virus_scan_status": "queued"}
 
     f = UploadFileModel(
         owner_sub=owner_sub,
@@ -516,6 +660,8 @@ def initiate_upload(
         sha256=data.sha256,
         status="pending",
         visibility="private",
+        folder_key=_derive_folder_key(data.filename, file_meta),
+        meta=file_meta,
         created_at=_now(),
         updated_at=_now(),
     )
@@ -544,6 +690,7 @@ async def direct_upload(
     principal: Principal = Depends(_require_principal),
 ):
     _feature_on()
+    _check_upload_rate(principal)
     if not upload.filename:
         raise HTTPException(status_code=400, detail="filename required")
 
@@ -553,13 +700,26 @@ async def direct_upload(
     upload.file.seek(0)
 
     content_type = (upload.content_type or "application/octet-stream").strip()
-    _validate_upload(content_type, size_bytes, upload.filename)
+
+    # MIME sniff guard (first bytes only) to block extension spoofing.
+    head = upload.file.read(8192)
+    upload.file.seek(0)
+    sniffed = infer_mime_from_bytes(head, upload.filename)
+    _validate_upload(content_type, size_bytes, upload.filename, sniffed_content_type=sniffed)
 
     owner_sub = principal.owner_sub or principal.user_id or ""
     if not owner_sub:
         raise HTTPException(status_code=401, detail="Unauthorized")
     bucket = settings.s3_bucket
     key = _safe_object_key(owner_sub)
+    kind, mode = _derive_kind_mode(upload.filename)
+    file_meta = {
+        "kind": kind,
+        "mode": mode,
+        "project_id": "default",
+        "sniffed_content_type": sniffed,
+        "virus_scan_status": "queued",
+    }
 
     f = UploadFileModel(
         owner_sub=owner_sub,
@@ -574,6 +734,8 @@ async def direct_upload(
         size_bytes=size_bytes,
         status="queued",
         visibility="private",
+        folder_key=_derive_folder_key(upload.filename, file_meta),
+        meta=file_meta,
         created_at=_now(),
         updated_at=_now(),
     )
@@ -652,7 +814,17 @@ def complete_upload(
     if remote_ct and f.content_type and remote_ct != f.content_type:
         raise HTTPException(status_code=400, detail="Uploaded content-type mismatch")
 
+    meta = f.meta if isinstance(f.meta, dict) else {}
+    kind, mode = _derive_kind_mode(f.original_filename, meta)
     f.status = "queued"
+    f.folder_key = f.folder_key or _derive_folder_key(f.original_filename, meta)
+    f.meta = {
+        **meta,
+        "kind": kind,
+        "mode": mode,
+        "project_id": str(meta.get("project_id") or "default"),
+        "virus_scan_status": str(meta.get("virus_scan_status") or "queued"),
+    }
     f.updated_at = _now()
     db.add(f)
     db.commit()
@@ -839,7 +1011,7 @@ def file_status(
         raise HTTPException(status_code=404, detail="File not found")
     _assert_file_access(f, principal)
 
-    status = (f.status or "").lower()
+    status = (_effective_status(f) or "").lower()
     if status in {"pending", "queued"}:
         state = "queued"
     elif status in {"processing", "running"}:
@@ -856,6 +1028,13 @@ def file_status(
         derivatives.append("gltf")
     if f.thumbnail_key:
         derivatives.append("thumbnail")
+    preview_keys = (f.meta or {}).get("preview_jpg_keys")
+    if isinstance(preview_keys, list) and preview_keys:
+        derivatives.append("preview_jpg")
+    if isinstance((f.meta or {}).get("assembly_meta_key"), str):
+        derivatives.append("assembly_meta")
+    if isinstance((f.meta or {}).get("pdf_key"), str):
+        derivatives.append("pdf")
     if f.content_type.startswith("image/") or f.content_type == "application/pdf":
         if f.status == "ready":
             derivatives.append("original")
@@ -960,6 +1139,69 @@ def download_content(
     obj = s3.get_object(Bucket=f.bucket, Key=f.object_key)
     stream = obj["Body"].iter_chunks()
     return StreamingResponse(stream, media_type=f.content_type)
+
+
+@router.get("/{file_id}/thumbnail")
+def download_thumbnail(
+    file_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(_require_principal),
+):
+    _feature_on()
+    f = _get_file_by_identifier(db, file_id)
+    if not f:
+        raise HTTPException(status_code=404, detail="File not found")
+    _assert_file_access(f, principal)
+    if not f.thumbnail_key:
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
+    s3 = s3_client()
+    obj = s3.get_object(Bucket=f.bucket, Key=f.thumbnail_key)
+    stream = obj["Body"].iter_chunks()
+    return StreamingResponse(stream, media_type="image/png")
+
+
+@router.get("/{file_id}/preview/{index}")
+def download_preview_jpg(
+    file_id: str,
+    index: int,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(_require_principal),
+):
+    _feature_on()
+    f = _get_file_by_identifier(db, file_id)
+    if not f:
+        raise HTTPException(status_code=404, detail="File not found")
+    _assert_file_access(f, principal)
+    previews = (f.meta or {}).get("preview_jpg_keys")
+    if not isinstance(previews, list) or index < 0 or index >= len(previews):
+        raise HTTPException(status_code=404, detail="Preview not found")
+    key = previews[index]
+    if not isinstance(key, str) or not key:
+        raise HTTPException(status_code=404, detail="Preview not found")
+    s3 = s3_client()
+    obj = s3.get_object(Bucket=f.bucket, Key=key)
+    stream = obj["Body"].iter_chunks()
+    return StreamingResponse(stream, media_type="image/jpeg")
+
+
+@router.get("/{file_id}/pdf")
+def download_pdf_content(
+    file_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(_require_principal),
+):
+    _feature_on()
+    f = _get_file_by_identifier(db, file_id)
+    if not f:
+        raise HTTPException(status_code=404, detail="File not found")
+    _assert_file_access(f, principal)
+    pdf_key = (f.meta or {}).get("pdf_key")
+    if not isinstance(pdf_key, str) or not pdf_key:
+        raise HTTPException(status_code=404, detail="PDF not found")
+    s3 = s3_client()
+    obj = s3.get_object(Bucket=f.bucket, Key=pdf_key)
+    stream = obj["Body"].iter_chunks()
+    return StreamingResponse(stream, media_type="application/pdf")
 
 
 @router.get("/{file_id}/gltf")

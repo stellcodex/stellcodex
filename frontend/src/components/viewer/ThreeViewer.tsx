@@ -23,7 +23,9 @@ type ViewerProps = {
   interactionMode?: "rotate" | "pan";
   clip?: boolean;
   explode?: boolean;
+  explodeFactor?: number;
   clipOffset?: number;
+  clipAxis?: "x" | "y" | "z" | "free";
   hiddenNodes?: Set<string>;
   selectedId?: string | null;
   measureEnabled?: boolean;
@@ -158,7 +160,9 @@ function SceneModel({
   interactionMode = "rotate",
   clip = false,
   explode = false,
+  explodeFactor = 0,
   clipOffset = 0,
+  clipAxis = "y",
   hiddenNodes,
   selectedId,
   measureEnabled,
@@ -177,7 +181,17 @@ function SceneModel({
   const [measurePoints, setMeasurePoints] = useState<[THREE.Vector3, THREE.Vector3] | null>(null);
   const lastNodesHashRef = useRef<string | null>(null);
 
-  const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, -1, 0), clipOffset), [clipOffset]);
+  const plane = useMemo(() => {
+    const normal =
+      clipAxis === "x"
+        ? new THREE.Vector3(-1, 0, 0)
+        : clipAxis === "z"
+        ? new THREE.Vector3(0, 0, -1)
+        : clipAxis === "free"
+        ? new THREE.Vector3(-0.56, -0.78, -0.23)
+        : new THREE.Vector3(0, -1, 0);
+    return new THREE.Plane(normal.normalize(), clipOffset);
+  }, [clipOffset, clipAxis]);
 
   useEffect(() => {
     if (!onNodes || !EMIT_TRAVERSE_NODES) return;
@@ -365,7 +379,8 @@ function SceneModel({
       }
       const base = baseMeshPositionsRef.current.get(mesh.uuid) || mesh.position.clone();
 
-      if (!explode) {
+      const effectiveExplode = Math.max(0, Math.min(1, explodeFactor > 0 ? explodeFactor : explode ? 1 : 0));
+      if (effectiveExplode <= 0) {
         mesh.position.copy(base);
         return;
       }
@@ -378,13 +393,13 @@ function SceneModel({
         dir.normalize();
       }
 
-      const offset = Math.max(getMeshExtent(mesh) * 0.08, 0.6);
+      const offset = Math.max(getMeshExtent(mesh) * 0.24, 1.2) * effectiveExplode;
       mesh.position.copy(base.clone().add(dir.multiplyScalar(offset)));
     });
 
     scene.updateMatrixWorld(true);
     invalidate();
-  }, [scene, explode, invalidate]);
+  }, [scene, explode, explodeFactor, invalidate]);
 
   useEffect(() => {
     scene.traverse((obj) => {

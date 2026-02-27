@@ -244,6 +244,11 @@ def resolve_share_alias(token: str, db: Session = Depends(get_db)):
     return resolve_share(token=token, db=db)
 
 
+@router.get("/s/{token}", response_model=ShareResolveOut)
+def resolve_share_short_alias(token: str, db: Session = Depends(get_db)):
+    return resolve_share(token=token, db=db)
+
+
 @router.get("/share/{token}/content")
 def share_content(token: str, db: Session = Depends(get_db)):
     _share, f = _resolve_active_share(db, token)

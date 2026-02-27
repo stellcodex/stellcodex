@@ -115,7 +115,6 @@ def status(revision_id: str, db: Session = Depends(get_db)):
     artifacts = revision.artifacts
 
     return StatusResponse(
-        revision_id=revision.id,
         file_id=normalize_scx_id(str(revision.id)),
         jobs=[
             {

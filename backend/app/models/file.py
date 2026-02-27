@@ -32,6 +32,7 @@ class UploadFile(Base):
 
     gltf_key: Mapped[str | None] = mapped_column(Text)
     thumbnail_key: Mapped[str | None] = mapped_column(Text)
+    folder_key: Mapped[str | None] = mapped_column(Text, index=True)
 
     meta: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
     status: Mapped[str] = mapped_column(String(16), default="pending")

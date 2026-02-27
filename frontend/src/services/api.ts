@@ -5,6 +5,7 @@ export type FileItem = {
   original_name: string;
   original_filename: string;
   kind: string;
+  mode?: string | null;
   created_at: string;
   content_type: string;
   size_bytes: number;
@@ -12,8 +13,11 @@ export type FileItem = {
   visibility: string;
   thumbnail_url?: string | null;
   preview_url?: string | null;
+  preview_urls?: string[] | null;
   gltf_url?: string | null;
   original_url?: string | null;
+  bbox_meta?: { x?: number; y?: number; z?: number; [key: string]: unknown } | null;
+  part_count?: number | null;
   error?: string | null;
 };
 
@@ -40,6 +44,41 @@ export type RecentFileItem = {
   status: string;
   created_at: string;
   thumbnail_url?: string | null;
+};
+
+export type ExplorerFolder = {
+  folder_key: string;
+  parent_key?: string | null;
+  label: string;
+  item_count: number;
+};
+
+export type ExplorerTreeResponse = {
+  project_id: string;
+  folders: ExplorerFolder[];
+};
+
+export type ExplorerItem = {
+  file_id: string;
+  name: string;
+  ext: string;
+  kind: string;
+  mode: string;
+  size: number;
+  created_at: string;
+  status: string;
+  thumb_url?: string | null;
+  preview_urls?: string[] | null;
+  bbox_meta?: { x?: number; y?: number; z?: number; [key: string]: unknown } | null;
+  part_count?: number | null;
+  open_url: string;
+};
+
+export type ExplorerListResponse = {
+  project_id: string;
+  folder_key?: string | null;
+  total: number;
+  items: ExplorerItem[];
 };
 
 export type AssemblyTreeNode = {
@@ -125,6 +164,7 @@ function normalizeFileItem(input: unknown): FileItem {
     original_name: originalName,
     original_filename: originalName,
     kind,
+    mode: typeof data.mode === "string" ? data.mode : null,
     created_at: createdAt,
     content_type: contentType,
     size_bytes: sizeBytes,
@@ -132,8 +172,13 @@ function normalizeFileItem(input: unknown): FileItem {
     visibility,
     thumbnail_url: typeof data.thumbnail_url === "string" ? data.thumbnail_url : null,
     preview_url: typeof data.preview_url === "string" ? data.preview_url : null,
+    preview_urls: Array.isArray(data.preview_urls)
+      ? (data.preview_urls.filter((x): x is string => typeof x === "string") as string[])
+      : null,
     gltf_url: typeof data.gltf_url === "string" ? data.gltf_url : null,
     original_url: typeof data.original_url === "string" ? data.original_url : null,
+    bbox_meta: data.bbox_meta && typeof data.bbox_meta === "object" ? (data.bbox_meta as FileItem["bbox_meta"]) : null,
+    part_count: typeof data.part_count === "number" ? data.part_count : null,
     error: typeof data.error === "string" ? data.error : null,
   };
 }
@@ -317,6 +362,38 @@ export async function listFiles(): Promise<FileItem[]> {
   const rawItems = (data as { items?: unknown }).items;
   if (!Array.isArray(rawItems)) return [];
   return rawItems.map((item) => normalizeFileItem(item));
+}
+
+export async function getExplorerTree(projectId = "default"): Promise<ExplorerTreeResponse> {
+  const res = await authFetch(`${API_BASE}/explorer/tree?project_id=${encodeURIComponent(projectId)}`);
+  if (!res.ok) await throwHttpError(res, "Explorer ağacı yüklenemedi.");
+  const data = (await res.json().catch(() => null)) as ExplorerTreeResponse | null;
+  return data || { project_id: projectId, folders: [] };
+}
+
+export async function getExplorerList(params: {
+  projectId?: string;
+  folderKey?: string | null;
+  q?: string;
+  sort?: "newest" | "oldest";
+  filter?: string | null;
+}): Promise<ExplorerListResponse> {
+  const query = new URLSearchParams();
+  query.set("project_id", params.projectId || "default");
+  if (params.folderKey) query.set("folder_key", params.folderKey);
+  if (params.q) query.set("q", params.q);
+  if (params.sort) query.set("sort", params.sort);
+  if (params.filter) query.set("filter", params.filter);
+  const res = await authFetch(`${API_BASE}/explorer/list?${query.toString()}`);
+  if (!res.ok) await throwHttpError(res, "Explorer liste yüklenemedi.");
+  const data = (await res.json().catch(() => null)) as ExplorerListResponse | null;
+  return data || { project_id: params.projectId || "default", folder_key: params.folderKey || null, total: 0, items: [] };
+}
+
+export async function getFormatsRegistry() {
+  const res = await apiFetch(`${API_BASE}/formats`);
+  if (!res.ok) await throwHttpError(res, "Format listesi alınamadı.");
+  return res.json();
 }
 
 export async function listRecentFiles(limit = 8): Promise<RecentFileItem[]> {

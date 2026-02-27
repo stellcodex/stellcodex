@@ -19,7 +19,6 @@ class JobOut(BaseModel):
 class ArtifactOut(BaseModel):
     id: UUID
     type: str
-    storage_key: str
     ready: bool
     content_type: Optional[str]
     size: Optional[str]
@@ -30,13 +29,11 @@ class ArtifactOut(BaseModel):
 
 class UploadResponse(BaseModel):
     project_id: UUID
-    revision_id: UUID
     file_id: str
     job_id: UUID
 
 
 class StatusResponse(BaseModel):
-    revision_id: UUID
     file_id: str
     jobs: List[JobOut]
     artifacts: List[ArtifactOut]

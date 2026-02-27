@@ -216,6 +216,8 @@ export default function ViewPage() {
   const [projection, setProjection] = useState<ProjectionMode>("perspective");
   const [clip, setClip] = useState(false);
   const [clipOffset, setClipOffset] = useState(0);
+  const [clipAxis, setClipAxis] = useState<"x" | "y" | "z" | "free">("y");
+  const [explodeFactor, setExplodeFactor] = useState(0);
   const [manifest, setManifest] = useState<FileManifest | null>(null);
   const [assemblyTree, setAssemblyTree] = useState<AssemblyTreeNode[]>([]);
   const [partCount, setPartCount] = useState(0);
@@ -422,7 +424,7 @@ export default function ViewPage() {
     setShareError(null);
     try {
       const res = await createShare(fileId);
-      const link = `${window.location.origin}/share/${res.token}`;
+      const link = `${window.location.origin}/s/${res.token}`;
       setShareLink(link);
     } catch (e: any) {
       setShareError((e?.message || "Paylaşım oluşturulamadı") + ". Tekrar deneyin.");
@@ -687,6 +689,20 @@ export default function ViewPage() {
             Kesit aktif
             <input type="checkbox" checked={clip} onChange={(e) => setClip(e.target.checked)} />
           </label>
+          <div className="grid grid-cols-4 gap-1">
+            {(["x", "y", "z", "free"] as const).map((axis) => (
+              <button
+                key={axis}
+                type="button"
+                onClick={() => setClipAxis(axis)}
+                className={`rounded border px-2 py-1 text-[11px] ${
+                  clipAxis === axis ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white text-[#374151]"
+                }`}
+              >
+                {axis.toUpperCase()}
+              </button>
+            ))}
+          </div>
           {clip ? (
             <input
               type="range"
@@ -697,7 +713,7 @@ export default function ViewPage() {
               onChange={(e) => setClipOffset(Number(e.target.value))}
             />
           ) : null}
-          <div className="text-[11px] text-[#6b7280]">X/Y/Z ve serbest düzlem ayarları bu panelde genişletilecek.</div>
+          <div className="text-[11px] text-[#6b7280]">Aktif düzlem: {clipAxis.toUpperCase()} · offset: {clipOffset.toFixed(2)}</div>
         </div>
       ) : null}
     </Card>
@@ -713,6 +729,10 @@ export default function ViewPage() {
         <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs" onClick={() => setCameraPreset("iso")}>Fit</button>
         <button className={`rounded border px-2 py-2 text-xs ${clip ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db]"}`} onClick={() => setClip((v) => !v)}>Section</button>
         <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs" onClick={() => setBottomTab("explode")}>Explode</button>
+        <button className={`rounded border px-2 py-2 text-xs ${measureEnabled ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db]"}`} onClick={() => setMeasureEnabled((v) => !v)}>Measure</button>
+        <div className="rounded border border-[#e5e7eb] bg-[#f9fafb] px-2 py-1 text-[10px] text-[#6b7280]">
+          {measureValue !== null ? `${measureValue.toFixed(2)} mm` : "Mesafe: -"}
+        </div>
       </div>
     </Card>
   );
@@ -819,6 +839,9 @@ export default function ViewPage() {
             cameraPreset={cameraPreset}
             clip={clip}
             clipOffset={clipOffset}
+            clipAxis={clipAxis}
+            explode={explodeFactor > 0}
+            explodeFactor={explodeFactor}
             hiddenNodes={hiddenNodeIds}
             selectedId={selectedNodeId}
             measureEnabled={measureEnabled}
@@ -852,6 +875,8 @@ export default function ViewPage() {
     projection,
     clip,
     clipOffset,
+    clipAxis,
+    explodeFactor,
     hiddenNodeIds,
     selectedNodeId,
     measureEnabled,
@@ -932,10 +957,44 @@ export default function ViewPage() {
                       <button className={`rounded border px-2 py-1 ${bottomTab === "quality" ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white"}`} onClick={() => setBottomTab("quality")}>Quality</button>
                     </div>
                     {bottomTab === "section" ? (
-                      <div className="text-xs text-[#374151]">Çoklu düzlem section ayarları burada toplanır.</div>
+                      <div className="grid gap-2 text-xs text-[#374151]">
+                        <div className="grid grid-cols-4 gap-1">
+                          {(["x", "y", "z", "free"] as const).map((axis) => (
+                            <button
+                              key={axis}
+                              type="button"
+                              onClick={() => setClipAxis(axis)}
+                              className={`rounded border px-2 py-1 ${
+                                clipAxis === axis ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white"
+                              }`}
+                            >
+                              {axis.toUpperCase()}
+                            </button>
+                          ))}
+                        </div>
+                        <label className="grid gap-1">
+                          <span>Offset</span>
+                          <input type="range" min={-2} max={2} step={0.01} value={clipOffset} onChange={(e) => setClipOffset(Number(e.target.value))} />
+                        </label>
+                      </div>
                     ) : null}
                     {bottomTab === "explode" ? (
-                      <div className="text-xs text-[#374151]">Auto explode/axis explode kontrolü bu panelde genişletilecek.</div>
+                      <div className="grid gap-2 text-xs text-[#374151]">
+                        <label className="grid gap-1">
+                          <span>Explode ({explodeFactor.toFixed(2)})</span>
+                          <input
+                            type="range"
+                            min={0}
+                            max={1}
+                            step={0.01}
+                            value={explodeFactor}
+                            onChange={(e) => setExplodeFactor(Number(e.target.value))}
+                          />
+                        </label>
+                        <button type="button" onClick={() => setExplodeFactor(0)} className="rounded border border-[#d1d5db] bg-white px-2 py-1">
+                          Reset
+                        </button>
+                      </div>
                     ) : null}
                     {bottomTab === "quality" ? (
                       <div className="grid gap-2 text-xs">

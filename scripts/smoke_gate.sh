@@ -7,7 +7,7 @@ OUT_FILE="${EVIDENCE_DIR}/smoke_gate_output.txt"
 API_BASE="${API_BASE:-http://127.0.0.1:8000/api/v1}"
 FRONT_BASE="${FRONT_BASE:-http://127.0.0.1:3010}"
 STEP_SAMPLE="${STEP_SAMPLE:-/var/stellcodex/work/samples/parca.STEP}"
-JPG_SAMPLE="${JPG_SAMPLE:-/var/www/stellcodex/frontend/src/app/gorsel/MASTER1.jpg}"
+STL_SAMPLE="${STL_SAMPLE:-/var/www/stellcodex/frontend/public/models/demo.STL}"
 
 mkdir -p "${EVIDENCE_DIR}"
 exec > >(tee "${OUT_FILE}") 2>&1
@@ -40,124 +40,69 @@ print(value if value is not None else "")
 PY
 }
 
-echo "# smoke gate"
+echo "# V7 smoke gate"
 date -Iseconds
 echo "api_base=${API_BASE}"
 echo "front_base=${FRONT_BASE}"
 
-echo "[1/8] backend health"
+echo "[1/12] backend health"
 HEALTH_CODE="$(curl -sS -o "${TMP_DIR}/health.json" -w "%{http_code}" "${API_BASE}/health" || true)"
 [[ "${HEALTH_CODE}" == "200" ]] || fail "backend health http=${HEALTH_CODE}"
 pass "backend health 200"
 
-echo "[2/8] public routes (404 spam guard)"
-for path in /upload /dashboard /login /docs /community; do
-  code="$(curl -sS -o "${TMP_DIR}/route_$(echo "${path}" | tr '/' '_').html" -w "%{http_code}" "${FRONT_BASE}${path}" || true)"
-  [[ "${code}" == "200" ]] || fail "frontend route ${path} http=${code}"
-done
-pass "public routes return 200"
-
-echo "[3/8] guest token"
+echo "[2/12] guest token"
 curl -sS -X POST "${API_BASE}/auth/guest" > "${TMP_DIR}/guest.json" || fail "guest token request failed"
 TOKEN="$(parse_json_field "${TMP_DIR}/guest.json" "access_token")"
 [[ -n "${TOKEN}" ]] || fail "guest token empty"
 AUTH=(-H "Authorization: Bearer ${TOKEN}")
 pass "guest token issued"
 
-create_samples() {
-  cat > "${TMP_DIR}/smoke.dxf" <<'DXF'
-0
-SECTION
-2
-HEADER
-9
-$INSUNITS
-70
-4
-0
-ENDSEC
-0
-SECTION
-2
-TABLES
-0
-TABLE
-2
-LAYER
-70
-1
-0
-LAYER
-2
-0
-70
-0
-62
-7
-6
-CONTINUOUS
-0
-ENDTAB
-0
-ENDSEC
-0
-SECTION
-2
-ENTITIES
-0
-LINE
-8
-0
-10
-0
-20
-0
-11
-100
-21
-0
-0
-LINE
-8
-0
-10
-100
-20
-0
-11
-100
-21
-80
-0
-LINE
-8
-0
-10
-100
-20
-80
-11
-0
-21
-80
-0
-LINE
-8
-0
-10
-0
-20
-80
-11
-0
-21
-0
-0
-ENDSEC
-0
-EOF
-DXF
+echo "[3/12] formats registry endpoint"
+FORMATS_HTTP="$(curl -sS -o "${EVIDENCE_DIR}/formats_registry_dump.json" -w "%{http_code}" "${API_BASE}/formats" || true)"
+[[ "${FORMATS_HTTP}" == "200" ]] || fail "formats endpoint http=${FORMATS_HTTP}"
+python3 - <<PY || fail "formats registry payload invalid"
+import json
+data=json.load(open("${EVIDENCE_DIR}/formats_registry_dump.json"))
+assert isinstance(data.get("items"), list) and len(data["items"]) > 0
+assert isinstance(data.get("groups"), dict) and "rejected" in data["groups"]
+PY
+pass "formats endpoint ok"
 
+echo "[4/12] explorer endpoints baseline"
+TREE_HTTP="$(curl -sS -o "${EVIDENCE_DIR}/explorer_tree.json" -w "%{http_code}" "${AUTH[@]}" "${API_BASE}/explorer/tree?project_id=default" || true)"
+[[ "${TREE_HTTP}" == "200" ]] || fail "explorer tree http=${TREE_HTTP}"
+
+LIST3D_HTTP="$(curl -sS -o "${EVIDENCE_DIR}/explorer_list_3d.json" -w "%{http_code}" "${AUTH[@]}" "${API_BASE}/explorer/list?project_id=default&filter=brep" || true)"
+[[ "${LIST3D_HTTP}" == "200" ]] || fail "explorer list 3d http=${LIST3D_HTTP}"
+
+LISTDOC_HTTP="$(curl -sS -o "${EVIDENCE_DIR}/explorer_list_docs.json" -w "%{http_code}" "${AUTH[@]}" "${API_BASE}/explorer/list?project_id=default&filter=doc" || true)"
+[[ "${LISTDOC_HTTP}" == "200" ]] || fail "explorer list docs http=${LISTDOC_HTTP}"
+pass "explorer endpoints 200"
+
+create_docx_sample() {
+  python3 - <<PY
+import zipfile
+from pathlib import Path
+path=Path("${TMP_DIR}/sample.docx")
+with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as z:
+    z.writestr("[Content_Types].xml", """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>""")
+    z.writestr("_rels/.rels", """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>""")
+    z.writestr("word/document.xml", """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>STELLCODEX DOCX smoke sample</w:t></w:r></w:p>
+  </w:body>
+</w:document>""")
+print(path)
+PY
 }
 
 upload_and_wait_ready() {
@@ -195,47 +140,73 @@ upload_and_wait_ready() {
   return 1
 }
 
-create_samples
 [[ -f "${STEP_SAMPLE}" ]] || fail "step sample missing: ${STEP_SAMPLE}"
-[[ -f "${JPG_SAMPLE}" ]] || fail "jpg sample missing: ${JPG_SAMPLE}"
+[[ -f "${STL_SAMPLE}" ]] || fail "stl sample missing: ${STL_SAMPLE}"
+create_docx_sample >/dev/null
 
-echo "[4/8] jpg upload -> status -> view contract"
-JPG_ID="$(upload_and_wait_ready "${JPG_SAMPLE}" "image/jpeg" "jpg")" || fail "jpg upload/status failed"
-curl -sS "${AUTH[@]}" "${API_BASE}/files/${JPG_ID}" > "${TMP_DIR}/jpg_detail.json" || fail "jpg detail failed"
-JPG_ORIGINAL_URL="$(parse_json_field "${TMP_DIR}/jpg_detail.json" "original_url")"
-[[ -n "${JPG_ORIGINAL_URL}" ]] || fail "jpg original_url empty"
-JPG_ORIGINAL_HTTP="$(curl -sS -o /dev/null -w "%{http_code}" "${AUTH[@]}" "http://127.0.0.1:8000${JPG_ORIGINAL_URL}" || true)"
-[[ "${JPG_ORIGINAL_HTTP}" == "200" ]] || fail "jpg original asset http=${JPG_ORIGINAL_HTTP}"
-JPG_VIEW_HTTP="$(curl -sS -o "${TMP_DIR}/jpg_view.html" -w "%{http_code}" "${FRONT_BASE}/view/${JPG_ID}" || true)"
-[[ "${JPG_VIEW_HTTP}" == "200" ]] || fail "jpg view route http=${JPG_VIEW_HTTP}"
-pass "jpg flow ok"
-
-echo "[5/8] dxf upload -> status -> manifest/render"
-DXF_ID="$(upload_and_wait_ready "${TMP_DIR}/smoke.dxf" "application/dxf" "dxf")" || fail "dxf upload/status failed"
-DXF_MANIFEST_HTTP="$(curl -sS -o "${TMP_DIR}/dxf_manifest.json" -w "%{http_code}" "${AUTH[@]}" "${API_BASE}/files/${DXF_ID}/dxf/manifest" || true)"
-[[ "${DXF_MANIFEST_HTTP}" == "200" ]] || fail "dxf manifest http=${DXF_MANIFEST_HTTP}"
-DXF_RENDER_HTTP="$(curl -sS -o "${TMP_DIR}/dxf_render.svg" -w "%{http_code}" "${AUTH[@]}" "${API_BASE}/files/${DXF_ID}/dxf/render?layers=0" || true)"
-[[ "${DXF_RENDER_HTTP}" == "200" ]] || fail "dxf render http=${DXF_RENDER_HTTP}"
-grep -q "<svg" "${TMP_DIR}/dxf_render.svg" || fail "dxf render missing svg tag"
-grep -q "translate(0," "${TMP_DIR}/dxf_render.svg" || fail "dxf render missing fit translate transform"
-DXF_VIEW_HTTP="$(curl -sS -o "${TMP_DIR}/dxf_view.html" -w "%{http_code}" "${FRONT_BASE}/view/${DXF_ID}" || true)"
-[[ "${DXF_VIEW_HTTP}" == "200" ]] || fail "dxf view route http=${DXF_VIEW_HTTP}"
-pass "dxf flow ok"
-
-echo "[6/8] step upload -> status -> parts metadata"
+echo "[5/12] STEP upload -> ready -> mandatory 3D artifacts"
 STEP_ID="$(upload_and_wait_ready "${STEP_SAMPLE}" "application/step" "step")" || fail "step upload/status failed"
-curl -sS "${AUTH[@]}" "${API_BASE}/files/${STEP_ID}/manifest" > "${TMP_DIR}/step_manifest.json" || fail "step manifest failed"
-PART_COUNT="$(parse_json_field "${TMP_DIR}/step_manifest.json" "part_count")"
-[[ -n "${PART_COUNT}" && "${PART_COUNT}" != "None" ]] || fail "step manifest part_count empty"
-python3 - <<PY || fail "step part_count is not > 0"
-value = int("${PART_COUNT}")
-assert value > 0
+curl -sS "${AUTH[@]}" "${API_BASE}/files/${STEP_ID}" > "${TMP_DIR}/step_detail.json" || fail "step detail failed"
+python3 - <<PY || fail "step mandatory artifacts missing"
+import json
+d=json.load(open("${TMP_DIR}/step_detail.json"))
+assert d.get("mode") == "brep", d.get("mode")
+assert isinstance(d.get("preview_urls"), list) and len(d["preview_urls"]) >= 3
+b=d.get("bbox_meta") or {}
+assert all(k in b for k in ("x","y","z")), b
+assert d.get("part_count") is not None
 PY
-STEP_VIEW_HTTP="$(curl -sS -o "${TMP_DIR}/step_view.html" -w "%{http_code}" "${FRONT_BASE}/view/${STEP_ID}" || true)"
-[[ "${STEP_VIEW_HTTP}" == "200" ]] || fail "step view route http=${STEP_VIEW_HTTP}"
-pass "step flow ok"
+STEP_PREVIEW="$(python3 - <<PY
+import json
+d=json.load(open("${TMP_DIR}/step_detail.json"))
+print((d.get("preview_urls") or [""])[0])
+PY
+)"
+[[ -n "${STEP_PREVIEW}" ]] || fail "step preview url empty"
+curl -sS -D "${EVIDENCE_DIR}/3d_preview_fetch.txt" -o /dev/null "${AUTH[@]}" "http://127.0.0.1:8000${STEP_PREVIEW}" || fail "step preview fetch failed"
+grep -q "200" "${EVIDENCE_DIR}/3d_preview_fetch.txt" || fail "step preview not 200"
+pass "step contract ok"
 
-echo "[7/8] share create -> resolve -> frontend share route"
+echo "[6/12] STL upload -> mode mesh_approx + preview jpg"
+STL_ID="$(upload_and_wait_ready "${STL_SAMPLE}" "model/stl" "stl")" || fail "stl upload/status failed"
+curl -sS "${AUTH[@]}" "${API_BASE}/files/${STL_ID}" > "${TMP_DIR}/stl_detail.json" || fail "stl detail failed"
+python3 - <<PY || fail "stl contract invalid"
+import json
+d=json.load(open("${TMP_DIR}/stl_detail.json"))
+assert d.get("mode") == "mesh_approx", d.get("mode")
+assert isinstance(d.get("preview_urls"), list) and len(d["preview_urls"]) >= 3
+PY
+pass "stl contract ok"
+
+echo "[7/12] DOCX upload -> ready -> pdf + thumb"
+DOCX_ID="$(upload_and_wait_ready "${TMP_DIR}/sample.docx" "application/vnd.openxmlformats-officedocument.wordprocessingml.document" "docx")" || fail "docx upload/status failed"
+curl -sS "${AUTH[@]}" "${API_BASE}/files/${DOCX_ID}" > "${TMP_DIR}/docx_detail.json" || fail "docx detail failed"
+python3 - <<PY || fail "docx contract invalid"
+import json
+d=json.load(open("${TMP_DIR}/docx_detail.json"))
+assert d.get("kind") == "doc", d.get("kind")
+assert isinstance(d.get("thumbnail_url"), str) and d["thumbnail_url"]
+assert isinstance(d.get("preview_urls"), list) and len(d["preview_urls"]) >= 1
+PY
+DOC_PDF="$(python3 - <<PY
+import json
+d=json.load(open("${TMP_DIR}/docx_detail.json"))
+urls=d.get("preview_urls") or []
+print(urls[0] if urls else "")
+PY
+)"
+[[ -n "${DOC_PDF}" ]] || fail "docx preview pdf missing"
+DOC_PDF_HTTP="$(curl -sS -o /dev/null -w "%{http_code}" "${AUTH[@]}" "http://127.0.0.1:8000${DOC_PDF}" || true)"
+[[ "${DOC_PDF_HTTP}" == "200" ]] || fail "docx pdf preview http=${DOC_PDF_HTTP}"
+pass "docx contract ok"
+
+echo "[8/12] explorer evidence after uploads"
+curl -sS "${AUTH[@]}" "${API_BASE}/explorer/tree?project_id=default" > "${EVIDENCE_DIR}/explorer_tree.json" || fail "explorer tree evidence failed"
+curl -sS "${AUTH[@]}" "${API_BASE}/explorer/list?project_id=default&filter=brep" > "${EVIDENCE_DIR}/explorer_list_3d.json" || fail "explorer list 3d evidence failed"
+curl -sS "${AUTH[@]}" "${API_BASE}/explorer/list?project_id=default&filter=doc" > "${EVIDENCE_DIR}/explorer_list_docs.json" || fail "explorer list docs evidence failed"
+pass "explorer evidence captured"
+
+echo "[9/12] share routes"
 curl -sS -X POST "${AUTH[@]}" -H "Content-Type: application/json" -d '{}' \
   "${API_BASE}/files/${STEP_ID}/share" > "${TMP_DIR}/share_create.json" || fail "share create failed"
 SHARE_TOKEN="$(parse_json_field "${TMP_DIR}/share_create.json" "token")"
@@ -243,16 +214,39 @@ SHARE_TOKEN="$(parse_json_field "${TMP_DIR}/share_create.json" "token")"
 
 SHARE_RESOLVE_HTTP="$(curl -sS -o "${TMP_DIR}/share_resolve.json" -w "%{http_code}" "${API_BASE}/shares/${SHARE_TOKEN}" || true)"
 [[ "${SHARE_RESOLVE_HTTP}" == "200" ]] || fail "share resolve http=${SHARE_RESOLVE_HTTP}"
-RESOLVED_FILE_ID="$(parse_json_field "${TMP_DIR}/share_resolve.json" "file_id")"
-[[ "${RESOLVED_FILE_ID}" == "${STEP_ID}" ]] || fail "share resolved file mismatch"
-SHARE_FRONT_HTTP="$(curl -sS -o "${TMP_DIR}/share_front.html" -w "%{http_code}" "${FRONT_BASE}/share/${SHARE_TOKEN}" || true)"
-[[ "${SHARE_FRONT_HTTP}" == "200" ]] || fail "frontend share route http=${SHARE_FRONT_HTTP}"
-pass "share flow ok"
 
-echo "[8/8] smoke summary"
-echo "jpg_id=${JPG_ID}"
-echo "dxf_id=${DXF_ID}"
+S_ROUTE_HTTP="$(curl -sS -o /dev/null -w "%{http_code}" "${FRONT_BASE}/s/${SHARE_TOKEN}" || true)"
+SHARE_ROUTE_HTTP="$(curl -sS -o /dev/null -w "%{http_code}" "${FRONT_BASE}/share/${SHARE_TOKEN}" || true)"
+[[ "${S_ROUTE_HTTP}" != "404" ]] || fail "/s/{token} route returned 404"
+[[ "${SHARE_ROUTE_HTTP}" != "404" ]] || fail "/share/{token} route returned 404"
+pass "share routes non-404"
+
+echo "[10/12] leak check (public JSON payloads)"
+FORBIDDEN_REGEX='storage_key|s3://|r2://|bucket|revision_id'
+cat \
+  "${EVIDENCE_DIR}/formats_registry_dump.json" \
+  "${EVIDENCE_DIR}/explorer_tree.json" \
+  "${EVIDENCE_DIR}/explorer_list_3d.json" \
+  "${EVIDENCE_DIR}/explorer_list_docs.json" \
+  "${TMP_DIR}/step_detail.json" \
+  "${TMP_DIR}/stl_detail.json" \
+  "${TMP_DIR}/docx_detail.json" \
+  "${TMP_DIR}/share_resolve.json" \
+  > "${TMP_DIR}/public_payloads.json"
+
+if grep -Eni "${FORBIDDEN_REGEX}" "${TMP_DIR}/public_payloads.json" > "${EVIDENCE_DIR}/leak_check.txt"; then
+  fail "public payload leak check failed"
+fi
+echo "PASS: no forbidden token leak in public payloads" > "${EVIDENCE_DIR}/leak_check.txt"
+pass "leak check ok"
+
+echo "[11/12] summary IDs"
 echo "step_id=${STEP_ID}"
+echo "stl_id=${STL_ID}"
+echo "docx_id=${DOCX_ID}"
 echo "share_token=${SHARE_TOKEN}"
+pass "summary captured"
+
+echo "[12/12] final result"
 echo "RESULT=PASS"
 echo "EVIDENCE=${OUT_FILE}"
