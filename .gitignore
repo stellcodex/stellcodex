@@ -8,3 +8,5 @@ FINAL_EVIDENCE_REPORT.md
 
 frontend/.next/
 frontend/.next_broken_*/
+*.bak
+*.bak.*
