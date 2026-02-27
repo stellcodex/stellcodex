@@ -37,8 +37,8 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: stellcodex
-      MINIO_ROOT_PASSWORD: stellcodex123
+      MINIO_ROOT_USER: ${STELLCODEX_S3_ACCESS_KEY_ID}
+      MINIO_ROOT_PASSWORD: ${STELLCODEX_S3_SECRET_ACCESS_KEY}
     volumes:
       - minio_data:/data
     ports:
@@ -74,13 +74,13 @@ services:
       RATE_LIMIT_PER_HOUR: "2000"
       MAX_UPLOAD_BYTES: "104857600"
       FEATURE_FILES: "true"
-      ALLOWED_CONTENT_TYPES: model/stl,model/step,model/iges,application/step,application/iges,application/pdf,image/png,image/jpeg,model/gltf-binary,model/gltf+json,application/octet-stream
+      ALLOWED_CONTENT_TYPES: model/stl,model/step,model/iges,application/step,application/iges,application/pdf,image/png,image/jpeg,model/gltf-binary,model/gltf+json,application/octet-stream,text/plain
 
       STELLCODEX_S3_ENDPOINT_URL: http://stellcodex-minio:9000
       STELLCODEX_S3_REGION: us-east-1
       STELLCODEX_S3_BUCKET: stellcodex
-      STELLCODEX_S3_ACCESS_KEY_ID: stellcodex
-      STELLCODEX_S3_SECRET_ACCESS_KEY: stellcodex123
+      STELLCODEX_S3_ACCESS_KEY_ID: ${STELLCODEX_S3_ACCESS_KEY_ID}
+      STELLCODEX_S3_SECRET_ACCESS_KEY: ${STELLCODEX_S3_SECRET_ACCESS_KEY}
       PUBLIC_S3_BASE_URL: https://stellcodex.com
       WORKDIR: /var/stellcodex/work
       ADMIN_TOKEN: change-me
@@ -112,13 +112,13 @@ services:
       RATE_LIMIT_PER_HOUR: "2000"
       MAX_UPLOAD_BYTES: "104857600"
       FEATURE_FILES: "true"
-      ALLOWED_CONTENT_TYPES: model/stl,model/step,model/iges,application/step,application/iges,application/pdf,image/png,image/jpeg,model/gltf-binary,model/gltf+json,application/octet-stream
+      ALLOWED_CONTENT_TYPES: model/stl,model/step,model/iges,application/step,application/iges,application/pdf,image/png,image/jpeg,model/gltf-binary,model/gltf+json,application/octet-stream,text/plain
 
       STELLCODEX_S3_ENDPOINT_URL: http://stellcodex-minio:9000
       STELLCODEX_S3_REGION: us-east-1
       STELLCODEX_S3_BUCKET: stellcodex
-      STELLCODEX_S3_ACCESS_KEY_ID: stellcodex
-      STELLCODEX_S3_SECRET_ACCESS_KEY: stellcodex123
+      STELLCODEX_S3_ACCESS_KEY_ID: ${STELLCODEX_S3_ACCESS_KEY_ID}
+      STELLCODEX_S3_SECRET_ACCESS_KEY: ${STELLCODEX_S3_SECRET_ACCESS_KEY}
       PUBLIC_S3_BASE_URL: https://stellcodex.com
       WORKDIR: /var/stellcodex/work
 
