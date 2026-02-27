@@ -212,7 +212,14 @@ def _extract_metadata(glb_path: str) -> dict:
 def _mark_failed(db: SessionLocal, f: UploadFile, detail: str, stage: str = "convert") -> str:
     error_id = str(uuid4())
     f.status = "failed"
-    f.meta = {**(f.meta or {}), "error": detail, "error_id": error_id}
+    f.meta = {
+        **(f.meta or {}),
+        "error": detail,
+        "error_id": error_id,
+        "stage": stage,
+        "progress_percent": 100,
+        "progress": "failed",
+    }
     db.add(f)
     db.add(
         JobFailure(
@@ -227,6 +234,20 @@ def _mark_failed(db: SessionLocal, f: UploadFile, detail: str, stage: str = "con
     log_event(db, "job.failed", file_id=f.file_id, data={"stage": stage, "error": detail[:300]})
     db.commit()
     return error_id
+
+
+def _set_progress(db: SessionLocal, f: UploadFile, *, stage: str, percent: int, hint: str, status: str | None = None) -> None:
+    f.meta = {
+        **(f.meta or {}),
+        "stage": stage,
+        "progress_percent": max(0, min(100, int(percent))),
+        "progress": hint,
+    }
+    if status:
+        f.status = status
+    db.add(f)
+    db.commit()
+    db.refresh(f)
 
 
 def _convert_cad_pipeline(f: UploadFile, s3) -> str:
@@ -435,23 +456,19 @@ def convert_file(file_id: str):
         if f.status == "ready" and f.gltf_key:
             return {"status": "ready", "mode": "cached"}
 
-        f.status = "running"
-        db.add(f)
-        db.commit()
-        db.refresh(f)
+        _set_progress(db, f, stage="queued", percent=5, hint="queued", status="running")
 
         s3 = get_s3_client(settings)
 
         if _is_2d(f.content_type, f.original_filename):
-            f.status = "ready"
-            db.add(f)
-            db.commit()
+            _set_progress(db, f, stage="ready", percent=100, hint="ready", status="ready")
             return {"status": "ready", "mode": "2d"}
 
         ext = _ext(f.original_filename)
         geometry_report: dict | None = None
         dfm_findings: dict | None = None
 
+        _set_progress(db, f, stage="convert", percent=30, hint="converting", status="running")
         if ext in CAD_OCCT_EXTS or ext in CAD_FREECAD_EXTS:
             f.gltf_key = _convert_cad_pipeline(f, s3)
             geometry_report, dfm_findings = _hybrid_v1_step_artifacts(f, s3)
@@ -476,16 +493,20 @@ def convert_file(file_id: str):
 
         f.meta = {
             **existing_meta,
-            "defaults": {"view_mode": "shaded_edge", "quality": "Ultra", "camera": "iso_default"},
+            "defaults": {"view_mode": "shaded_edge", "quality": "Medium", "camera": "iso_default"},
             "lods": lods,
             "artifacts": artifacts,
             "job_status": (dfm_findings or {}).get("status_gate", (existing_meta or {}).get("job_status", "PASS")),
+            "stage": "finalize",
+            "progress_percent": 82,
+            "progress": "finalizing",
         }
         f.status = "ready"
         db.add(f)
         db.commit()
 
         # Best-effort metadata and thumbnail
+        _set_progress(db, f, stage="metadata", percent=88, hint="metadata", status="running")
         try:
             meta = _extract_metadata_pipeline(f, s3)
             if meta:
@@ -493,6 +514,7 @@ def convert_file(file_id: str):
         except Exception as e:
             f.meta = {**(f.meta or {}), "metadata_error": str(e)}
 
+        _set_progress(db, f, stage="thumbnail", percent=94, hint="thumbnail", status="running")
         try:
             thumb_key = _generate_thumbnail_pipeline(f, s3)
             if thumb_key:
@@ -500,6 +522,8 @@ def convert_file(file_id: str):
         except Exception as e:
             f.meta = {**(f.meta or {}), "thumbnail_error": str(e)}
 
+        f.status = "ready"
+        f.meta = {**(f.meta or {}), "stage": "ready", "progress_percent": 100, "progress": "ready"}
         db.add(f)
         log_event(db, "job.succeeded", file_id=f.file_id, data={"mode": "converted"})
         db.commit()

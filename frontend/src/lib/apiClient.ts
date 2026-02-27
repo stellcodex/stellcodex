@@ -35,8 +35,34 @@ export function getApiBase() {
 function resolveApiBase(raw: string | undefined) {
   const value = (raw || "").trim().replace(/\/+$/, "");
   if (!value) return API_VERSION_PATH;
-  if (value === API_VERSION_PATH || value.endsWith(API_VERSION_PATH)) return value;
-  return `${value}${API_VERSION_PATH}`;
+
+  if (value.startsWith("/")) {
+    return normalizeApiPath(value);
+  }
+
+  if (/^https?:\/\//i.test(value)) {
+    try {
+      const parsed = new URL(value);
+      // Browser requests should stay same-origin to avoid CORS/preflight failures.
+      if (typeof window !== "undefined" && parsed.origin !== window.location.origin) {
+        return API_VERSION_PATH;
+      }
+      return `${parsed.origin}${normalizeApiPath(parsed.pathname)}`;
+    } catch {
+      return API_VERSION_PATH;
+    }
+  }
+
+  return normalizeApiPath(`/${value.replace(/^\/+/, "")}`);
+}
+
+function normalizeApiPath(pathname: string) {
+  const basePath = pathname.replace(/\/+$/, "");
+  if (!basePath || basePath === "/") return API_VERSION_PATH;
+  if (basePath === "/api") return API_VERSION_PATH;
+  if (basePath === API_VERSION_PATH || basePath.endsWith(API_VERSION_PATH)) return basePath;
+  if (basePath.endsWith("/api")) return `${basePath}/v1`;
+  return `${basePath}${API_VERSION_PATH}`;
 }
 
 function resolveApiUrl(path: string) {

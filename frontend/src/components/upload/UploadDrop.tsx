@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { tokens } from "@/lib/tokens";
@@ -15,6 +16,8 @@ import {
 } from "@/lib/workspace-store";
 
 const allowedExt = ALLOWED_FORMATS.map((ext) => `.${ext}`);
+const MAX_UPLOAD_MB = 200;
+const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 
 function hasAllowedExt(name: string) {
   const lower = name.toLowerCase();
@@ -23,6 +26,7 @@ function hasAllowedExt(name: string) {
 
 export function UploadDrop({ onUploaded }: { onUploaded?: (fileId: string) => void }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -38,8 +42,8 @@ export function UploadDrop({ onUploaded }: { onUploaded?: (fileId: string) => vo
         );
         return;
       }
-      if (file.size > 100 * 1024 * 1024) {
-        setError("Dosya boyutu 100MB limitini aşıyor.");
+      if (file.size > MAX_UPLOAD_BYTES) {
+        setError(`Dosya boyutu ${MAX_UPLOAD_MB}MB limitini aşıyor.`);
         return;
       }
 
@@ -58,9 +62,17 @@ export function UploadDrop({ onUploaded }: { onUploaded?: (fileId: string) => vo
           projectId: DEFAULT_PROJECT_ID,
           projectName: DEFAULT_PROJECT_NAME,
         });
-        setStatus("Yükleme tamamlandı. Dosya projeye eklendi.");
+        setStatus("Viewer’a yönlendiriliyor...");
         onUploaded?.(registered.fileId);
+        const target = `/view/${registered.fileId}`;
+        router.push(target);
+        window.setTimeout(() => {
+          if (window.location.pathname !== target) {
+            window.location.assign(target);
+          }
+        }, 1500);
       } catch (error: unknown) {
+        setStatus(null);
         setError(error instanceof Error ? error.message : "Yükleme başarısız.");
       } finally {
         setBusy(false);
@@ -106,7 +118,7 @@ export function UploadDrop({ onUploaded }: { onUploaded?: (fileId: string) => vo
         >
           Dosya seç
         </PrimaryButton>
-        <span className="text-xs text-[#6b7280]">Maks: 100MB</span>
+        <span className="text-xs text-[#6b7280]">Maks: {MAX_UPLOAD_MB}MB</span>
       </div>
 
       {status ? <div className="mt-4 text-sm text-[#6b7280]">{status}</div> : null}

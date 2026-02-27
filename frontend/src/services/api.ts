@@ -2,14 +2,18 @@ import { apiFetch, getApiBase } from "@/lib/apiClient";
 
 export type FileItem = {
   file_id: string;
+  original_name: string;
   original_filename: string;
+  kind: string;
+  created_at: string;
   content_type: string;
   size_bytes: number;
   status: string;
   visibility: string;
-  gltf_key?: string | null;
-  thumbnail_key?: string | null;
+  thumbnail_url?: string | null;
   preview_url?: string | null;
+  gltf_url?: string | null;
+  original_url?: string | null;
   error?: string | null;
 };
 
@@ -27,6 +31,35 @@ export type FileDetail = FileItem & {
   > | null;
   quality_default?: string | null;
   view_mode_default?: string | null;
+};
+
+export type RecentFileItem = {
+  file_id: string;
+  original_name: string;
+  kind: string;
+  status: string;
+  created_at: string;
+  thumbnail_url?: string | null;
+};
+
+export type AssemblyTreeNode = {
+  id?: string;
+  name?: string;
+  display_name?: string;
+  label?: string;
+  kind?: string;
+  selectable?: boolean;
+  children?: AssemblyTreeNode[];
+  [key: string]: unknown;
+};
+
+export type FileManifest = {
+  format_version?: string;
+  app?: string;
+  model_id?: string;
+  assembly_tree?: AssemblyTreeNode[];
+  part_count?: number | null;
+  [key: string]: unknown;
 };
 
 export type DxfLayer = {
@@ -52,8 +85,72 @@ export type UploadDirectResult = {
   file_id: string;
 };
 
+export class ApiHttpError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiHttpError";
+    this.status = status;
+  }
+}
+
 const API_BASE = getApiBase();
-const UPLOAD_TIMEOUT_MS = 120_000;
+const UPLOAD_TIMEOUT_MS = 300_000;
+
+function inferKind(contentType: string, name: string): "2d" | "3d" {
+  const lowerName = name.toLowerCase();
+  const lowerType = contentType.toLowerCase();
+  if (lowerName.endsWith(".dxf")) return "2d";
+  if (lowerType === "application/pdf") return "2d";
+  if (lowerType.startsWith("image/")) return "2d";
+  return "3d";
+}
+
+function normalizeFileItem(input: unknown): FileItem {
+  const data = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
+  const originalName =
+    (typeof data.original_name === "string" && data.original_name.trim()) ||
+    (typeof data.original_filename === "string" && data.original_filename.trim()) ||
+    "isimsiz";
+  const contentType = typeof data.content_type === "string" ? data.content_type : "application/octet-stream";
+  const sizeBytes = typeof data.size_bytes === "number" ? data.size_bytes : 0;
+  const status = typeof data.status === "string" ? data.status : "queued";
+  const visibility = typeof data.visibility === "string" ? data.visibility : "private";
+  const kind = typeof data.kind === "string" && data.kind ? data.kind : inferKind(contentType, originalName);
+  const createdAt = typeof data.created_at === "string" ? data.created_at : new Date().toISOString();
+
+  return {
+    file_id: typeof data.file_id === "string" ? data.file_id : "",
+    original_name: originalName,
+    original_filename: originalName,
+    kind,
+    created_at: createdAt,
+    content_type: contentType,
+    size_bytes: sizeBytes,
+    status,
+    visibility,
+    thumbnail_url: typeof data.thumbnail_url === "string" ? data.thumbnail_url : null,
+    preview_url: typeof data.preview_url === "string" ? data.preview_url : null,
+    gltf_url: typeof data.gltf_url === "string" ? data.gltf_url : null,
+    original_url: typeof data.original_url === "string" ? data.original_url : null,
+    error: typeof data.error === "string" ? data.error : null,
+  };
+}
+
+function normalizeFileDetail(input: unknown): FileDetail {
+  const item = normalizeFileItem(input);
+  const data = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
+  return {
+    ...item,
+    lods:
+      data.lods && typeof data.lods === "object"
+        ? (data.lods as FileDetail["lods"])
+        : null,
+    quality_default: typeof data.quality_default === "string" ? data.quality_default : null,
+    view_mode_default: typeof data.view_mode_default === "string" ? data.view_mode_default : null,
+  };
+}
 
 function getGuestTokenKey() {
   return "stellcodex_access_token";
@@ -79,6 +176,9 @@ async function ensureGuestToken(): Promise<string> {
   }
   const data = await res.json();
   const token = data?.access_token as string;
+  if (!token || typeof token !== "string") {
+    throw new Error("Misafir token yanıtı geçersiz.");
+  }
   if (typeof window !== "undefined") {
     window.localStorage.setItem(getGuestTokenKey(), token);
   }
@@ -102,30 +202,34 @@ async function authFetch(
     return fetch(input, { ...init, headers });
   };
 
-  const userToken = getUserToken();
-  if (options?.requireUser && !userToken) {
-    throw new Error("Kullanıcı tokenı gerekli.");
-  }
+  try {
+    const userToken = getUserToken();
+    if (options?.requireUser && !userToken) {
+      throw new Error("Kullanıcı tokenı gerekli.");
+    }
 
-  let token = userToken || (await ensureGuestToken());
-  let res = await doFetch(token);
-  if (res.status === 401) {
-    if (typeof window !== "undefined") {
-      if (userToken) {
-        window.localStorage.removeItem(getUserTokenKey());
-      } else {
-        window.localStorage.removeItem(getGuestTokenKey());
+    let token = userToken || (await ensureGuestToken());
+    let res = await doFetch(token);
+    if (res.status === 401) {
+      if (typeof window !== "undefined") {
+        if (userToken) {
+          window.localStorage.removeItem(getUserTokenKey());
+        } else {
+          window.localStorage.removeItem(getGuestTokenKey());
+        }
+      }
+      if (userToken && !options?.requireUser) {
+        token = await ensureGuestToken();
+        res = await doFetch(token);
+      } else if (!userToken) {
+        token = await ensureGuestToken();
+        res = await doFetch(token);
       }
     }
-    if (userToken && !options?.requireUser) {
-      token = await ensureGuestToken();
-      res = await doFetch(token);
-    } else if (!userToken) {
-      token = await ensureGuestToken();
-      res = await doFetch(token);
-    }
+    return res;
+  } catch (error) {
+    throw normalizeTransportError(error, "API isteği başarısız.");
   }
-  return res;
 }
 
 async function userFetch(input: RequestInfo, init?: RequestInit) {
@@ -148,6 +252,31 @@ function readErrorDetail(err: unknown, fallback: string): string {
     }
   }
   return fallback;
+}
+
+function normalizeTransportError(error: unknown, fallback: string): Error {
+  if (error instanceof Error) {
+    const message = (error.message || "").toLowerCase();
+    if (message.includes("failed to fetch") || message.includes("networkerror") || message.includes("load failed")) {
+      return new Error("Sunucuya erişilemedi. API yönlendirmesi veya ağ bağlantısını kontrol edin.");
+    }
+    return error;
+  }
+  return new Error(fallback);
+}
+
+async function throwHttpError(res: Response, fallback: string): Promise<never> {
+  const err = await res.json().catch(() => null);
+  if (res.status === 401) {
+    throw new ApiHttpError(401, "Yetkisiz / token alınamadı.");
+  }
+  if (res.status === 403) {
+    throw new ApiHttpError(403, "Erişim yok.");
+  }
+  if (res.status === 404) {
+    throw new ApiHttpError(404, "Bulunamadı.");
+  }
+  throw new ApiHttpError(res.status, readErrorDetail(err, `${fallback} (${res.status})`));
 }
 
 export async function fetchAuthedBlobUrl(url: string): Promise<string> {
@@ -182,15 +311,30 @@ export async function getDxfRender(fileId: string, layers: string[]): Promise<st
 
 export async function listFiles(): Promise<FileItem[]> {
   const res = await authFetch(`${API_BASE}/files`);
-  if (!res.ok) throw new Error("Dosyalar yüklenemedi.");
-  const data = await res.json();
-  return data.items || [];
+  if (!res.ok) await throwHttpError(res, "Dosyalar yüklenemedi.");
+  const data = await res.json().catch(() => null);
+  if (!data || typeof data !== "object") return [];
+  const rawItems = (data as { items?: unknown }).items;
+  if (!Array.isArray(rawItems)) return [];
+  return rawItems.map((item) => normalizeFileItem(item));
+}
+
+export async function listRecentFiles(limit = 8): Promise<RecentFileItem[]> {
+  const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(20, Math.floor(limit))) : 8;
+  const res = await authFetch(`${API_BASE}/files?recent=1&limit=${safeLimit}`);
+  if (!res.ok) await throwHttpError(res, "Son yüklenen dosyalar alınamadı.");
+  const data = await res.json().catch(() => null);
+  if (data && typeof data === "object" && Array.isArray((data as { items?: unknown }).items)) {
+    return (data as { items: RecentFileItem[] }).items;
+  }
+  return [];
 }
 
 export async function getFile(fileId: string): Promise<FileDetail> {
   const res = await authFetch(`${API_BASE}/files/${fileId}`);
-  if (!res.ok) throw new Error("Dosya yüklenemedi.");
-  return res.json();
+  if (!res.ok) await throwHttpError(res, "Dosya yüklenemedi.");
+  const data = await res.json().catch(() => null);
+  return normalizeFileDetail(data);
 }
 
 export async function getFileStatus(fileId: string) {
@@ -209,16 +353,20 @@ export async function getFileStatus(fileId: string) {
         ? "running"
         : "queued";
     const derivatives: string[] = [];
-    if (file.gltf_key) derivatives.push("gltf");
-    if (file.thumbnail_key) derivatives.push("thumbnail");
+    if (file.gltf_url) derivatives.push("gltf");
+    if (file.thumbnail_url) derivatives.push("thumbnail");
+    if (file.original_url) derivatives.push("original");
     return {
       state,
       derivatives_available: derivatives,
       progress_hint: file.status || null,
+      progress_percent:
+        state === "succeeded" ? 100 : state === "failed" ? 100 : state === "running" ? 55 : 5,
+      stage: file.status || null,
     };
   }
 
-  throw new Error("Durum yüklenemedi.");
+  await throwHttpError(res, "Durum yüklenemedi.");
 }
 
 export async function uploadDirect(file: File): Promise<UploadDirectResult> {
@@ -273,7 +421,7 @@ export async function createShare(fileId: string, expiresInSeconds?: number): Pr
 }
 
 export async function resolveShare(token: string) {
-  const res = await apiFetch(`/share/${token}`);
+  const res = await apiFetch(`/shares/${token}`);
   if (!res.ok) {
     const err = await res.json().catch(() => null);
     throw new Error(err?.detail || "Paylaşım geçersiz.");
@@ -291,7 +439,7 @@ export async function setVisibility(fileId: string, visibility: "private" | "pub
   return res.json();
 }
 
-export async function getFileManifest(fileId: string) {
+export async function getFileManifest(fileId: string): Promise<FileManifest> {
   const res = await authFetch(`${API_BASE}/files/${fileId}/manifest`);
   if (!res.ok) {
     const err = await res.json().catch(() => null);

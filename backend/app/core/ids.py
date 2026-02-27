@@ -4,23 +4,31 @@ import re
 from uuid import uuid4, UUID
 
 SCX_ID_PREFIX = "scx_"
-SCX_ID_PATTERN = re.compile(r"^scx_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+SCX_ID_PATTERN = re.compile(r"^scx_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE)
 
 
 def generate_scx_id() -> str:
-    return f"{SCX_ID_PREFIX}{uuid4()}"
+    return format_scx_file_id(uuid4())
 
 
 def is_scx_id(value: str) -> bool:
     return bool(SCX_ID_PATTERN.match(value or ""))
 
 
-def normalize_scx_id(value: str) -> str:
+def normalize_scx_file_id(value: str) -> UUID:
     raw = (value or "").strip()
-    if raw.startswith(SCX_ID_PREFIX) and is_scx_id(raw):
-        return raw
+    if raw.lower().startswith(SCX_ID_PREFIX):
+        raw = raw[len(SCX_ID_PREFIX) :]
     try:
-        uid = UUID(raw)
+        return UUID(raw)
     except Exception:
         raise ValueError("Invalid SCX id")
-    return f"{SCX_ID_PREFIX}{uid}"
+
+
+def format_scx_file_id(value: UUID | str) -> str:
+    uid = value if isinstance(value, UUID) else normalize_scx_file_id(value)
+    return f"{SCX_ID_PREFIX}{str(uid)}"
+
+
+def normalize_scx_id(value: str) -> str:
+    return format_scx_file_id(value)

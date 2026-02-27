@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     feature_files: bool = Field(default=True, validation_alias="FEATURE_FILES")
 
     # Upload limits
-    max_upload_bytes: int = Field(default=100 * 1024 * 1024, validation_alias="MAX_UPLOAD_BYTES")
+    max_upload_bytes: int = Field(default=200 * 1024 * 1024, validation_alias="MAX_UPLOAD_BYTES")
     allowed_content_types_raw: str = Field(default="", validation_alias="ALLOWED_CONTENT_TYPES")
 
     # Conversion binaries

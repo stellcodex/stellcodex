@@ -6,5 +6,5 @@ export default function ViewerLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <MasterFrame>{children}</MasterFrame>;
+  return <MasterFrame showFooter={false} mainClassName="h-[calc(100dvh-4rem)] overflow-hidden">{children}</MasterFrame>;
 }

@@ -21,7 +21,7 @@ export const QUALITY_TO_LOD: Record<QualityLevel, LodLevel> = {
   Low: "lod0",
 };
 
-export const QUALITY_DEFAULT: QualityLevel = "Ultra";
+export const QUALITY_DEFAULT: QualityLevel = "Medium";
 
 export const CAMERA_PRESETS = [
   { key: "iso", label: "Iso", pos: [2, 2, 2] as const },

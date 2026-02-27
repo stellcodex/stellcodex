@@ -1,10 +1,12 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { clsx } from "clsx";
+import logo from "@/app/gorsel/logo.png";
 
 const nav = [
   { href: "/", label: "Ana Sayfa" },
@@ -34,9 +36,13 @@ export function SiteHeader() {
       <header className="sticky top-0 z-50 border-b border-[#e5e7eb] bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-3" onClick={() => setOpen(false)}>
-            <div className="grid h-10 w-10 place-items-center rounded-xl border border-[#d1d5db] bg-[#111827] text-sm font-semibold text-white">
-              SC
-            </div>
+            <Image
+              src={logo}
+              alt="STELLCODEX logo"
+              width={40}
+              height={40}
+              className="h-10 w-10 rounded-xl border border-[#d1d5db] object-cover"
+            />
             <div className="hidden text-3xl font-semibold leading-none tracking-[-0.02em] text-[#111827] sm:block">
               STELLCODEX
             </div>

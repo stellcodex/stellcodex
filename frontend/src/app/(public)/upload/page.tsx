@@ -1,12 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { UploadDrop } from "@/components/upload/UploadDrop";
-import { getWorkspaceFileById } from "@/lib/workspace-store";
 
 export default function UploadPage() {
-  const router = useRouter();
-
   return (
     <main className="mx-auto max-w-6xl px-6 py-6 sm:py-8">
       <header className="max-w-2xl">
@@ -22,17 +18,7 @@ export default function UploadPage() {
       </header>
 
       <section className="mt-8">
-        <UploadDrop
-          onUploaded={(fileId) => {
-            const record = getWorkspaceFileById(fileId);
-            const mode = record?.mode || "3d";
-            const params = new URLSearchParams({
-              file: fileId,
-              project: record?.projectId || "genel-proje",
-            });
-            router.push(`${mode === "2d" ? "/app/2d" : "/app/3d"}?${params.toString()}`);
-          }}
-        />
+        <UploadDrop />
       </section>
     </main>
   );
