@@ -7,7 +7,7 @@ import logging
 import tempfile
 import zipfile
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from botocore.exceptions import ClientError
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File as FastAPIFile, Response
@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.formats import is_allowed_filename, rejected_extensions
-from app.core.ids import normalize_scx_id
+from app.core.ids import format_scx_file_id, normalize_scx_file_id, normalize_scx_id
 from app.core.storage import get_s3_client, get_s3_presign_client
 from app.db.session import get_db
 from app.models.file import UploadFile as UploadFileModel
@@ -61,11 +61,29 @@ def _validate_upload(content_type: str, size_bytes: int, filename: str) -> None:
         raise HTTPException(status_code=415, detail="Unsupported file type")
 
 
+def _normalize_file_uuid(value: str) -> UUID:
+    try:
+        return normalize_scx_file_id(value)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid file id")
+
+
 def _normalize_file_id(value: str) -> str:
+    return format_scx_file_id(_normalize_file_uuid(value))
+
+
+def _public_file_id(value: str) -> str:
     try:
         return normalize_scx_id(value)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid file id")
+        return value
+
+
+def _get_file_by_identifier(db: Session, value: str) -> UploadFileModel | None:
+    uid = _normalize_file_uuid(value)
+    canonical = format_scx_file_id(uid)
+    legacy = str(uid)
+    return db.query(UploadFileModel).filter(UploadFileModel.file_id.in_((canonical, legacy))).first()
 
 
 def _safe_object_key(owner_sub: str) -> str:
@@ -229,10 +247,11 @@ def _triangles_from_meta(f: UploadFileModel, lod_name: str) -> int | None:
     return None
 
 
-def _build_lod_map(f: UploadFileModel) -> dict[str, dict[str, Any]]:
+def _build_lod_map(f: UploadFileModel, include_key: bool = False) -> dict[str, dict[str, Any]]:
     meta = f.meta or {}
     lod_meta = meta.get("lods")
     lods: dict[str, dict[str, Any]] = {}
+    public_file_id = _public_file_id(f.file_id)
 
     if isinstance(lod_meta, dict):
         for lod_name in ("lod0", "lod1", "lod2"):
@@ -242,20 +261,24 @@ def _build_lod_map(f: UploadFileModel) -> dict[str, dict[str, Any]]:
             key = raw.get("key")
             if not isinstance(key, str) or not key:
                 continue
-            lods[lod_name] = {
-                "key": key,
+            lod_entry: dict[str, Any] = {
                 "ready": bool(raw.get("ready", False)),
-                "url": f"/api/v1/files/{f.file_id}/lod/{lod_name}",
+                "url": f"/api/v1/files/{public_file_id}/lod/{lod_name}",
                 "triangle_count": _triangles_from_meta(f, lod_name),
             }
+            if include_key:
+                lod_entry["key"] = key
+            lods[lod_name] = lod_entry
 
     if "lod0" not in lods and f.gltf_key:
-        lods["lod0"] = {
-            "key": f.gltf_key,
+        lod0_entry: dict[str, Any] = {
             "ready": f.status == "ready",
-            "url": f"/api/v1/files/{f.file_id}/gltf",
+            "url": f"/api/v1/files/{public_file_id}/gltf",
             "triangle_count": _triangles_from_meta(f, "lod0"),
         }
+        if include_key:
+            lod0_entry["key"] = f.gltf_key
+        lods["lod0"] = lod0_entry
 
     return lods
 
@@ -282,7 +305,7 @@ def _build_scx_manifest(f: UploadFileModel, lods: dict[str, dict[str, Any]]) -> 
     return {
         "format_version": "1.0.0",
         "app": "STELLCODEX",
-        "model_id": f.file_id,
+        "model_id": _public_file_id(f.file_id),
         "units": "mm",
         "bbox": bbox,
         "lod": lod_paths,
@@ -326,7 +349,6 @@ class InitiateIn(BaseModel):
 
 class InitiateOut(BaseModel):
     file_id: str
-    object_key: str
     upload_url: str
     expires_in_seconds: int = 900
 
@@ -337,22 +359,21 @@ class CompleteIn(BaseModel):
 
 class FileOut(BaseModel):
     file_id: str
-    object_key: str
-    original_filename: str
+    original_name: str
+    kind: str
+    created_at: datetime
     content_type: str
     size_bytes: int
     status: str
     visibility: str
-    job_id: str | None = None
-    gltf_key: str | None = None
-    thumbnail_key: str | None = None
+    thumbnail_url: str | None = None
     preview_url: str | None = None
+    gltf_url: str | None = None
+    original_url: str | None = None
     error: str | None = None
 
 
 class FileDetailOut(FileOut):
-    gltf_url: str | None = None
-    original_url: str | None = None
     lods: dict[str, dict[str, Any]] | None = None
     quality_default: str = "Ultra"
     view_mode_default: str = "shaded_edge"
@@ -416,6 +437,42 @@ def _file_kind(content_type: str, filename: str) -> str:
     return "3d"
 
 
+def _build_file_urls(f: UploadFileModel) -> tuple[str | None, str | None, str | None]:
+    if f.status != "ready":
+        return None, None, None
+    public_id = _public_file_id(f.file_id)
+    if f.gltf_key:
+        gltf_url = f"/api/v1/files/{public_id}/gltf"
+        return gltf_url, gltf_url, None
+    original_url = f"/api/v1/files/{public_id}/content"
+    return original_url, None, original_url
+
+
+def _file_thumbnail_url(f: UploadFileModel) -> str | None:
+    # Thumbnail binary endpoint is not exposed yet; keep null until ready.
+    return None
+
+
+def _serialize_file_out(f: UploadFileModel) -> FileOut:
+    preview_url, gltf_url, original_url = _build_file_urls(f)
+    err = (f.meta or {}).get("error") if f.status == "failed" else None
+    return FileOut(
+        file_id=_public_file_id(f.file_id),
+        original_name=f.original_filename,
+        kind=_file_kind(f.content_type, f.original_filename),
+        created_at=f.created_at,
+        content_type=f.content_type,
+        size_bytes=int(f.size_bytes),
+        status=f.status,
+        visibility=f.visibility,
+        thumbnail_url=_file_thumbnail_url(f),
+        preview_url=preview_url,
+        gltf_url=gltf_url,
+        original_url=original_url,
+        error=err,
+    )
+
+
 @router.post("/initiate", response_model=InitiateOut)
 def initiate_upload(
     data: InitiateIn,
@@ -465,7 +522,7 @@ def initiate_upload(
         Params={"Bucket": bucket, "Key": key, "ContentType": data.content_type},
         ExpiresIn=900,
     )
-    return InitiateOut(file_id=f.file_id, object_key=key, upload_url=url, expires_in_seconds=900)
+    return InitiateOut(file_id=_public_file_id(f.file_id), upload_url=url, expires_in_seconds=900)
 
 
 @router.post("/upload", response_model=FileOut)
@@ -548,18 +605,7 @@ async def direct_upload(
     )
     db.commit()
 
-    return FileOut(
-        file_id=f.file_id,
-        object_key=f.object_key,
-        original_filename=f.original_filename,
-        content_type=f.content_type,
-        size_bytes=int(f.size_bytes),
-        status=f.status,
-        visibility=f.visibility,
-        job_id=job_id,
-        gltf_key=f.gltf_key,
-        thumbnail_key=f.thumbnail_key,
-    )
+    return _serialize_file_out(f)
 
 
 @router.post("/{file_id}/complete", response_model=FileOut)
@@ -574,8 +620,8 @@ def complete_upload(
     if not owner_sub:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    file_id = _normalize_file_id(file_id)
-    f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
+    normalized_file_id = _normalize_file_id(file_id)
+    f = _get_file_by_identifier(db, normalized_file_id)
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
     _assert_file_access(f, principal)
@@ -602,7 +648,7 @@ def complete_upload(
     print(
         f"upload_completed file_id={f.file_id} object_key={f.object_key} "
         f"size_bytes={int(f.size_bytes)} content_type={f.content_type} "
-        f"route=/api/v1/files/{file_id}/complete"
+        f"route=/api/v1/files/{normalized_file_id}/complete"
     )
 
     try:
@@ -614,28 +660,17 @@ def complete_upload(
             db.commit()
         print(
             f"enqueue_success file_id={f.file_id} queue=cad job_id={job_id} "
-            f"redis_url={settings.REDIS_URL} route=/api/v1/files/{file_id}/complete"
+            f"redis_url={settings.REDIS_URL} route=/api/v1/files/{normalized_file_id}/complete"
         )
     except Exception as exc:
         print(
             f"enqueue_failed file_id={f.file_id} queue=cad job_id=None "
-            f"redis_url={settings.REDIS_URL} route=/api/v1/files/{file_id}/complete error={exc}"
+            f"redis_url={settings.REDIS_URL} route=/api/v1/files/{normalized_file_id}/complete error={exc}"
         )
         # If worker queue is down, keep status queued; client can retry later.
         job_id = None
 
-    return FileOut(
-        file_id=f.file_id,
-        object_key=f.object_key,
-        original_filename=f.original_filename,
-        content_type=f.content_type,
-        size_bytes=int(f.size_bytes),
-        status=f.status,
-        visibility=f.visibility,
-        job_id=job_id,
-        gltf_key=f.gltf_key,
-        thumbnail_key=f.thumbnail_key,
-    )
+    return _serialize_file_out(f)
 
 
 @router.get("", response_model=PageOut | RecentPageOut)
@@ -668,12 +703,12 @@ def list_files(
         rows = q.order_by(UploadFileModel.created_at.desc()).limit(limit).all()
         items = [
             RecentFileOut(
-                file_id=r.file_id,
+                file_id=_public_file_id(r.file_id),
                 original_name=r.original_filename,
                 kind=_file_kind(r.content_type, r.original_filename),
                 status=r.status,
                 created_at=r.created_at,
-                thumbnail_url=None,
+                thumbnail_url=_file_thumbnail_url(r),
             )
             for r in rows
         ]
@@ -687,31 +722,7 @@ def list_files(
         .all()
     )
 
-    items = []
-    for r in rows:
-        preview_url = None
-        if r.status == "ready":
-            preview_url = f"/api/v1/files/{r.file_id}/gltf" if r.gltf_key else f"/api/v1/files/{r.file_id}/content"
-        err = None
-        if r.status == "failed":
-            err = (r.meta or {}).get("error")
-
-        items.append(
-            FileOut(
-                file_id=r.file_id,
-                object_key=r.object_key,
-                original_filename=r.original_filename,
-                content_type=r.content_type,
-                size_bytes=int(r.size_bytes),
-                status=r.status,
-                visibility=r.visibility,
-                job_id=None,
-                gltf_key=r.gltf_key,
-                thumbnail_key=r.thumbnail_key,
-                preview_url=preview_url,
-                error=err,
-            )
-        )
+    items = [_serialize_file_out(r) for r in rows]
     return PageOut(items=items, page=page, page_size=page_size, total=total)
 
 
@@ -722,36 +733,18 @@ def get_file(
     principal: Principal = Depends(_require_principal),
 ):
     _feature_on()
-    owner_sub = principal.owner_sub or ""
-    file_id = _normalize_file_id(file_id)
-    f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
+    f = _get_file_by_identifier(db, file_id)
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
     _assert_file_access(f, principal)
 
-    gltf_url = None
-    original_url = None
-    if f.status == "ready":
-        if f.gltf_key:
-            gltf_url = f"/api/v1/files/{f.file_id}/gltf"
-        else:
-            original_url = f"/api/v1/files/{f.file_id}/content"
-
+    defaults = f.meta.get("defaults") if isinstance(f.meta, dict) and isinstance(f.meta.get("defaults"), dict) else {}
+    payload = _serialize_file_out(f)
     return FileDetailOut(
-        file_id=f.file_id,
-        object_key=f.object_key,
-        original_filename=f.original_filename,
-        content_type=f.content_type,
-        size_bytes=int(f.size_bytes),
-        status=f.status,
-        visibility=f.visibility,
-        job_id=None,
-        gltf_key=f.gltf_key,
-        thumbnail_key=f.thumbnail_key,
-        gltf_url=gltf_url,
-        original_url=original_url,
-        lods=_build_lod_map(f),
-        error=(f.meta or {}).get("error") if f.status == "failed" else None,
+        **payload.model_dump(),
+        lods=_build_lod_map(f, include_key=False),
+        quality_default=str(defaults.get("quality") or "Ultra"),
+        view_mode_default=str(defaults.get("view_mode") or "shaded_edge"),
     )
 
 
@@ -762,13 +755,11 @@ def file_manifest(
     principal: Principal = Depends(_require_principal),
 ):
     _feature_on()
-    owner_sub = principal.owner_sub or ""
-    file_id = _normalize_file_id(file_id)
-    f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
+    f = _get_file_by_identifier(db, file_id)
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
     _assert_file_access(f, principal)
-    lods = _build_lod_map(f)
+    lods = _build_lod_map(f, include_key=False)
     return _build_scx_manifest(f, lods)
 
 
@@ -779,16 +770,14 @@ def download_scx(
     principal: Principal = Depends(_require_principal),
 ):
     _feature_on()
-    owner_sub = principal.owner_sub or ""
-    file_id = _normalize_file_id(file_id)
-    f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
+    f = _get_file_by_identifier(db, file_id)
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
     _assert_file_access(f, principal)
     if f.status != "ready":
         raise HTTPException(status_code=409, detail="File not ready")
 
-    lods = _build_lod_map(f)
+    lods = _build_lod_map(f, include_key=True)
     manifest = _build_scx_manifest(f, lods)
     s3 = s3_client()
     zip_buffer = io.BytesIO()
@@ -822,7 +811,7 @@ def download_scx(
                 pass
 
     zip_buffer.seek(0)
-    headers = {"Content-Disposition": f'attachment; filename="{f.file_id}.scx"'}
+    headers = {"Content-Disposition": f'attachment; filename="{_public_file_id(f.file_id)}.scx"'}
     return StreamingResponse(zip_buffer, media_type="application/zip", headers=headers)
 
 
@@ -833,9 +822,7 @@ def file_status(
     principal: Principal = Depends(_require_principal),
 ):
     _feature_on()
-    owner_sub = principal.owner_sub or ""
-    file_id = _normalize_file_id(file_id)
-    f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
+    f = _get_file_by_identifier(db, file_id)
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
     _assert_file_access(f, principal)
@@ -881,9 +868,7 @@ def enqueue_render(
     principal: Principal = Depends(_require_principal),
 ):
     _feature_on()
-    owner_sub = principal.owner_sub or ""
-    file_id = _normalize_file_id(file_id)
-    f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
+    f = _get_file_by_identifier(db, file_id)
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
     _assert_file_access(f, principal)
@@ -906,10 +891,7 @@ def download_url(
     principal: Principal = Depends(_require_principal),
 ):
     _feature_on()
-    owner_sub = principal.owner_sub or ""
-
-    file_id = _normalize_file_id(file_id)
-    f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
+    f = _get_file_by_identifier(db, file_id)
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
     _assert_file_access(f, principal)
@@ -932,9 +914,7 @@ def download_content(
     principal: Principal = Depends(_require_principal),
 ):
     _feature_on()
-    owner_sub = principal.owner_sub or ""
-    file_id = _normalize_file_id(file_id)
-    f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
+    f = _get_file_by_identifier(db, file_id)
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
     _assert_file_access(f, principal)
@@ -954,9 +934,7 @@ def download_gltf(
     principal: Principal = Depends(_require_principal),
 ):
     _feature_on()
-    owner_sub = principal.owner_sub or ""
-    file_id = _normalize_file_id(file_id)
-    f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
+    f = _get_file_by_identifier(db, file_id)
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
     _assert_file_access(f, principal)
@@ -979,18 +957,16 @@ def download_lod(
     principal: Principal = Depends(_require_principal),
 ):
     _feature_on()
-    owner_sub = principal.owner_sub or ""
-    file_id = _normalize_file_id(file_id)
     if lod_name not in {"lod0", "lod1", "lod2"}:
         raise HTTPException(status_code=400, detail="Invalid LOD")
-    f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
+    f = _get_file_by_identifier(db, file_id)
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
     _assert_file_access(f, principal)
     if f.status != "ready":
         raise HTTPException(status_code=409, detail="File not ready")
 
-    lods = _build_lod_map(f)
+    lods = _build_lod_map(f, include_key=True)
     lod = lods.get(lod_name)
     if not lod:
         raise HTTPException(status_code=404, detail="LOD not found")
@@ -1012,9 +988,7 @@ def update_visibility(
     principal: Principal = Depends(_require_principal),
 ):
     _feature_on()
-    owner_sub = principal.owner_sub or ""
-    file_id = _normalize_file_id(file_id)
-    f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
+    f = _get_file_by_identifier(db, file_id)
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
     _assert_file_access(f, principal)
@@ -1025,18 +999,7 @@ def update_visibility(
     db.commit()
     db.refresh(f)
 
-    return FileOut(
-        file_id=f.file_id,
-        object_key=f.object_key,
-        original_filename=f.original_filename,
-        content_type=f.content_type,
-        size_bytes=int(f.size_bytes),
-        status=f.status,
-        visibility=f.visibility,
-        job_id=None,
-        gltf_key=f.gltf_key,
-        thumbnail_key=f.thumbnail_key,
-    )
+    return _serialize_file_out(f)
 
 
 def _is_dxf(filename: str) -> bool:
@@ -1050,9 +1013,7 @@ def dxf_manifest(
     principal: Principal = Depends(_require_principal),
 ):
     _feature_on()
-    owner_sub = principal.owner_sub or ""
-    file_id = _normalize_file_id(file_id)
-    f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
+    f = _get_file_by_identifier(db, file_id)
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
     _assert_file_access(f, principal)
@@ -1079,9 +1040,7 @@ def dxf_render(
     principal: Principal = Depends(_require_principal),
 ):
     _feature_on()
-    owner_sub = principal.owner_sub or ""
-    file_id = _normalize_file_id(file_id)
-    f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
+    f = _get_file_by_identifier(db, file_id)
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
     _assert_file_access(f, principal)

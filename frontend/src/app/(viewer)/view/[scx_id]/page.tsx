@@ -14,6 +14,7 @@ import { DxfViewer } from "@/components/viewer/DxfViewer";
 import { ThreeViewer, RenderMode, ProjectionMode } from "@/components/viewer/ThreeViewer";
 import { CAMERA_PRESETS, QUALITY_DEFAULT, QUALITY_TO_LOD, QualityLevel, VIEWER_MODE_LABEL, VIEWER_MODE_ORDER } from "@/components/viewer/viewer-quality-config";
 import {
+  ApiHttpError,
   createShare,
   downloadScx,
   fetchAuthedBlobUrl,
@@ -121,11 +122,39 @@ function hasAssemblyMapping(nodes: AssemblyTreeNode[]): boolean {
   return false;
 }
 
+type ViewerError = {
+  title: string;
+  description: string;
+};
+
+function classifyViewerError(error: unknown): ViewerError {
+  if (error instanceof ApiHttpError) {
+    if (error.status === 404) {
+      return { title: "Bulunamadı", description: "Dosya bulunamadı." };
+    }
+    if (error.status === 401) {
+      return { title: "Yetkisiz / token alınamadı", description: error.message || "Misafir token alınamadı." };
+    }
+    if (error.status === 403) {
+      return { title: "Erişim yok", description: error.message || "Bu dosyaya erişim izniniz yok." };
+    }
+    return { title: "İşlem başarısız", description: error.message || "Beklenmeyen bir hata oluştu." };
+  }
+  if (error instanceof Error) {
+    const text = error.message.toLowerCase();
+    if (text.includes("sunucuya erişilemedi") || text.includes("network") || text.includes("timeout")) {
+      return { title: "Bağlantı hatası", description: "Sunucuya bağlanılamadı. Ağı ve API yönlendirmesini kontrol edin." };
+    }
+    return { title: "İşlem başarısız", description: error.message };
+  }
+  return { title: "İşlem başarısız", description: "Beklenmeyen bir hata oluştu." };
+}
+
 export default function ViewPage() {
   const params = useParams();
   const fileId = typeof params.scx_id === "string" ? params.scx_id : "";
   const [file, setFile] = useState<FileDetail | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ViewerError | null>(null);
   const [processing, setProcessing] = useState(false);
   const [statusInfo, setStatusInfo] = useState<{ state: string; progress_hint?: string | null } | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
@@ -183,7 +212,7 @@ export default function ViewPage() {
 
   useEffect(() => {
     if (!fileId || !SCX_ID_REGEX.test(fileId)) {
-      setError("Geçersiz dosya kimliği. Yeniden yükleyin.");
+      setError({ title: "Bulunamadı", description: "Geçersiz dosya kimliği." });
       setManifest(null);
       setAssemblyTree([]);
       setPartCount(0);
@@ -210,7 +239,7 @@ export default function ViewPage() {
         if (status.state === "failed") {
           setProcessing(false);
           setLoading(false);
-          setError("Donusturme basarisiz. Tekrar deneyin.");
+          setError({ title: "İşlem başarısız", description: "Dönüştürme başarısız. Tekrar deneyin." });
           return;
         }
         if (status.state !== "succeeded") {
@@ -245,7 +274,7 @@ export default function ViewPage() {
             return;
           }
           if (!f.original_url) {
-            setError("2D içerik hazır değil. Lütfen tekrar deneyin.");
+            setError({ title: "İçerik hazır değil", description: "2D içerik hazır değil. Lütfen tekrar deneyin." });
             return;
           }
           if (lastResolvedUrlRef.current === f.original_url && objectUrlRef.current) {
@@ -264,7 +293,7 @@ export default function ViewPage() {
         }
         const target3dUrl = resolveTarget3dUrl(f, quality);
         if (!target3dUrl) {
-          setError("3D içerik hazır değil. Lütfen tekrar deneyin.");
+          setError({ title: "İçerik hazır değil", description: "3D içerik hazır değil. Lütfen tekrar deneyin." });
           return;
         }
         if (lastResolvedUrlRef.current === target3dUrl && objectUrlRef.current) {
@@ -282,7 +311,7 @@ export default function ViewPage() {
       } catch (e: any) {
         if (!cancelled) {
           setLoading(false);
-          setError((e?.message || "Dosya yüklenemedi") + ". Tekrar deneyin.");
+          setError(classifyViewerError(e));
         }
       }
     };
@@ -356,7 +385,7 @@ export default function ViewPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e: any) {
-      setError(e?.message || "SCX indirilemedi.");
+      setError(classifyViewerError(e));
     }
   };
 
@@ -533,8 +562,8 @@ export default function ViewPage() {
     if (error) {
       return (
         <EmptyState
-          title="İşlem başarısız"
-          description={error}
+          title={error.title}
+          description={error.description}
           action={
             <div className="flex flex-wrap items-center gap-2">
               <SecondaryButton onClick={() => setRetryTick((t) => t + 1)}>Tekrar dene</SecondaryButton>

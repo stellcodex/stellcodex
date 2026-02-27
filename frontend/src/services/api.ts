@@ -2,14 +2,18 @@ import { apiFetch, getApiBase } from "@/lib/apiClient";
 
 export type FileItem = {
   file_id: string;
+  original_name: string;
   original_filename: string;
+  kind: string;
+  created_at: string;
   content_type: string;
   size_bytes: number;
   status: string;
   visibility: string;
-  gltf_key?: string | null;
-  thumbnail_key?: string | null;
+  thumbnail_url?: string | null;
   preview_url?: string | null;
+  gltf_url?: string | null;
+  original_url?: string | null;
   error?: string | null;
 };
 
@@ -81,8 +85,72 @@ export type UploadDirectResult = {
   file_id: string;
 };
 
+export class ApiHttpError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiHttpError";
+    this.status = status;
+  }
+}
+
 const API_BASE = getApiBase();
 const UPLOAD_TIMEOUT_MS = 120_000;
+
+function inferKind(contentType: string, name: string): "2d" | "3d" {
+  const lowerName = name.toLowerCase();
+  const lowerType = contentType.toLowerCase();
+  if (lowerName.endsWith(".dxf")) return "2d";
+  if (lowerType === "application/pdf") return "2d";
+  if (lowerType.startsWith("image/")) return "2d";
+  return "3d";
+}
+
+function normalizeFileItem(input: unknown): FileItem {
+  const data = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
+  const originalName =
+    (typeof data.original_name === "string" && data.original_name.trim()) ||
+    (typeof data.original_filename === "string" && data.original_filename.trim()) ||
+    "isimsiz";
+  const contentType = typeof data.content_type === "string" ? data.content_type : "application/octet-stream";
+  const sizeBytes = typeof data.size_bytes === "number" ? data.size_bytes : 0;
+  const status = typeof data.status === "string" ? data.status : "queued";
+  const visibility = typeof data.visibility === "string" ? data.visibility : "private";
+  const kind = typeof data.kind === "string" && data.kind ? data.kind : inferKind(contentType, originalName);
+  const createdAt = typeof data.created_at === "string" ? data.created_at : new Date().toISOString();
+
+  return {
+    file_id: typeof data.file_id === "string" ? data.file_id : "",
+    original_name: originalName,
+    original_filename: originalName,
+    kind,
+    created_at: createdAt,
+    content_type: contentType,
+    size_bytes: sizeBytes,
+    status,
+    visibility,
+    thumbnail_url: typeof data.thumbnail_url === "string" ? data.thumbnail_url : null,
+    preview_url: typeof data.preview_url === "string" ? data.preview_url : null,
+    gltf_url: typeof data.gltf_url === "string" ? data.gltf_url : null,
+    original_url: typeof data.original_url === "string" ? data.original_url : null,
+    error: typeof data.error === "string" ? data.error : null,
+  };
+}
+
+function normalizeFileDetail(input: unknown): FileDetail {
+  const item = normalizeFileItem(input);
+  const data = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
+  return {
+    ...item,
+    lods:
+      data.lods && typeof data.lods === "object"
+        ? (data.lods as FileDetail["lods"])
+        : null,
+    quality_default: typeof data.quality_default === "string" ? data.quality_default : null,
+    view_mode_default: typeof data.view_mode_default === "string" ? data.view_mode_default : null,
+  };
+}
 
 function getGuestTokenKey() {
   return "stellcodex_access_token";
@@ -200,12 +268,15 @@ function normalizeTransportError(error: unknown, fallback: string): Error {
 async function throwHttpError(res: Response, fallback: string): Promise<never> {
   const err = await res.json().catch(() => null);
   if (res.status === 401) {
-    throw new Error("Kimlik doğrulama başarısız (401). Misafir token yenilenemedi.");
+    throw new ApiHttpError(401, "Yetkisiz / token alınamadı.");
   }
   if (res.status === 403) {
-    throw new Error("Erişim reddedildi (403). Bu dosyaları görüntüleme izni yok.");
+    throw new ApiHttpError(403, "Erişim yok.");
   }
-  throw new Error(readErrorDetail(err, `${fallback} (${res.status})`));
+  if (res.status === 404) {
+    throw new ApiHttpError(404, "Bulunamadı.");
+  }
+  throw new ApiHttpError(res.status, readErrorDetail(err, `${fallback} (${res.status})`));
 }
 
 export async function fetchAuthedBlobUrl(url: string): Promise<string> {
@@ -241,8 +312,11 @@ export async function getDxfRender(fileId: string, layers: string[]): Promise<st
 export async function listFiles(): Promise<FileItem[]> {
   const res = await authFetch(`${API_BASE}/files`);
   if (!res.ok) await throwHttpError(res, "Dosyalar yüklenemedi.");
-  const data = await res.json();
-  return data.items || [];
+  const data = await res.json().catch(() => null);
+  if (!data || typeof data !== "object") return [];
+  const rawItems = (data as { items?: unknown }).items;
+  if (!Array.isArray(rawItems)) return [];
+  return rawItems.map((item) => normalizeFileItem(item));
 }
 
 export async function listRecentFiles(limit = 8): Promise<RecentFileItem[]> {
@@ -258,8 +332,9 @@ export async function listRecentFiles(limit = 8): Promise<RecentFileItem[]> {
 
 export async function getFile(fileId: string): Promise<FileDetail> {
   const res = await authFetch(`${API_BASE}/files/${fileId}`);
-  if (!res.ok) throw new Error("Dosya yüklenemedi.");
-  return res.json();
+  if (!res.ok) await throwHttpError(res, "Dosya yüklenemedi.");
+  const data = await res.json().catch(() => null);
+  return normalizeFileDetail(data);
 }
 
 export async function getFileStatus(fileId: string) {
@@ -278,8 +353,9 @@ export async function getFileStatus(fileId: string) {
         ? "running"
         : "queued";
     const derivatives: string[] = [];
-    if (file.gltf_key) derivatives.push("gltf");
-    if (file.thumbnail_key) derivatives.push("thumbnail");
+    if (file.gltf_url) derivatives.push("gltf");
+    if (file.thumbnail_url) derivatives.push("thumbnail");
+    if (file.original_url) derivatives.push("original");
     return {
       state,
       derivatives_available: derivatives,
@@ -287,7 +363,7 @@ export async function getFileStatus(fileId: string) {
     };
   }
 
-  throw new Error("Durum yüklenemedi.");
+  await throwHttpError(res, "Durum yüklenemedi.");
 }
 
 export async function uploadDirect(file: File): Promise<UploadDirectResult> {

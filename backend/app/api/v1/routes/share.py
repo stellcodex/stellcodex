@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import secrets
 from datetime import datetime, timedelta, timezone
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.core.ids import normalize_scx_id
+from app.core.ids import format_scx_file_id, normalize_scx_file_id, normalize_scx_id
 from app.core.config import settings
 from app.core.storage import get_s3_client
 from app.db.session import get_db
@@ -31,10 +32,28 @@ def _as_utc(dt: datetime) -> datetime:
 
 
 def _normalize_file_id(value: str) -> str:
+    return format_scx_file_id(_normalize_file_uuid(value))
+
+
+def _normalize_file_uuid(value: str) -> UUID:
+    try:
+        return normalize_scx_file_id(value)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid file id")
+
+
+def _public_file_id(value: str) -> str:
     try:
         return normalize_scx_id(value)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid file id")
+        return value
+
+
+def _get_file_by_identifier(db: Session, value: str) -> UploadFileModel | None:
+    uid = _normalize_file_uuid(value)
+    canonical = format_scx_file_id(uid)
+    legacy = str(uid)
+    return db.query(UploadFileModel).filter(UploadFileModel.file_id.in_((canonical, legacy))).first()
 
 
 class ShareCreateIn(BaseModel):
@@ -71,8 +90,7 @@ def create_share(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_current_principal),
 ):
-    file_id = _normalize_file_id(file_id)
-    f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
+    f = _get_file_by_identifier(db, file_id)
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
 
@@ -115,8 +133,7 @@ def list_shares(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_current_principal),
 ):
-    file_id = _normalize_file_id(file_id)
-    f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
+    f = _get_file_by_identifier(db, file_id)
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
 
@@ -197,7 +214,7 @@ def resolve_share(token: str, db: Session = Depends(get_db)):
         original_url = f"/api/v1/share/{token}/content"
 
     return ShareResolveOut(
-        file_id=f.file_id,
+        file_id=_public_file_id(f.file_id),
         status=f.status,
         content_type=f.content_type,
         original_filename=f.original_filename,
