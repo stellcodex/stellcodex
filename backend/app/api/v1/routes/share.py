@@ -75,12 +75,34 @@ class ShareListOut(BaseModel):
 class ShareResolveOut(BaseModel):
     file_id: str
     status: str
+    permission: str
+    can_view: bool
+    can_download: bool
+    expires_at: datetime
     content_type: str
     original_filename: str
     size_bytes: int
     gltf_url: str | None = None
     original_url: str | None = None
     expires_in_seconds: int = 900
+
+
+def _resolve_active_share(db: Session, token: str) -> tuple[Share, UploadFileModel]:
+    share = db.query(Share).filter(Share.token == token).first()
+    if not share:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid share token")
+    if share.revoked_at is not None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+    if _as_utc(share.expires_at) < _now():
+        raise HTTPException(status_code=status.HTTP_410_GONE, detail="Share expired")
+
+    f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == share.file_id).first()
+    if not f:
+        raise HTTPException(status_code=404, detail="File not found")
+    if f.status != "ready":
+        raise HTTPException(status_code=409, detail="File not ready")
+
+    return share, f
 
 
 @router.post("/files/{file_id}/share", response_model=ShareCreateOut)
@@ -192,19 +214,7 @@ def revoke_share(
 
 @router.get("/share/{token}", response_model=ShareResolveOut)
 def resolve_share(token: str, db: Session = Depends(get_db)):
-    share = db.query(Share).filter(Share.token == token).first()
-    if not share:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid share token")
-    if share.revoked_at is not None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-    if _as_utc(share.expires_at) < _now():
-        raise HTTPException(status_code=status.HTTP_410_GONE, detail="Share expired")
-
-    f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == share.file_id).first()
-    if not f:
-        raise HTTPException(status_code=404, detail="File not found")
-    if f.status != "ready":
-        raise HTTPException(status_code=409, detail="File not ready")
+    share, f = _resolve_active_share(db, token)
 
     gltf_url = None
     original_url = None
@@ -216,6 +226,10 @@ def resolve_share(token: str, db: Session = Depends(get_db)):
     return ShareResolveOut(
         file_id=_public_file_id(f.file_id),
         status=f.status,
+        permission=share.permission,
+        can_view=True,
+        can_download=share.permission == "download",
+        expires_at=share.expires_at,
         content_type=f.content_type,
         original_filename=f.original_filename,
         size_bytes=int(f.size_bytes),
@@ -225,21 +239,14 @@ def resolve_share(token: str, db: Session = Depends(get_db)):
     )
 
 
+@router.get("/shares/{token}", response_model=ShareResolveOut)
+def resolve_share_alias(token: str, db: Session = Depends(get_db)):
+    return resolve_share(token=token, db=db)
+
+
 @router.get("/share/{token}/content")
 def share_content(token: str, db: Session = Depends(get_db)):
-    share = db.query(Share).filter(Share.token == token).first()
-    if not share:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid share token")
-    if share.revoked_at is not None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-    if _as_utc(share.expires_at) < _now():
-        raise HTTPException(status_code=status.HTTP_410_GONE, detail="Share expired")
-
-    f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == share.file_id).first()
-    if not f:
-        raise HTTPException(status_code=404, detail="File not found")
-    if f.status != "ready":
-        raise HTTPException(status_code=409, detail="File not ready")
+    _share, f = _resolve_active_share(db, token)
 
     s3 = get_s3_client(settings)
     obj = s3.get_object(Bucket=f.bucket, Key=f.object_key)
@@ -249,19 +256,7 @@ def share_content(token: str, db: Session = Depends(get_db)):
 
 @router.get("/share/{token}/gltf")
 def share_gltf(token: str, db: Session = Depends(get_db)):
-    share = db.query(Share).filter(Share.token == token).first()
-    if not share:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid share token")
-    if share.revoked_at is not None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-    if _as_utc(share.expires_at) < _now():
-        raise HTTPException(status_code=status.HTTP_410_GONE, detail="Share expired")
-
-    f: UploadFileModel | None = db.query(UploadFileModel).filter(UploadFileModel.file_id == share.file_id).first()
-    if not f:
-        raise HTTPException(status_code=404, detail="File not found")
-    if f.status != "ready":
-        raise HTTPException(status_code=409, detail="File not ready")
+    _share, f = _resolve_active_share(db, token)
     if not f.gltf_key:
         raise HTTPException(status_code=404, detail="GLTF not found")
 

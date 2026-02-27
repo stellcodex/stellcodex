@@ -96,7 +96,7 @@ export class ApiHttpError extends Error {
 }
 
 const API_BASE = getApiBase();
-const UPLOAD_TIMEOUT_MS = 120_000;
+const UPLOAD_TIMEOUT_MS = 300_000;
 
 function inferKind(contentType: string, name: string): "2d" | "3d" {
   const lowerName = name.toLowerCase();
@@ -360,6 +360,9 @@ export async function getFileStatus(fileId: string) {
       state,
       derivatives_available: derivatives,
       progress_hint: file.status || null,
+      progress_percent:
+        state === "succeeded" ? 100 : state === "failed" ? 100 : state === "running" ? 55 : 5,
+      stage: file.status || null,
     };
   }
 
@@ -418,7 +421,7 @@ export async function createShare(fileId: string, expiresInSeconds?: number): Pr
 }
 
 export async function resolveShare(token: string) {
-  const res = await apiFetch(`/share/${token}`);
+  const res = await apiFetch(`/shares/${token}`);
   if (!res.ok) {
     const err = await res.json().catch(() => null);
     throw new Error(err?.detail || "Paylaşım geçersiz.");
