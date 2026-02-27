@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DxfManifest, getDxfManifest, getDxfRender } from "@/services/api";
 
 export function DxfViewer({ fileId }: { fileId: string }) {
@@ -14,6 +14,7 @@ export function DxfViewer({ fileId }: { fileId: string }) {
   const lastPos = useRef({ x: 0, y: 0 });
   const svgRef = useRef<string | null>(null);
   const manifestLoadedRef = useRef(false);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
 
   const layerList = useMemo(() => manifest?.layers ?? [], [manifest]);
 
@@ -111,10 +112,27 @@ export function DxfViewer({ fileId }: { fileId: string }) {
     };
   }, []);
 
-  const onWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const delta = e.deltaY < 0 ? 1.1 : 0.9;
+  const applyWheelZoom = useCallback((deltaY: number) => {
+    const delta = deltaY < 0 ? 1.1 : 0.9;
     setScale((s) => Math.min(10, Math.max(0.2, s * delta)));
+  }, []);
+
+  useEffect(() => {
+    const host = viewportRef.current;
+    if (!host) return;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      applyWheelZoom(event.deltaY);
+    };
+    host.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      host.removeEventListener("wheel", onWheel);
+    };
+  }, [applyWheelZoom]);
+
+  const resetFit = () => {
+    setScale(1);
+    setOffset({ x: 0, y: 0 });
   };
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -138,8 +156,9 @@ export function DxfViewer({ fileId }: { fileId: string }) {
 
   return (
     <div
+      ref={viewportRef}
       className="relative h-full rounded-2xl border border-slate-200 bg-white overflow-hidden"
-      onWheel={onWheel}
+      style={{ touchAction: "none" }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -161,7 +180,16 @@ export function DxfViewer({ fileId }: { fileId: string }) {
 
       {manifest && layerList.length > 0 ? (
         <div className="absolute right-3 top-3 max-h-[45%] w-[220px] overflow-auto rounded-lg border border-slate-200 bg-white/95 p-2 text-xs">
-          <div className="mb-1 font-semibold text-slate-900">Katmanlar</div>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <div className="font-semibold text-slate-900">Katmanlar</div>
+            <button
+              type="button"
+              className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] text-slate-600"
+              onClick={resetFit}
+            >
+              Fit
+            </button>
+          </div>
           <div className="space-y-1.5">
             {layerList.map((layer) => (
               <label key={layer.name} className="flex items-center gap-2 text-slate-700">

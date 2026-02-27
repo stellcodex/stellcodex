@@ -40,7 +40,7 @@ type ViewerProps = {
 const EDGE_THRESHOLD_ANGLE = 30;
 const EDGE_KEY = "__scx_edge";
 const MIN_BOUNDS_EXTENT = 1e-6;
-const EMIT_TRAVERSE_NODES = false;
+const EMIT_TRAVERSE_NODES = true;
 
 type MeshBounds = {
   box: THREE.Box3;
@@ -183,9 +183,7 @@ function SceneModel({
     if (!onNodes || !EMIT_TRAVERSE_NODES) return;
     const nodes: ViewerNode[] = [];
     scene.traverse((obj) => {
-      if (obj.name) {
-        nodes.push({ id: obj.uuid, name: obj.name, type: obj.type, visible: obj.visible });
-      }
+      nodes.push({ id: obj.uuid, name: (obj.name || obj.type || obj.uuid).trim(), type: obj.type, visible: obj.visible });
     });
     const hash = nodes.map((n) => `${n.id}:${n.visible ? "1" : "0"}`).join("|");
     if (hash !== lastNodesHashRef.current) {
@@ -313,15 +311,44 @@ function SceneModel({
     if (!onNodes || !EMIT_TRAVERSE_NODES) return;
     const nextNodes: ViewerNode[] = [];
     scene.traverse((obj) => {
-      if (obj.name) {
-        nextNodes.push({ id: obj.uuid, name: obj.name, type: obj.type, visible: obj.visible });
-      }
+      nextNodes.push({ id: obj.uuid, name: (obj.name || obj.type || obj.uuid).trim(), type: obj.type, visible: obj.visible });
     });
     const hash = nextNodes.map((n) => `${n.id}:${n.visible ? "1" : "0"}`).join("|");
     if (hash === lastNodesHashRef.current) return;
     lastNodesHashRef.current = hash;
     onNodes(nextNodes);
   }, [scene, hiddenNodes, onNodes]);
+
+  useEffect(() => {
+    return () => {
+      controlsRef.current?.dispose();
+      scene.traverse((obj) => {
+        const host = obj as THREE.Object3D & {
+          geometry?: THREE.BufferGeometry;
+          material?: THREE.Material | THREE.Material[];
+          userData?: Record<string, unknown>;
+        };
+        const edge = host.userData?.[EDGE_KEY] as THREE.LineSegments | undefined;
+        if (edge) {
+          (edge.geometry as THREE.BufferGeometry | undefined)?.dispose?.();
+          if (Array.isArray(edge.material)) {
+            edge.material.forEach((material) => material.dispose());
+          } else {
+            edge.material?.dispose?.();
+          }
+          if (host.userData) {
+            delete host.userData[EDGE_KEY];
+          }
+        }
+        host.geometry?.dispose?.();
+        if (Array.isArray(host.material)) {
+          host.material.forEach((material) => material.dispose());
+        } else {
+          host.material?.dispose?.();
+        }
+      });
+    };
+  }, [scene]);
 
   useEffect(() => {
     const box = getRenderableBounds(scene);
@@ -516,14 +543,25 @@ export function ThreeViewer(props: ViewerProps) {
   const projection = props.projection ?? "perspective";
   const renderMode = props.renderMode ?? "shadedEdges";
   const [cameraPreset, setCameraPreset] = useState<"iso" | "front" | "top" | "right">(props.cameraPreset ?? "iso");
+  const [canvasEpoch, setCanvasEpoch] = useState(0);
+  const [contextLost, setContextLost] = useState(false);
+  const detachContextListenersRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     setCameraPreset(props.cameraPreset ?? "iso");
   }, [props.cameraPreset]);
 
+  useEffect(() => {
+    return () => {
+      detachContextListenersRef.current?.();
+      useGLTF.clear(props.url);
+    };
+  }, [props.url]);
+
   return (
     <div className="relative h-full w-full bg-white">
       <Canvas
+        key={`${props.url}:${canvasEpoch}`}
         camera={{ position: [2, 2, 2], fov: 45 }}
         shadows
         dpr={[1, 1.5]}
@@ -535,6 +573,22 @@ export function ThreeViewer(props: ViewerProps) {
           gl.outputColorSpace = THREE.SRGBColorSpace;
           gl.toneMapping = THREE.ACESFilmicToneMapping;
           gl.toneMappingExposure = renderMode === "pbr" ? 1.05 : 0.95;
+          const canvas = gl.domElement;
+          const onLost = (event: Event) => {
+            event.preventDefault();
+            setContextLost(true);
+          };
+          const onRestored = () => {
+            setContextLost(false);
+            setCanvasEpoch((value) => value + 1);
+          };
+          detachContextListenersRef.current?.();
+          canvas.addEventListener("webglcontextlost", onLost, { passive: false });
+          canvas.addEventListener("webglcontextrestored", onRestored);
+          detachContextListenersRef.current = () => {
+            canvas.removeEventListener("webglcontextlost", onLost);
+            canvas.removeEventListener("webglcontextrestored", onRestored);
+          };
         }}
       >
         <ambientLight intensity={renderMode === "pbr" ? 0.45 : 0.7} />
@@ -549,13 +603,30 @@ export function ThreeViewer(props: ViewerProps) {
         </Suspense>
         <ScreenshotCapture onReady={props.onScreenshotReady} />
       </Canvas>
-      <ViewerOrientationCube
-        activePreset={cameraPreset}
-        onSelect={(preset) => {
-          setCameraPreset(preset);
-          props.onCameraPresetChange?.(preset);
-        }}
-      />
+        <ViewerOrientationCube
+          activePreset={cameraPreset}
+          onSelect={(preset) => {
+            setCameraPreset(preset);
+            props.onCameraPresetChange?.(preset);
+          }}
+        />
+      {contextLost ? (
+        <div className="pointer-events-none absolute inset-0 z-30 grid place-items-center bg-white/85">
+          <div className="pointer-events-auto rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-center text-sm text-amber-800">
+            <div>WebGL context kayboldu.</div>
+            <button
+              type="button"
+              className="mt-2 rounded-lg border border-amber-400 bg-white px-3 py-1 text-xs font-semibold text-amber-700"
+              onClick={() => {
+                setContextLost(false);
+                setCanvasEpoch((value) => value + 1);
+              }}
+            >
+              Viewer’ı yeniden yükle
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

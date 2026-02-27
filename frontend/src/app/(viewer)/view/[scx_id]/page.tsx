@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { SecondaryButton } from "@/components/ui/SecondaryButton";
 import { Card } from "@/components/ui/Card";
@@ -11,7 +11,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { tokens } from "@/lib/tokens";
 import { SCX_ID_REGEX } from "@/data/system-constants";
 import { DxfViewer } from "@/components/viewer/DxfViewer";
-import { ThreeViewer, RenderMode, ProjectionMode } from "@/components/viewer/ThreeViewer";
+import { ThreeViewer, RenderMode, ProjectionMode, ViewerNode } from "@/components/viewer/ThreeViewer";
 import { CAMERA_PRESETS, QUALITY_DEFAULT, QUALITY_TO_LOD, QualityLevel, VIEWER_MODE_LABEL, VIEWER_MODE_ORDER } from "@/components/viewer/viewer-quality-config";
 import {
   ApiHttpError,
@@ -27,6 +27,14 @@ import {
 } from "@/services/api";
 
 const STATUS_POLL_MS = 1500;
+const VIEWER_WAIT_TIMEOUT_MS = 60_000;
+
+type StatusInfo = {
+  state: string;
+  progress_hint?: string | null;
+  progress_percent?: number | null;
+  stage?: string | null;
+};
 
 function is2dFile(file: FileDetail) {
   const lower = file.original_filename.toLowerCase();
@@ -44,6 +52,12 @@ type AssemblyRow = {
   key: string;
   label: string;
   depth: number;
+  nodeIds: string[];
+};
+
+type ViewerLookup = {
+  byId: Set<string>;
+  byName: Map<string, string[]>;
 };
 
 function readAssemblyChildren(node: AssemblyTreeNode): AssemblyTreeNode[] {
@@ -89,7 +103,51 @@ function filterAssemblyTree(nodes: AssemblyTreeNode[], queryLower: string): Asse
   return filtered;
 }
 
-function flattenAssemblyTree(nodes: AssemblyTreeNode[], depth = 0, parentKey = "root"): AssemblyRow[] {
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values.filter((value) => value.trim().length > 0)));
+}
+
+function buildViewerLookup(nodes: ViewerNode[]): ViewerLookup {
+  const byName = new Map<string, string[]>();
+  const byId = new Set<string>();
+  nodes.forEach((node) => {
+    byId.add(node.id);
+    const nameKey = (node.name || "").trim().toLowerCase();
+    if (!nameKey) return;
+    const existing = byName.get(nameKey) || [];
+    existing.push(node.id);
+    byName.set(nameKey, uniqueStrings(existing));
+  });
+  return { byId, byName };
+}
+
+function resolveAssemblyNodeIds(node: AssemblyTreeNode, lookup: ViewerLookup, label: string): string[] {
+  const refs: string[] = [];
+  const list = node.gltf_nodes;
+  if (Array.isArray(list)) {
+    list.forEach((item) => {
+      if (typeof item === "string") refs.push(item);
+    });
+  }
+  [node.gltf_node, node.node_ref, node.mesh_ref, node.name, node.display_name, node.label, node.id, label].forEach((value) => {
+    if (typeof value === "string") refs.push(value);
+  });
+
+  const mapped: string[] = [];
+  refs.forEach((ref) => {
+    const trimmed = ref.trim();
+    if (!trimmed) return;
+    if (lookup.byId.has(trimmed)) {
+      mapped.push(trimmed);
+      return;
+    }
+    const byName = lookup.byName.get(trimmed.toLowerCase());
+    if (byName) mapped.push(...byName);
+  });
+  return uniqueStrings(mapped);
+}
+
+function flattenAssemblyTree(nodes: AssemblyTreeNode[], lookup: ViewerLookup, depth = 0, parentKey = "root"): AssemblyRow[] {
   const rows: AssemblyRow[] = [];
   nodes.forEach((node, index) => {
     const label = readAssemblyLabel(node, `Item ${index + 1}`);
@@ -100,26 +158,16 @@ function flattenAssemblyTree(nodes: AssemblyTreeNode[], depth = 0, parentKey = "
       (typeof node.label === "string" && node.label) ||
       `node-${index}`;
     const key = `${parentKey}.${rawKey}.${index}`;
-    rows.push({ key, label, depth });
     const children = readAssemblyChildren(node);
-    rows.push(...flattenAssemblyTree(children, depth + 1, key));
+    const childRows = flattenAssemblyTree(children, lookup, depth + 1, key);
+    const nodeIds = uniqueStrings([
+      ...resolveAssemblyNodeIds(node, lookup, label),
+      ...childRows.flatMap((row) => row.nodeIds),
+    ]);
+    rows.push({ key, label, depth, nodeIds });
+    rows.push(...childRows);
   });
   return rows;
-}
-
-function hasAssemblyMapping(nodes: AssemblyTreeNode[]): boolean {
-  for (const node of nodes) {
-    const mappedList = node["gltf_nodes"];
-    const hasMappedList =
-      Array.isArray(mappedList) && mappedList.some((item) => typeof item === "string" && item.trim().length > 0);
-    const hasMappedSingle =
-      (typeof node["gltf_node"] === "string" && node["gltf_node"].trim().length > 0) ||
-      (typeof node["node_ref"] === "string" && node["node_ref"].trim().length > 0) ||
-      (typeof node["mesh_ref"] === "string" && node["mesh_ref"].trim().length > 0);
-    if (hasMappedList || hasMappedSingle) return true;
-    if (hasAssemblyMapping(readAssemblyChildren(node))) return true;
-  }
-  return false;
 }
 
 type ViewerError = {
@@ -151,15 +199,18 @@ function classifyViewerError(error: unknown): ViewerError {
 }
 
 export default function ViewPage() {
+  const router = useRouter();
   const params = useParams();
   const fileId = typeof params.scx_id === "string" ? params.scx_id : "";
   const [file, setFile] = useState<FileDetail | null>(null);
   const [error, setError] = useState<ViewerError | null>(null);
   const [processing, setProcessing] = useState(false);
-  const [statusInfo, setStatusInfo] = useState<{ state: string; progress_hint?: string | null } | null>(null);
+  const [statusInfo, setStatusInfo] = useState<StatusInfo | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [contentType, setContentType] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [processingSince, setProcessingSince] = useState<number | null>(null);
+  const [processingElapsedMs, setProcessingElapsedMs] = useState(0);
   const [retryTick, setRetryTick] = useState(0);
   const [renderMode, setRenderMode] = useState<RenderMode>("shadedEdges");
   const [projection, setProjection] = useState<ProjectionMode>("perspective");
@@ -169,6 +220,9 @@ export default function ViewPage() {
   const [assemblyTree, setAssemblyTree] = useState<AssemblyTreeNode[]>([]);
   const [partCount, setPartCount] = useState(0);
   const [selectedTreeKey, setSelectedTreeKey] = useState<string | null>(null);
+  const [viewerNodes, setViewerNodes] = useState<ViewerNode[]>([]);
+  const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(new Set());
+  const [isolatedTreeKey, setIsolatedTreeKey] = useState<string | null>(null);
   const [measureEnabled, setMeasureEnabled] = useState(false);
   const [measureValue, setMeasureValue] = useState<number | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
@@ -213,12 +267,26 @@ export default function ViewPage() {
   useEffect(() => {
     if (!fileId || !SCX_ID_REGEX.test(fileId)) {
       setError({ title: "Bulunamadı", description: "Geçersiz dosya kimliği." });
+      setLoading(false);
+      setProcessing(false);
+      setProcessingSince(null);
+      setProcessingElapsedMs(0);
       setManifest(null);
       setAssemblyTree([]);
       setPartCount(0);
       setSelectedTreeKey(null);
       return;
     }
+    setFile(null);
+    setBlobUrl(null);
+    setContentType(null);
+    setStatusInfo(null);
+    setError(null);
+    setProcessingSince(null);
+    setProcessingElapsedMs(0);
+    setHiddenNodeIds(new Set());
+    setIsolatedTreeKey(null);
+    setViewerNodes([]);
     setManifest(null);
     setAssemblyTree([]);
     setPartCount(0);
@@ -238,12 +306,14 @@ export default function ViewPage() {
         setError(null);
         if (status.state === "failed") {
           setProcessing(false);
+          setProcessingSince(null);
           setLoading(false);
           setError({ title: "İşlem başarısız", description: "Dönüştürme başarısız. Tekrar deneyin." });
           return;
         }
-        if (status.state !== "succeeded") {
+        if (status.state !== "succeeded" && status.state !== "ready") {
           setProcessing(true);
+          setProcessingSince((prev) => prev ?? Date.now());
           setLoading(false);
           schedule();
           return;
@@ -266,6 +336,8 @@ export default function ViewPage() {
         }
         setLoading(false);
         setProcessing(false);
+        setProcessingSince(null);
+        setProcessingElapsedMs(0);
         if (is2dFile(f)) {
           setContentType(f.content_type);
           if (f.original_filename.toLowerCase().endsWith(".dxf")) {
@@ -311,6 +383,8 @@ export default function ViewPage() {
       } catch (e: any) {
         if (!cancelled) {
           setLoading(false);
+          setProcessing(false);
+          setProcessingSince(null);
           setError(classifyViewerError(e));
         }
       }
@@ -331,6 +405,16 @@ export default function ViewPage() {
     setLeftDrawerOpen(false);
     setRightDrawerOpen(false);
   }, [fileId]);
+
+  useEffect(() => {
+    if (!processing || !processingSince) return;
+    const tick = () => setProcessingElapsedMs(Date.now() - processingSince);
+    tick();
+    const intervalId = window.setInterval(tick, 1000);
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [processing, processingSince]);
 
   const handleShare = async () => {
     if (!fileId) return;
@@ -394,14 +478,98 @@ export default function ViewPage() {
     return filterAssemblyTree(assemblyTree, q);
   }, [assemblyTree, treeQuery]);
 
-  const assemblyRows = useMemo(() => flattenAssemblyTree(filteredAssemblyTree), [filteredAssemblyTree]);
-  const mappingAvailable = useMemo(() => hasAssemblyMapping(assemblyTree), [assemblyTree]);
-  const partOpsEnabled = assemblyTree.length > 0 && mappingAvailable;
-  const partOpsDisabledReason =
-    assemblyTree.length === 0
-      ? "Assembly tree not available for this model yet."
-      : "Mapping not available.";
-  const manifestLoaded = manifest !== null;
+  const viewerLookup = useMemo(() => buildViewerLookup(viewerNodes), [viewerNodes]);
+  const manifestRows = useMemo(
+    () => flattenAssemblyTree(filteredAssemblyTree, viewerLookup),
+    [filteredAssemblyTree, viewerLookup]
+  );
+  const assemblySourceNodes = useMemo(() => {
+    const meshes = viewerNodes.filter((node) => node.type.toLowerCase().includes("mesh"));
+    return meshes.length > 0 ? meshes : viewerNodes;
+  }, [viewerNodes]);
+  const fallbackRows = useMemo(() => {
+    const q = treeQuery.trim().toLowerCase();
+    return assemblySourceNodes
+      .filter((node) => {
+        if (!q) return true;
+        const label = (node.name || node.type || "Node").toLowerCase();
+        return label.includes(q);
+      })
+      .map((node, index) => ({
+        key: `scene.${node.id}.${index}`,
+        label: node.name || node.type || `Node ${index + 1}`,
+        depth: 0,
+        nodeIds: [node.id],
+      }));
+  }, [assemblySourceNodes, treeQuery]);
+  const assemblyRows = manifestRows.length > 0 ? manifestRows : fallbackRows;
+  const selectedRow = useMemo(
+    () => assemblyRows.find((row) => row.key === selectedTreeKey) || null,
+    [assemblyRows, selectedTreeKey]
+  );
+  const selectedNodeIds = selectedRow?.nodeIds || [];
+  const selectedNodeId = selectedNodeIds[0] || null;
+  const allViewerNodeIds = useMemo(
+    () => Array.from(new Set(viewerNodes.map((node) => node.id))),
+    [viewerNodes]
+  );
+  const canSelectRow = assemblyRows.length > 0;
+  const canActOnSelection = selectedNodeIds.length > 0 && allViewerNodeIds.length > 0;
+  const partOpsDisabledReason = !canSelectRow ? "Assembly tree not available for this model yet." : "Düğüm seçin.";
+  const effectivePartCount = partCount > 0 ? partCount : assemblySourceNodes.length;
+  const processingPercent = Math.max(
+    1,
+    Math.min(
+      99,
+      typeof statusInfo?.progress_percent === "number"
+        ? statusInfo.progress_percent
+        : statusInfo?.state === "queued"
+        ? 10
+        : statusInfo?.state === "succeeded"
+        ? 100
+        : 55
+    )
+  );
+  const processingTimedOut = processingElapsedMs >= VIEWER_WAIT_TIMEOUT_MS;
+
+  const handleSelectTreeNode = () => {
+    if (!selectedTreeKey && assemblyRows[0]) {
+      setSelectedTreeKey(assemblyRows[0].key);
+    }
+  };
+
+  const handleHideShow = () => {
+    if (!canActOnSelection) return;
+    setHiddenNodeIds((prev) => {
+      const next = new Set(prev);
+      const shouldHide = selectedNodeIds.some((id) => !next.has(id));
+      selectedNodeIds.forEach((id) => {
+        if (shouldHide) next.add(id);
+        else next.delete(id);
+      });
+      return next;
+    });
+    setIsolatedTreeKey(null);
+  };
+
+  const handleIsolate = () => {
+    if (!canActOnSelection || !selectedRow) return;
+    if (isolatedTreeKey === selectedRow.key) {
+      setHiddenNodeIds(new Set());
+      setIsolatedTreeKey(null);
+      return;
+    }
+    const selectedSet = new Set(selectedNodeIds);
+    setHiddenNodeIds(new Set(allViewerNodeIds.filter((id) => !selectedSet.has(id))));
+    setIsolatedTreeKey(selectedRow.key);
+  };
+
+  useEffect(() => {
+    if (!selectedTreeKey) return;
+    if (!assemblyRows.some((row) => row.key === selectedTreeKey)) {
+      setSelectedTreeKey(null);
+    }
+  }, [assemblyRows, selectedTreeKey]);
 
   const leftPanelCard = (
     <Card className="p-3">
@@ -411,7 +579,7 @@ export default function ViewPage() {
         <button className={`rounded px-1 py-1 ${leftTab === "section" ? "bg-white font-semibold" : ""}`} onClick={() => setLeftTab("section")}>Section</button>
       </div>
       <div className="mt-2 rounded-lg border border-[#d1d5db] bg-[#f9fafb] px-2 py-1 text-[11px] text-[#4b5563]">
-        Parts: <span className="font-semibold text-[#111827]">{manifestLoaded ? partCount : 0}</span>
+        Parts: <span className="font-semibold text-[#111827]">{effectivePartCount}</span>
       </div>
 
       {leftTab === "assembly" ? (
@@ -425,50 +593,50 @@ export default function ViewPage() {
           />
           <div className="mt-2 grid grid-cols-3 gap-2">
             <button
-              disabled={!partOpsEnabled}
-              title={!partOpsEnabled ? partOpsDisabledReason : undefined}
+              disabled={!canSelectRow}
+              title={!canSelectRow ? partOpsDisabledReason : undefined}
               className={`rounded border px-2 py-1 text-[10px] ${
-                partOpsEnabled ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"
+                canSelectRow ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"
               }`}
+              onClick={handleSelectTreeNode}
             >
               Select
             </button>
             <button
-              disabled={!partOpsEnabled}
-              title={!partOpsEnabled ? partOpsDisabledReason : undefined}
+              disabled={!canActOnSelection}
+              title={!canActOnSelection ? partOpsDisabledReason : undefined}
               className={`rounded border px-2 py-1 text-[10px] ${
-                partOpsEnabled ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"
+                canActOnSelection ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"
               }`}
+              onClick={handleHideShow}
             >
               Hide/Show
             </button>
             <button
-              disabled={!partOpsEnabled}
-              title={!partOpsEnabled ? partOpsDisabledReason : undefined}
+              disabled={!canActOnSelection}
+              title={!canActOnSelection ? partOpsDisabledReason : undefined}
               className={`rounded border px-2 py-1 text-[10px] ${
-                partOpsEnabled ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"
+                canActOnSelection ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"
               }`}
+              onClick={handleIsolate}
             >
               Isolate
             </button>
           </div>
           <div className="mt-2 max-h-[min(56vh,calc(100dvh-18rem))] overflow-auto text-xs text-[#374151]">
-            {assemblyTree.length === 0 ? (
+            {assemblyRows.length === 0 ? (
               <div className="rounded-lg border border-[#d1d5db] bg-[#f9fafb] p-3 text-[#6b7280]">
                 Assembly tree not available for this model yet.
               </div>
-            ) : assemblyRows.length === 0 ? (
-              <div className="text-[#8a9895]">Düğüm bulunamadı.</div>
             ) : (
               assemblyRows.map((row) => (
                 <div key={row.key} className="py-0.5">
                   <button
                     className={`w-full truncate rounded px-1 py-1 text-left ${
                       selectedTreeKey === row.key ? "bg-[#eef2ff] text-[#111827]" : "text-[#374151] hover:bg-[#f8fafc] hover:text-[#111827]"
-                    } ${partOpsEnabled ? "" : "cursor-not-allowed opacity-70"}`}
+                    } ${row.nodeIds.length > 0 ? "" : "opacity-70"}`}
                     style={{ paddingLeft: `${Math.min(row.depth * 12 + 4, 96)}px` }}
-                    disabled={!partOpsEnabled}
-                    title={!partOpsEnabled ? partOpsDisabledReason : undefined}
+                    title={row.nodeIds.length === 0 ? "Bu düğüm için eşleşen parça bulunamadı." : undefined}
                     onClick={() => setSelectedTreeKey(row.key)}
                   >
                     {row.label}
@@ -593,10 +761,25 @@ export default function ViewPage() {
             <StatusPill status={status} label={statusLabel} />
             <span style={tokens.typography.body} className="text-[#6b7280]">Görüntüleme hazırlanıyor…</span>
           </div>
+          <div className="mb-3 h-2 overflow-hidden rounded-full bg-[#e5e7eb]">
+            <div className="h-full rounded-full bg-[#111827] transition-all" style={{ width: `${processingPercent}%` }} />
+          </div>
           <div className="h-[60vh] w-full animate-pulse rounded-xl bg-[#e6e2d8]" />
-          <div className="mt-4 flex items-center justify-between text-xs text-[#6b7280]">
-            <span>Durum güncelleniyor…</span>
-            <SecondaryButton href="/dashboard">Durumu gör</SecondaryButton>
+          <div className="mt-4 grid gap-2 text-xs text-[#6b7280]">
+            <span>
+              Durum güncelleniyor… {(processingElapsedMs / 1000).toFixed(0)}sn
+              {statusInfo?.stage ? ` · aşama: ${statusInfo.stage}` : ""}
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <SecondaryButton href="/dashboard">Durumu gör</SecondaryButton>
+              <SecondaryButton onClick={() => setRetryTick((t) => t + 1)}>Yeniden dene</SecondaryButton>
+              <SecondaryButton onClick={() => router.push(`/view/${fileId}`)}>Viewer’a git</SecondaryButton>
+            </div>
+            {processingTimedOut ? (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-amber-700">
+                Hazırlama beklenenden uzun sürdü. Arka plandaki işi koruyarak yeniden deneme yapabilirsiniz.
+              </div>
+            ) : null}
           </div>
         </Card>
       );
@@ -636,14 +819,47 @@ export default function ViewPage() {
             cameraPreset={cameraPreset}
             clip={clip}
             clipOffset={clipOffset}
+            hiddenNodes={hiddenNodeIds}
+            selectedId={selectedNodeId}
             measureEnabled={measureEnabled}
             onMeasure={handleMeasure}
             onScreenshotReady={handleScreenshotReady}
+            onNodes={setViewerNodes}
+            onSelect={(node) => {
+              if (!node) return;
+              const matching = assemblyRows.find((row) => row.nodeIds.includes(node.id));
+              if (matching) setSelectedTreeKey(matching.key);
+            }}
           />
         </div>
       </Card>
     );
-  }, [fileId, error, processing, blobUrl, is2d, file, statusInfo, contentType, pdfPage, renderMode, projection, clip, clipOffset, measureEnabled]);
+  }, [
+    fileId,
+    error,
+    loading,
+    processing,
+    blobUrl,
+    is2d,
+    file,
+    statusInfo,
+    processingPercent,
+    processingTimedOut,
+    processingElapsedMs,
+    contentType,
+    pdfPage,
+    renderMode,
+    projection,
+    clip,
+    clipOffset,
+    hiddenNodeIds,
+    selectedNodeId,
+    measureEnabled,
+    handleMeasure,
+    handleScreenshotReady,
+    assemblyRows,
+    router,
+  ]);
 
   return (
     <main className="h-full overflow-hidden">
@@ -723,7 +939,7 @@ export default function ViewPage() {
                     ) : null}
                     {bottomTab === "quality" ? (
                       <div className="grid gap-2 text-xs">
-                        <div className="text-[#6b7280]">Varsayılan kalite: maksimum (Ultra)</div>
+                        <div className="text-[#6b7280]">Varsayılan kalite: dengeli (Medium)</div>
                         <div className="grid grid-cols-4 gap-2">
                           {(["Ultra", "High", "Medium", "Low"] as QualityLevel[]).map((lvl) => (
                             <button
@@ -821,12 +1037,26 @@ function PanZoomImage({ src }: { src: string }) {
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const dragging = useRef(false);
   const lastPos = useRef({ x: 0, y: 0 });
+  const hostRef = useRef<HTMLDivElement | null>(null);
 
-  const onWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const delta = e.deltaY < 0 ? 1.1 : 0.9;
-    setScale((s) => Math.min(10, Math.max(0.2, s * delta)));
-  };
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const delta = event.deltaY < 0 ? 1.1 : 0.9;
+      setScale((s) => Math.min(10, Math.max(0.2, s * delta)));
+    };
+    host.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      host.removeEventListener("wheel", onWheel);
+    };
+  }, []);
+
+  useEffect(() => {
+    setScale(1);
+    setOffset({ x: 0, y: 0 });
+  }, [src]);
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     dragging.current = true;
@@ -849,8 +1079,9 @@ function PanZoomImage({ src }: { src: string }) {
 
   return (
     <div
+      ref={hostRef}
       className="relative h-full w-full overflow-hidden rounded-xl border border-[#e3dfd3] bg-white"
-      onWheel={onWheel}
+      style={{ touchAction: "none" }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
