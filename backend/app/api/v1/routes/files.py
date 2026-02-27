@@ -365,6 +365,20 @@ class PageOut(BaseModel):
     total: int
 
 
+class RecentFileOut(BaseModel):
+    file_id: str
+    original_name: str
+    kind: str
+    status: str
+    created_at: datetime
+    thumbnail_url: str | None = None
+
+
+class RecentPageOut(BaseModel):
+    items: list[RecentFileOut]
+    limit: int
+
+
 class UrlOut(BaseModel):
     url: str
     expires_in_seconds: int = 900
@@ -387,6 +401,19 @@ class RenderOut(BaseModel):
 
 class VisibilityIn(BaseModel):
     visibility: str = Field(..., pattern="^(private|public|hidden)$")
+
+
+def _file_kind(content_type: str, filename: str) -> str:
+    ctype = (content_type or "").strip().lower()
+    name = (filename or "").strip().lower()
+    if (
+        name.endswith(".dxf")
+        or ctype in {"application/dxf", "application/x-dxf", "image/vnd.dxf"}
+        or ctype.startswith("image/")
+        or ctype == "application/pdf"
+    ):
+        return "2d"
+    return "3d"
 
 
 @router.post("/initiate", response_model=InitiateOut)
@@ -611,17 +638,21 @@ def complete_upload(
     )
 
 
-@router.get("", response_model=PageOut)
+@router.get("", response_model=PageOut | RecentPageOut)
 def list_files(
     page: int = 1,
     page_size: int = 20,
     include_hidden: bool = False,
+    recent: int = 0,
+    limit: int = 10,
     db: Session = Depends(get_db),
     principal: Principal = Depends(_require_principal),
 ):
     _feature_on()
     if page < 1 or page_size < 1 or page_size > 100:
         raise HTTPException(status_code=400, detail="Invalid pagination")
+    if limit < 1 or limit > 100:
+        raise HTTPException(status_code=400, detail="Invalid limit")
 
     owner_sub = principal.owner_sub or ""
     if principal.typ == "guest":
@@ -632,6 +663,22 @@ def list_files(
         q = db.query(UploadFileModel).filter(UploadFileModel.owner_user_id == principal.user_id)
     if not include_hidden:
         q = q.filter(UploadFileModel.visibility != "hidden")
+
+    if bool(recent):
+        rows = q.order_by(UploadFileModel.created_at.desc()).limit(limit).all()
+        items = [
+            RecentFileOut(
+                file_id=r.file_id,
+                original_name=r.original_filename,
+                kind=_file_kind(r.content_type, r.original_filename),
+                status=r.status,
+                created_at=r.created_at,
+                thumbnail_url=None,
+            )
+            for r in rows
+        ]
+        return RecentPageOut(items=items, limit=limit)
+
     total = q.count()
     rows = (
         q.order_by(UploadFileModel.created_at.desc())

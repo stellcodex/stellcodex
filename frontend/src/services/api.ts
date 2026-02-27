@@ -29,6 +29,15 @@ export type FileDetail = FileItem & {
   view_mode_default?: string | null;
 };
 
+export type RecentFileItem = {
+  file_id: string;
+  original_name: string;
+  kind: string;
+  status: string;
+  created_at: string;
+  thumbnail_url?: string | null;
+};
+
 export type AssemblyTreeNode = {
   id?: string;
   name?: string;
@@ -99,6 +108,9 @@ async function ensureGuestToken(): Promise<string> {
   }
   const data = await res.json();
   const token = data?.access_token as string;
+  if (!token || typeof token !== "string") {
+    throw new Error("Misafir token yanıtı geçersiz.");
+  }
   if (typeof window !== "undefined") {
     window.localStorage.setItem(getGuestTokenKey(), token);
   }
@@ -122,30 +134,34 @@ async function authFetch(
     return fetch(input, { ...init, headers });
   };
 
-  const userToken = getUserToken();
-  if (options?.requireUser && !userToken) {
-    throw new Error("Kullanıcı tokenı gerekli.");
-  }
+  try {
+    const userToken = getUserToken();
+    if (options?.requireUser && !userToken) {
+      throw new Error("Kullanıcı tokenı gerekli.");
+    }
 
-  let token = userToken || (await ensureGuestToken());
-  let res = await doFetch(token);
-  if (res.status === 401) {
-    if (typeof window !== "undefined") {
-      if (userToken) {
-        window.localStorage.removeItem(getUserTokenKey());
-      } else {
-        window.localStorage.removeItem(getGuestTokenKey());
+    let token = userToken || (await ensureGuestToken());
+    let res = await doFetch(token);
+    if (res.status === 401) {
+      if (typeof window !== "undefined") {
+        if (userToken) {
+          window.localStorage.removeItem(getUserTokenKey());
+        } else {
+          window.localStorage.removeItem(getGuestTokenKey());
+        }
+      }
+      if (userToken && !options?.requireUser) {
+        token = await ensureGuestToken();
+        res = await doFetch(token);
+      } else if (!userToken) {
+        token = await ensureGuestToken();
+        res = await doFetch(token);
       }
     }
-    if (userToken && !options?.requireUser) {
-      token = await ensureGuestToken();
-      res = await doFetch(token);
-    } else if (!userToken) {
-      token = await ensureGuestToken();
-      res = await doFetch(token);
-    }
+    return res;
+  } catch (error) {
+    throw normalizeTransportError(error, "API isteği başarısız.");
   }
-  return res;
 }
 
 async function userFetch(input: RequestInfo, init?: RequestInit) {
@@ -168,6 +184,28 @@ function readErrorDetail(err: unknown, fallback: string): string {
     }
   }
   return fallback;
+}
+
+function normalizeTransportError(error: unknown, fallback: string): Error {
+  if (error instanceof Error) {
+    const message = (error.message || "").toLowerCase();
+    if (message.includes("failed to fetch") || message.includes("networkerror") || message.includes("load failed")) {
+      return new Error("Sunucuya erişilemedi. API yönlendirmesi veya ağ bağlantısını kontrol edin.");
+    }
+    return error;
+  }
+  return new Error(fallback);
+}
+
+async function throwHttpError(res: Response, fallback: string): Promise<never> {
+  const err = await res.json().catch(() => null);
+  if (res.status === 401) {
+    throw new Error("Kimlik doğrulama başarısız (401). Misafir token yenilenemedi.");
+  }
+  if (res.status === 403) {
+    throw new Error("Erişim reddedildi (403). Bu dosyaları görüntüleme izni yok.");
+  }
+  throw new Error(readErrorDetail(err, `${fallback} (${res.status})`));
 }
 
 export async function fetchAuthedBlobUrl(url: string): Promise<string> {
@@ -202,9 +240,20 @@ export async function getDxfRender(fileId: string, layers: string[]): Promise<st
 
 export async function listFiles(): Promise<FileItem[]> {
   const res = await authFetch(`${API_BASE}/files`);
-  if (!res.ok) throw new Error("Dosyalar yüklenemedi.");
+  if (!res.ok) await throwHttpError(res, "Dosyalar yüklenemedi.");
   const data = await res.json();
   return data.items || [];
+}
+
+export async function listRecentFiles(limit = 8): Promise<RecentFileItem[]> {
+  const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(20, Math.floor(limit))) : 8;
+  const res = await authFetch(`${API_BASE}/files?recent=1&limit=${safeLimit}`);
+  if (!res.ok) await throwHttpError(res, "Son yüklenen dosyalar alınamadı.");
+  const data = await res.json().catch(() => null);
+  if (data && typeof data === "object" && Array.isArray((data as { items?: unknown }).items)) {
+    return (data as { items: RecentFileItem[] }).items;
+  }
+  return [];
 }
 
 export async function getFile(fileId: string): Promise<FileDetail> {

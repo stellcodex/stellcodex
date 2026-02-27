@@ -1,10 +1,9 @@
-import { FileItem, listFiles } from "@/services/api";
+import { RecentFileItem, listRecentFiles } from "@/services/api";
 
 const DASHBOARD_STUBS_ENABLED = true;
 
-export async function fetchRecentFiles(limit = 5): Promise<FileItem[]> {
-  const items = await listFiles();
-  return items.slice(0, limit);
+export async function fetchRecentFiles(limit = 5): Promise<RecentFileItem[]> {
+  return listRecentFiles(limit);
 }
 
 export type ActivityItem = {

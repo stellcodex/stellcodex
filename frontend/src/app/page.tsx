@@ -6,12 +6,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import logo from "@/app/gorsel/logo.png";
 import { UploadDrop } from "@/components/upload/UploadDrop";
-import { listFiles, type FileItem } from "@/services/api";
+import { listRecentFiles, type RecentFileItem } from "@/services/api";
 
 export default function HomePage() {
   const router = useRouter();
   const [leftOpen, setLeftOpen] = useState(false);
-  const [recent, setRecent] = useState<FileItem[]>([]);
+  const [recent, setRecent] = useState<RecentFileItem[]>([]);
   const [loadingRecent, setLoadingRecent] = useState(true);
   const [recentError, setRecentError] = useState<string | null>(null);
 
@@ -19,9 +19,9 @@ export default function HomePage() {
     let alive = true;
     (async () => {
       try {
-        const files = await listFiles();
+        const files = await listRecentFiles(8);
         if (!alive) return;
-        setRecent(files.slice(0, 8));
+        setRecent(files);
       } catch (error) {
         if (!alive) return;
         setRecentError(error instanceof Error ? error.message : "Dosya listesi alınamadı.");
@@ -118,7 +118,7 @@ export default function HomePage() {
                       href={`/view/${file.file_id}`}
                       className="flex items-center justify-between rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-3 py-2 text-sm text-[#374151] hover:bg-white"
                     >
-                      <span className="truncate pr-3">{file.original_filename}</span>
+                      <span className="truncate pr-3">{file.original_name}</span>
                       <span className="shrink-0 text-xs uppercase tracking-[0.08em] text-[#6b7280]">{file.status}</span>
                     </Link>
                   ))}
