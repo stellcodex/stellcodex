@@ -19,17 +19,11 @@ function hasPerm(perms: string[], required: string): boolean {
   return perms.includes(required);
 }
 
-function isAllowedPath(pathname: string): boolean {
-  if (pathname === "/") return true;
+function isSystemPath(pathname: string): boolean {
   if (pathname.startsWith("/api/")) return true;
-  if (pathname === "/share" || pathname.startsWith("/share/file/")) return true;
-  if (pathname === "/view" || pathname.startsWith("/view/")) return true;
-  if (pathname === "/mold") return true;
-  if (pathname.startsWith("/s/")) return true;
-  if (pathname === "/admin" || pathname.startsWith("/admin/job/")) return true;
   if (pathname.startsWith("/_next/")) return true;
   if (pathname.startsWith("/assets/")) return true;
-  if (
+  return (
     pathname === "/favicon.ico" ||
     pathname === "/favicon-32x32.png" ||
     pathname === "/favicon-16x16.png" ||
@@ -37,10 +31,7 @@ function isAllowedPath(pathname: string): boolean {
     pathname === "/site.webmanifest" ||
     pathname === "/robots.txt" ||
     pathname === "/sitemap.xml"
-  ) {
-    return true;
-  }
-  return false;
+  );
 }
 
 function notFoundResponse() {
@@ -49,7 +40,7 @@ function notFoundResponse() {
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  if (!isAllowedPath(pathname)) return notFoundResponse();
+  if (isSystemPath(pathname)) return NextResponse.next();
   if (!pathname.startsWith("/admin")) return NextResponse.next();
   if (process.env.STELLCODEX_ENABLE_MOCK_ADMIN === "1") return NextResponse.next();
 
