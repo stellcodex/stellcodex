@@ -1,0 +1,6 @@
+{
+  "buildCommand": "node scripts/prisma-safe.cjs && next build",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "regions": ["fra1"]
+}
