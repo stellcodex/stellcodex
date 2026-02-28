@@ -13,4 +13,3 @@ frontend/.next_broken_*/
 # local agents / plugins
 .claude/
 .aider*
-.claude/plugins/marketplaces/claude-plugins-official/
