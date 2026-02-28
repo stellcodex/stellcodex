@@ -87,6 +87,30 @@ class ShareResolveOut(BaseModel):
     expires_in_seconds: int = 900
 
 
+def _serialize_share_resolve(token: str, share: Share, f: UploadFileModel) -> ShareResolveOut:
+    gltf_url = None
+    original_url = None
+    if f.gltf_key:
+        gltf_url = f"/api/v1/share/{token}/gltf"
+    else:
+        original_url = f"/api/v1/share/{token}/content"
+
+    return ShareResolveOut(
+        file_id=_public_file_id(f.file_id),
+        status=f.status,
+        permission=share.permission,
+        can_view=True,
+        can_download=share.permission == "download",
+        expires_at=share.expires_at,
+        content_type=f.content_type,
+        original_filename=f.original_filename,
+        size_bytes=int(f.size_bytes),
+        gltf_url=gltf_url,
+        original_url=original_url,
+        expires_in_seconds=900,
+    )
+
+
 def _resolve_active_share(db: Session, token: str) -> tuple[Share, UploadFileModel]:
     share = db.query(Share).filter(Share.token == token).first()
     if not share:
@@ -212,41 +236,35 @@ def revoke_share(
     return {"status": "ok"}
 
 
+@router.get("/share/resolve", response_model=ShareResolveOut)
+def resolve_share_query(
+    share_token: str | None = None,
+    token: str | None = None,
+    db: Session = Depends(get_db),
+):
+    effective_token = (share_token or token or "").strip()
+    if not effective_token:
+        raise HTTPException(status_code=400, detail="share_token or token query parameter required")
+    share, f = _resolve_active_share(db, effective_token)
+    return _serialize_share_resolve(effective_token, share, f)
+
+
 @router.get("/share/{token}", response_model=ShareResolveOut)
 def resolve_share(token: str, db: Session = Depends(get_db)):
     share, f = _resolve_active_share(db, token)
-
-    gltf_url = None
-    original_url = None
-    if f.gltf_key:
-        gltf_url = f"/api/v1/share/{token}/gltf"
-    else:
-        original_url = f"/api/v1/share/{token}/content"
-
-    return ShareResolveOut(
-        file_id=_public_file_id(f.file_id),
-        status=f.status,
-        permission=share.permission,
-        can_view=True,
-        can_download=share.permission == "download",
-        expires_at=share.expires_at,
-        content_type=f.content_type,
-        original_filename=f.original_filename,
-        size_bytes=int(f.size_bytes),
-        gltf_url=gltf_url,
-        original_url=original_url,
-        expires_in_seconds=900,
-    )
+    return _serialize_share_resolve(token, share, f)
 
 
 @router.get("/shares/{token}", response_model=ShareResolveOut)
 def resolve_share_alias(token: str, db: Session = Depends(get_db)):
-    return resolve_share(token=token, db=db)
+    share, f = _resolve_active_share(db, token)
+    return _serialize_share_resolve(token, share, f)
 
 
 @router.get("/s/{token}", response_model=ShareResolveOut)
 def resolve_share_short_alias(token: str, db: Session = Depends(get_db)):
-    return resolve_share(token=token, db=db)
+    share, f = _resolve_active_share(db, token)
+    return _serialize_share_resolve(token, share, f)
 
 
 @router.get("/share/{token}/content")

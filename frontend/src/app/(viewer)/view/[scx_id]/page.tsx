@@ -11,7 +11,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { tokens } from "@/lib/tokens";
 import { SCX_ID_REGEX } from "@/data/system-constants";
 import { DxfViewer } from "@/components/viewer/DxfViewer";
-import { ThreeViewer, RenderMode, ProjectionMode, ViewerNode } from "@/components/viewer/ThreeViewer";
+import { ThreeViewer, RenderMode, ProjectionMode, ViewerNode, ViewerPartGroup } from "@/components/viewer/ThreeViewer";
 import { CAMERA_PRESETS, QUALITY_DEFAULT, QUALITY_TO_LOD, QualityLevel, VIEWER_MODE_LABEL, VIEWER_MODE_ORDER } from "@/components/viewer/viewer-quality-config";
 import {
   ApiHttpError,
@@ -240,6 +240,11 @@ export default function ViewPage() {
   const [treeQuery, setTreeQuery] = useState("");
   const [leftDrawerOpen, setLeftDrawerOpen] = useState(false);
   const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
+  const [panelCollapsed, setPanelCollapsed] = useState(false);
+  const [panelTab, setPanelTab] = useState<"state" | "parts" | "share">("parts");
+  const [fitRequestKey, setFitRequestKey] = useState(0);
+  const [zoomTick, setZoomTick] = useState(0);
+  const [zoomDirection, setZoomDirection] = useState<"in" | "out">("in");
   const screenshotRef = useRef<(() => string | null) | null>(null);
   const viewRef = useRef<HTMLDivElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
@@ -406,6 +411,8 @@ export default function ViewPage() {
   useEffect(() => {
     setLeftDrawerOpen(false);
     setRightDrawerOpen(false);
+    setPanelCollapsed(false);
+    setPanelTab("parts");
   }, [fileId]);
 
   useEffect(() => {
@@ -485,26 +492,15 @@ export default function ViewPage() {
     () => flattenAssemblyTree(filteredAssemblyTree, viewerLookup),
     [filteredAssemblyTree, viewerLookup]
   );
-  const assemblySourceNodes = useMemo(() => {
-    const meshes = viewerNodes.filter((node) => node.type.toLowerCase().includes("mesh"));
-    return meshes.length > 0 ? meshes : viewerNodes;
-  }, [viewerNodes]);
-  const fallbackRows = useMemo(() => {
-    const q = treeQuery.trim().toLowerCase();
-    return assemblySourceNodes
-      .filter((node) => {
-        if (!q) return true;
-        const label = (node.name || node.type || "Node").toLowerCase();
-        return label.includes(q);
-      })
-      .map((node, index) => ({
-        key: `scene.${node.id}.${index}`,
-        label: node.name || node.type || `Node ${index + 1}`,
-        depth: 0,
-        nodeIds: [node.id],
-      }));
-  }, [assemblySourceNodes, treeQuery]);
-  const assemblyRows = manifestRows.length > 0 ? manifestRows : fallbackRows;
+  const meshViewerNodes = useMemo(
+    () => viewerNodes.filter((node) => node.type.toLowerCase().includes("mesh")),
+    [viewerNodes]
+  );
+  const assemblyRows = manifestRows;
+  const mappedAssemblyRows = useMemo(
+    () => assemblyRows.filter((row) => row.nodeIds.length > 0),
+    [assemblyRows]
+  );
   const selectedRow = useMemo(
     () => assemblyRows.find((row) => row.key === selectedTreeKey) || null,
     [assemblyRows, selectedTreeKey]
@@ -512,13 +508,18 @@ export default function ViewPage() {
   const selectedNodeIds = selectedRow?.nodeIds || [];
   const selectedNodeId = selectedNodeIds[0] || null;
   const allViewerNodeIds = useMemo(
-    () => Array.from(new Set(viewerNodes.map((node) => node.id))),
-    [viewerNodes]
+    () => Array.from(new Set((meshViewerNodes.length > 0 ? meshViewerNodes : viewerNodes).map((node) => node.id))),
+    [meshViewerNodes, viewerNodes]
   );
+  const explodePartGroups = useMemo<ViewerPartGroup[]>(
+    () => mappedAssemblyRows.map((row) => ({ partId: row.key, nodeIds: row.nodeIds })),
+    [mappedAssemblyRows]
+  );
+  const explodeAvailable = explodePartGroups.length > 0;
   const canSelectRow = assemblyRows.length > 0;
   const canActOnSelection = selectedNodeIds.length > 0 && allViewerNodeIds.length > 0;
   const partOpsDisabledReason = !canSelectRow ? "Assembly tree not available for this model yet." : "Düğüm seçin.";
-  const effectivePartCount = partCount > 0 ? partCount : assemblySourceNodes.length;
+  const effectivePartCount = partCount > 0 ? partCount : assemblyRows.length;
   const processingPercent = Math.max(
     1,
     Math.min(
@@ -533,6 +534,10 @@ export default function ViewPage() {
     )
   );
   const processingTimedOut = processingElapsedMs >= VIEWER_WAIT_TIMEOUT_MS;
+  const zoomRequest = useMemo(
+    () => ({ key: zoomTick, direction: zoomDirection }),
+    [zoomTick, zoomDirection]
+  );
 
   const handleSelectTreeNode = () => {
     if (!selectedTreeKey && assemblyRows[0]) {
@@ -572,6 +577,12 @@ export default function ViewPage() {
       setSelectedTreeKey(null);
     }
   }, [assemblyRows, selectedTreeKey]);
+
+  useEffect(() => {
+    if (!explodeAvailable && explodeFactor !== 0) {
+      setExplodeFactor(0);
+    }
+  }, [explodeAvailable, explodeFactor]);
 
   const leftPanelCard = (
     <Card className="p-3">
@@ -728,7 +739,16 @@ export default function ViewPage() {
         <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs">Zoom -</button>
         <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs" onClick={() => setCameraPreset("iso")}>Fit</button>
         <button className={`rounded border px-2 py-2 text-xs ${clip ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db]"}`} onClick={() => setClip((v) => !v)}>Section</button>
-        <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs" onClick={() => setBottomTab("explode")}>Explode</button>
+        <button
+          className={`rounded border px-2 py-2 text-xs ${
+            explodeAvailable ? "border-[#d1d5db]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"
+          }`}
+          onClick={() => explodeAvailable && setBottomTab("explode")}
+          disabled={!explodeAvailable}
+          title={explodeAvailable ? undefined : "Explode için assembly_meta/part mapping gerekli."}
+        >
+          Explode
+        </button>
         <button className={`rounded border px-2 py-2 text-xs ${measureEnabled ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db]"}`} onClick={() => setMeasureEnabled((v) => !v)}>Measure</button>
         <div className="rounded border border-[#e5e7eb] bg-[#f9fafb] px-2 py-1 text-[10px] text-[#6b7280]">
           {measureValue !== null ? `${measureValue.toFixed(2)} mm` : "Mesafe: -"}
@@ -763,7 +783,7 @@ export default function ViewPage() {
     }
     if (is2d && file?.original_filename.toLowerCase().endsWith(".dxf")) {
       return (
-        <div className="h-[70vh] overflow-hidden rounded-2xl border border-[#e5e7eb] bg-white p-4">
+        <div className="h-full overflow-hidden rounded-2xl border border-[#e5e7eb] bg-white p-4">
           <DxfViewer fileId={fileId} />
         </div>
       );
@@ -807,7 +827,7 @@ export default function ViewPage() {
 
     if (is2d) {
       return (
-        <div className="h-[70vh] overflow-hidden rounded-2xl border border-[#e5e7eb] bg-white p-4">
+        <div className="h-full overflow-hidden rounded-2xl border border-[#e5e7eb] bg-white p-4">
           {contentType === "application/pdf" ? (
             <div className="flex h-full flex-col gap-3">
               <div className="flex items-center gap-2 text-xs text-[#6b7280]">
@@ -830,18 +850,21 @@ export default function ViewPage() {
     }
 
     return (
-      <Card className="h-[70vh] overflow-hidden">
+      <Card className="h-full overflow-hidden">
         <div ref={viewRef} className="h-full">
           <ThreeViewer
             url={blobUrl}
             renderMode={renderMode}
             projection={projection}
             cameraPreset={cameraPreset}
+            fitRequestKey={fitRequestKey}
+            zoomRequest={zoomRequest}
             clip={clip}
             clipOffset={clipOffset}
             clipAxis={clipAxis}
-            explode={explodeFactor > 0}
-            explodeFactor={explodeFactor}
+            explode={explodeAvailable && explodeFactor > 0}
+            explodeFactor={explodeAvailable ? explodeFactor : 0}
+            explodeGroups={explodePartGroups}
             hiddenNodes={hiddenNodeIds}
             selectedId={selectedNodeId}
             measureEnabled={measureEnabled}
@@ -850,7 +873,7 @@ export default function ViewPage() {
             onNodes={setViewerNodes}
             onSelect={(node) => {
               if (!node) return;
-              const matching = assemblyRows.find((row) => row.nodeIds.includes(node.id));
+              const matching = mappedAssemblyRows.find((row) => row.nodeIds.includes(node.id));
               if (matching) setSelectedTreeKey(matching.key);
             }}
           />
@@ -873,200 +896,255 @@ export default function ViewPage() {
     pdfPage,
     renderMode,
     projection,
+    fitRequestKey,
+    zoomRequest,
     clip,
     clipOffset,
     clipAxis,
     explodeFactor,
+    explodeAvailable,
+    explodePartGroups,
     hiddenNodeIds,
     selectedNodeId,
     measureEnabled,
     handleMeasure,
     handleScreenshotReady,
-    assemblyRows,
+    mappedAssemblyRows,
     router,
   ]);
 
-  return (
-    <main className="h-full overflow-hidden">
-      <Container className="h-full">
-        <div className="flex h-full flex-col gap-3 overflow-y-auto py-3 sm:py-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <SecondaryButton href="/dashboard">Geri</SecondaryButton>
-              <div style={tokens.typography.body} className="max-w-[40vw] truncate text-[#6b7280] sm:max-w-none">
-                {file ? shortName(file.original_filename) : "Görüntüleyici"}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2 lg:hidden">
+  const panelContent = (
+    <div className="flex h-full flex-col gap-3 p-3">
+      <div className="grid grid-cols-3 gap-1 rounded-lg border border-[#d1d5db] bg-[#f8fafc] p-1 text-[11px]">
+        <button className={`rounded px-2 py-1 ${panelTab === "state" ? "bg-white font-semibold text-[#111827]" : "text-[#4b5563]"}`} onClick={() => setPanelTab("state")}>State</button>
+        <button className={`rounded px-2 py-1 ${panelTab === "parts" ? "bg-white font-semibold text-[#111827]" : "text-[#4b5563]"}`} onClick={() => setPanelTab("parts")}>Parts</button>
+        <button className={`rounded px-2 py-1 ${panelTab === "share" ? "bg-white font-semibold text-[#111827]" : "text-[#4b5563]"}`} onClick={() => setPanelTab("share")}>Share</button>
+      </div>
+
+      {panelTab === "state" ? (
+        <div className="grid gap-3 text-xs text-[#374151]">
+          <div className="rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-2 py-2">
+            Parts: <span className="font-semibold text-[#111827]">{effectivePartCount}</span>
+            <span className="mx-2 text-[#9ca3af]">|</span>
+            Hidden: <span className="font-semibold text-[#111827]">{hiddenNodeIds.size}</span>
+          </div>
+          <div className="grid gap-2">
+            <div className="font-semibold text-[#111827]">Render Mode</div>
+            <div className="grid grid-cols-2 gap-2">
+              {VIEWER_MODE_ORDER.map((mode) => (
                 <button
+                  key={mode}
                   type="button"
-                  className="rounded-lg border border-[#d1d5db] bg-white px-2 py-1 text-xs text-[#374151]"
-                  onClick={() => setLeftDrawerOpen(true)}
+                  className={`rounded border px-2 py-1 ${renderMode === mode ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white"}`}
+                  onClick={() => setRenderMode(mode)}
                 >
-                  Assembly
+                  {VIEWER_MODE_LABEL[mode]}
                 </button>
-                <button
-                  type="button"
-                  className="rounded-lg border border-[#d1d5db] bg-white px-2 py-1 text-xs text-[#374151]"
-                  onClick={() => setRightDrawerOpen(true)}
-                >
-                  Tools
-                </button>
-              </div>
-              <SecondaryButton onClick={() => setShareOpen((v) => !v)}>Paylaş</SecondaryButton>
-              <PrimaryButton onClick={toggleFullscreen}>Tam ekran</PrimaryButton>
+              ))}
             </div>
           </div>
-
-          <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[280px_minmax(0,1fr)_64px]">
-            <div className="hidden lg:block">{leftPanelCard}</div>
-
-            <div className="min-w-0">
-              <div className="grid gap-3">
-                <Card className="p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {CAMERA_PRESETS.map((preset) => (
-                        <button
-                          key={preset.key}
-                          className={`rounded-lg border px-3 py-1 text-xs ${
-                            cameraPreset === preset.key ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white text-[#374151]"
-                          }`}
-                          onClick={() => setCameraPreset(preset.key)}
-                        >
-                          {preset.label}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button className="rounded-lg border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={() => setCameraPreset("iso")}>Home</button>
-                      <button className="rounded-lg border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={handleScreenshot}>Screenshot</button>
-                      <button className="rounded-lg border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={handleDownloadScx}>Download .scx</button>
-                    </div>
-                  </div>
-                </Card>
-
-                {viewerBody}
-
-                {!is2d ? (
-                  <Card className="p-3">
-                    <div className="mb-2 grid grid-cols-3 gap-2 text-xs">
-                      <button className={`rounded border px-2 py-1 ${bottomTab === "section" ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white"}`} onClick={() => setBottomTab("section")}>Section</button>
-                      <button className={`rounded border px-2 py-1 ${bottomTab === "explode" ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white"}`} onClick={() => setBottomTab("explode")}>Explode</button>
-                      <button className={`rounded border px-2 py-1 ${bottomTab === "quality" ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white"}`} onClick={() => setBottomTab("quality")}>Quality</button>
-                    </div>
-                    {bottomTab === "section" ? (
-                      <div className="grid gap-2 text-xs text-[#374151]">
-                        <div className="grid grid-cols-4 gap-1">
-                          {(["x", "y", "z", "free"] as const).map((axis) => (
-                            <button
-                              key={axis}
-                              type="button"
-                              onClick={() => setClipAxis(axis)}
-                              className={`rounded border px-2 py-1 ${
-                                clipAxis === axis ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white"
-                              }`}
-                            >
-                              {axis.toUpperCase()}
-                            </button>
-                          ))}
-                        </div>
-                        <label className="grid gap-1">
-                          <span>Offset</span>
-                          <input type="range" min={-2} max={2} step={0.01} value={clipOffset} onChange={(e) => setClipOffset(Number(e.target.value))} />
-                        </label>
-                      </div>
-                    ) : null}
-                    {bottomTab === "explode" ? (
-                      <div className="grid gap-2 text-xs text-[#374151]">
-                        <label className="grid gap-1">
-                          <span>Explode ({explodeFactor.toFixed(2)})</span>
-                          <input
-                            type="range"
-                            min={0}
-                            max={1}
-                            step={0.01}
-                            value={explodeFactor}
-                            onChange={(e) => setExplodeFactor(Number(e.target.value))}
-                          />
-                        </label>
-                        <button type="button" onClick={() => setExplodeFactor(0)} className="rounded border border-[#d1d5db] bg-white px-2 py-1">
-                          Reset
-                        </button>
-                      </div>
-                    ) : null}
-                    {bottomTab === "quality" ? (
-                      <div className="grid gap-2 text-xs">
-                        <div className="text-[#6b7280]">Varsayılan kalite: dengeli (Medium)</div>
-                        <div className="grid grid-cols-4 gap-2">
-                          {(["Ultra", "High", "Medium", "Low"] as QualityLevel[]).map((lvl) => (
-                            <button
-                              key={lvl}
-                              onClick={() => setQuality(lvl)}
-                              className={`rounded border px-2 py-1 ${quality === lvl ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white text-[#374151]"}`}
-                            >
-                              {lvl}
-                            </button>
-                          ))}
-                        </div>
-                        <div className="text-[11px] text-[#6b7280]">Offline render viewer modu değildir; ayrı render job hattı kullanılır.</div>
-                      </div>
-                    ) : null}
-                  </Card>
-                ) : null}
-              </div>
+          <div className="grid gap-2">
+            <div className="font-semibold text-[#111827]">Projection</div>
+            <div className="grid grid-cols-2 gap-2">
+              {(["perspective", "orthographic"] as ProjectionMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  className={`rounded border px-2 py-1 ${projection === mode ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white"}`}
+                  onClick={() => setProjection(mode)}
+                >
+                  {mode === "perspective" ? "Perspective" : "Orthographic"}
+                </button>
+              ))}
             </div>
-
-            <div className="hidden lg:block">{rightPanelCard}</div>
           </div>
-
-          {shareOpen ? (
-            <Card className="p-5">
-              <div className="text-sm font-semibold text-[#111827]">Paylaş</div>
-              <p className="mt-1 text-xs text-[#6b7280]">Varsayılan izin: sadece görüntüleme.</p>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <PrimaryButton onClick={handleShare} disabled={shareBusy}>Link oluştur</PrimaryButton>
-                {shareLink ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input readOnly value={shareLink} className="h-9 w-[320px] rounded-lg border border-[#d1d5db] bg-white px-2 text-xs" />
-                    <SecondaryButton onClick={handleCopy}>Kopyala</SecondaryButton>
-                  </div>
-                ) : null}
-              </div>
-              {shareError ? <div className="mt-2 text-xs text-red-600">{shareError}</div> : null}
-              <button className="mt-4 text-xs font-semibold text-[#374151]" onClick={() => setAdvancedOpen((v) => !v)}>Gelişmiş</button>
-              {advancedOpen ? (
-                <div className="mt-3 grid gap-2 text-xs text-[#6b7280]">
-                  <label className="flex items-center gap-2"><input type="checkbox" disabled />Yorumlar (V1 kapalı)</label>
-                  <label className="flex items-center gap-2"><input type="checkbox" disabled />İndirme (V1 kapalı)</label>
-                  <label className="flex items-center gap-2">Süre (V1 kapalı)<input type="number" disabled className="h-8 w-20 rounded border border-[#d1d5db] px-2" /></label>
+          {!is2d ? (
+            <div className="grid gap-2">
+              <div className="font-semibold text-[#111827]">Explode</div>
+              {!explodeAvailable ? (
+                <div className="rounded border border-[#e5e7eb] bg-[#f9fafb] px-2 py-2 text-[11px] text-[#6b7280]">
+                  Explode devre dışı: assembly_meta mapping yok.
                 </div>
               ) : null}
-            </Card>
-          ) : null}
-        </div>
-      </Container>
-
-      {leftDrawerOpen ? (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/35"
-            onClick={() => setLeftDrawerOpen(false)}
-            aria-label="Assembly drawer kapat"
-          />
-          <aside className="absolute left-0 top-0 h-full w-[86vw] max-w-[360px] overflow-y-auto p-3">
-            <div className="mb-2 flex items-center justify-between rounded-lg border border-[#d1d5db] bg-white px-3 py-2 text-xs font-semibold text-[#374151]">
-              <span>Assembly Panel</span>
-              <button type="button" className="rounded border border-[#d1d5db] px-2 py-1" onClick={() => setLeftDrawerOpen(false)}>
-                Kapat
+              <label className="grid gap-1">
+                <span>Factor ({explodeFactor.toFixed(2)})</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={explodeFactor}
+                  disabled={!explodeAvailable}
+                  onChange={(e) => setExplodeFactor(Number(e.target.value))}
+                />
+              </label>
+              <button
+                type="button"
+                className="rounded border border-[#d1d5db] bg-white px-2 py-1"
+                disabled={!explodeAvailable}
+                onClick={() => setExplodeFactor(0)}
+              >
+                Reset Explode
               </button>
             </div>
-            {leftPanelCard}
-          </aside>
+          ) : null}
+          <div className="grid gap-2">
+            <div className="font-semibold text-[#111827]">Section</div>
+            <div className="grid grid-cols-4 gap-1">
+              {(["x", "y", "z", "free"] as const).map((axis) => (
+                <button
+                  key={axis}
+                  type="button"
+                  onClick={() => setClipAxis(axis)}
+                  className={`rounded border px-2 py-1 ${clipAxis === axis ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white"}`}
+                >
+                  {axis.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            <label className="flex items-center justify-between">
+              Clip
+              <input type="checkbox" checked={clip} onChange={(e) => setClip(e.target.checked)} />
+            </label>
+            <input type="range" min={-2} max={2} step={0.01} value={clipOffset} onChange={(e) => setClipOffset(Number(e.target.value))} />
+          </div>
         </div>
       ) : null}
+
+      {panelTab === "parts" ? (
+        <div className="grid min-h-0 flex-1 gap-2">
+          <input
+            value={treeQuery}
+            onChange={(e) => setTreeQuery(e.target.value)}
+            placeholder="Parça ara..."
+            disabled={assemblyRows.length === 0}
+            className="h-9 rounded-lg border border-[#d1d5db] bg-white px-2 text-xs"
+          />
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              disabled={!canSelectRow}
+              onClick={handleSelectTreeNode}
+              className={`rounded border px-2 py-1 text-[11px] ${canSelectRow ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"}`}
+            >
+              Select
+            </button>
+            <button
+              type="button"
+              disabled={!canActOnSelection}
+              onClick={handleHideShow}
+              className={`rounded border px-2 py-1 text-[11px] ${canActOnSelection ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"}`}
+            >
+              Hide/Show
+            </button>
+            <button
+              type="button"
+              disabled={!canActOnSelection}
+              onClick={handleIsolate}
+              className={`rounded border px-2 py-1 text-[11px] ${canActOnSelection ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"}`}
+            >
+              Isolate
+            </button>
+          </div>
+          <div className="min-h-0 overflow-auto rounded-lg border border-[#e5e7eb] bg-[#f9fafb] p-2 text-xs text-[#374151]">
+            {assemblyRows.length === 0 ? (
+              <div className="text-[#6b7280]">Assembly tree not available.</div>
+            ) : (
+              assemblyRows.map((row) => (
+                <button
+                  key={row.key}
+                  type="button"
+                  className={`mt-0.5 w-full truncate rounded px-2 py-1 text-left ${
+                    selectedTreeKey === row.key ? "bg-[#e0e7ff] text-[#111827]" : "text-[#374151] hover:bg-[#eef2ff]"
+                  } ${row.nodeIds.length === 0 ? "opacity-60" : ""}`}
+                  style={{ paddingLeft: `${Math.min(row.depth * 12 + 8, 84)}px` }}
+                  onClick={() => setSelectedTreeKey(row.key)}
+                  title={row.nodeIds.length === 0 ? "Bu occurrence için gltf mapping yok." : undefined}
+                >
+                  {row.label}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      {panelTab === "share" ? (
+        <div className="grid gap-2 text-xs text-[#374151]">
+          <div className="font-semibold text-[#111827]">Share Link</div>
+          <PrimaryButton onClick={handleShare} disabled={shareBusy}>
+            {shareBusy ? "Oluşturuluyor..." : "Link oluştur"}
+          </PrimaryButton>
+          {shareLink ? (
+            <div className="grid gap-2">
+              <input readOnly value={shareLink} className="h-9 rounded-lg border border-[#d1d5db] bg-white px-2 text-xs" />
+              <SecondaryButton onClick={handleCopy}>Kopyala</SecondaryButton>
+            </div>
+          ) : null}
+          {shareError ? <div className="text-red-600">{shareError}</div> : null}
+          <div className="rounded border border-[#e5e7eb] bg-[#f9fafb] px-2 py-2 text-[11px] text-[#6b7280]">
+            Varsayılan izin: view-only.
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+
+  return (
+    <main className="h-full overflow-hidden">
+      <div className="h-full px-2 sm:px-3">
+        <div className="flex h-full flex-col gap-2 py-2 sm:py-3">
+          <Card className="p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <SecondaryButton href="/dashboard">Geri</SecondaryButton>
+                <div style={tokens.typography.body} className="max-w-[40vw] truncate text-[#6b7280] sm:max-w-none">
+                  {file ? shortName(file.original_filename) : "Görüntüleyici"}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {CAMERA_PRESETS.map((preset) => (
+                  <button
+                    key={preset.key}
+                    type="button"
+                    className={`rounded border px-2 py-1 text-xs ${
+                      cameraPreset === preset.key ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white text-[#374151]"
+                    }`}
+                    onClick={() => setCameraPreset(preset.key)}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+                <button type="button" className="rounded border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={() => setFitRequestKey((v) => v + 1)}>Fit</button>
+                <button type="button" className="rounded border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={handleIsolate} disabled={!canActOnSelection}>Isolate</button>
+                <button type="button" className="rounded border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={handleHideShow} disabled={!canActOnSelection}>Hide/Show</button>
+                <button type="button" className="rounded border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={() => setMeasureEnabled((v) => !v)}>
+                  {measureEnabled ? "Measure Off" : "Measure"}
+                </button>
+                <button type="button" className="rounded border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={handleScreenshot}>Export PNG</button>
+                <button type="button" className="rounded border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={handleDownloadScx}>Download</button>
+                <button type="button" className="rounded border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={() => router.push("/dashboard/settings")}>Settings</button>
+                <button type="button" className="rounded border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={toggleFullscreen}>Full</button>
+                <button type="button" className="rounded border border-[#d1d5db] bg-white px-2 py-1 text-xs lg:hidden" onClick={() => setRightDrawerOpen(true)}>Panel</button>
+                <button type="button" className="rounded border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={() => setPanelCollapsed((v) => !v)}>
+                  {panelCollapsed ? "Panel Aç" : "Panel Kapat"}
+                </button>
+                <button type="button" className="rounded border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={() => { setZoomDirection("in"); setZoomTick((v) => v + 1); }}>Zoom+</button>
+                <button type="button" className="rounded border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={() => { setZoomDirection("out"); setZoomTick((v) => v + 1); }}>Zoom-</button>
+              </div>
+            </div>
+          </Card>
+
+          <div className="flex min-h-0 flex-1 gap-3">
+            <div className="min-w-0 flex-1">{viewerBody}</div>
+            {!panelCollapsed ? (
+              <aside className="hidden h-full w-[320px] shrink-0 overflow-hidden rounded-xl border border-[#d1d5db] bg-white lg:block">
+                {panelContent}
+              </aside>
+            ) : null}
+          </div>
+        </div>
+      </div>
 
       {rightDrawerOpen ? (
         <div className="fixed inset-0 z-50 lg:hidden">
@@ -1074,16 +1152,16 @@ export default function ViewPage() {
             type="button"
             className="absolute inset-0 bg-black/35"
             onClick={() => setRightDrawerOpen(false)}
-            aria-label="Tools drawer kapat"
+            aria-label="Panel kapat"
           />
-          <aside className="absolute right-0 top-0 h-full w-[70vw] max-w-[280px] overflow-y-auto p-3">
-            <div className="mb-2 flex items-center justify-between rounded-lg border border-[#d1d5db] bg-white px-3 py-2 text-xs font-semibold text-[#374151]">
-              <span>Viewer Tools</span>
+          <aside className="absolute bottom-0 left-0 right-0 max-h-[82vh] overflow-y-auto rounded-t-2xl border border-[#d1d5db] bg-white">
+            <div className="sticky top-0 flex items-center justify-between border-b border-[#e5e7eb] bg-white px-3 py-2 text-xs font-semibold text-[#374151]">
+              <span>Viewer Panel</span>
               <button type="button" className="rounded border border-[#d1d5db] px-2 py-1" onClick={() => setRightDrawerOpen(false)}>
                 Kapat
               </button>
             </div>
-            {rightPanelCard}
+            {panelContent}
           </aside>
         </div>
       ) : null}

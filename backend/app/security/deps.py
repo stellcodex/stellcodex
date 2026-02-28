@@ -31,6 +31,19 @@ def _get_bearer_token(request: Request) -> str:
     return token
 
 
+def _guest_id_from_payload(payload: dict) -> str | None:
+    owner_sub = str(payload.get("owner_sub") or "").strip()
+    if owner_sub:
+        return owner_sub
+
+    sub = str(payload.get("sub") or "").strip()
+    if not sub:
+        return None
+    if sub.startswith("guest:"):
+        return sub.split(":", 1)[1].strip() or None
+    return sub
+
+
 def get_current_principal(
     request: Request,
     db: Session = Depends(get_db),
@@ -40,10 +53,10 @@ def get_current_principal(
     typ = payload.get("typ")
 
     if typ == "guest":
-        owner_sub = payload.get("owner_sub")
+        owner_sub = _guest_id_from_payload(payload)
         if not owner_sub:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid guest token")
-        return Principal(typ="guest", owner_sub=str(owner_sub), anon=bool(payload.get("anon", True)))
+        return Principal(typ="guest", owner_sub=owner_sub, anon=bool(payload.get("anon", True)))
 
     if typ == "user":
         user_id = payload.get("sub")

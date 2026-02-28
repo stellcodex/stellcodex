@@ -12,3 +12,5 @@ numpy==1.26.4
 ezdxf==1.2.0
 redis==5.0.1
 rq==1.15.1
+alembic==1.14.1
+bcrypt==4.1.3

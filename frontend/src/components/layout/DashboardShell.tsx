@@ -11,8 +11,10 @@ const nav = [
   { href: "/dashboard", label: "Durum" },
   { href: "/dashboard/overview", label: "Özet" },
   { href: "/dashboard/files", label: "Dosyalar" },
+  { href: "/dashboard/library", label: "Library" },
   { href: "/dashboard/projects", label: "Projeler" },
   { href: "/dashboard/shares", label: "Paylaşımlar" },
+  { href: "/dashboard/plans", label: "Plans" },
   { href: "/dashboard/activity", label: "Aktivite" },
   { href: "/dashboard/settings", label: "Ayarlar" },
 ];

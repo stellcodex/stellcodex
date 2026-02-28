@@ -69,12 +69,45 @@ def build_geometry_report_for_step(step_path: str | Path, provided_inputs: Mappi
         "has_undercut": UNKNOWN,
         "complexity_risk": UNKNOWN,
     }
+
+    # --- Real geometry extraction (step_extractor) ---
+    extracted: dict[str, Any] = {}
+    try:
+        from app.services.step_extractor import extract_step_geometry
+        result = extract_step_geometry(path)
+        extracted = result.to_geometry_meta()
+
+        geometry["units"] = result.units
+        geometry["part_count"] = result.part_count
+
+        # Surface-based wall thickness heuristic:
+        # If we have a bounding box, the smallest dimension is a proxy for min wall.
+        if result.bbox:
+            dims = sorted([result.bbox.x, result.bbox.y, result.bbox.z])
+            geometry["wall_mm_min"] = round(dims[0], 4)
+            geometry["wall_mm_max"] = round(dims[2], 4)
+
+        geometry["complexity_risk"] = result.complexity.label
+        geometry["has_undercut"] = UNKNOWN   # requires true B-rep kernel; left for future
+        geometry["draft_deg_min"] = UNKNOWN  # requires surface normal analysis; left for future
+
+    except Exception:
+        # Fall back to the original text-complexity heuristic
+        complexity_metrics: dict[str, int] | None = None
+        try:
+            complexity_metrics = step_text_complexity(path)
+        except OSError:
+            complexity_metrics = None
+        if complexity_metrics is not None:
+            score = int(complexity_metrics["complexity_risk_score"])
+            geometry["complexity_risk"] = _complexity_label_from_score(score)
+
     complexity_metrics: dict[str, int] | None = None
     try:
         complexity_metrics = step_text_complexity(path)
     except OSError:
         complexity_metrics = None
-    if complexity_metrics is not None:
+    if complexity_metrics is not None and geometry["complexity_risk"] == UNKNOWN:
         score = int(complexity_metrics["complexity_risk_score"])
         geometry["complexity_risk"] = _complexity_label_from_score(score)
 

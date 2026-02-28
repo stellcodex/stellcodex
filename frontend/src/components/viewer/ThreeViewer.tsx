@@ -16,6 +16,11 @@ export type ViewerNode = {
   visible: boolean;
 };
 
+export type ViewerPartGroup = {
+  partId: string;
+  nodeIds: string[];
+};
+
 type ViewerProps = {
   url: string;
   renderMode?: RenderMode;
@@ -24,6 +29,7 @@ type ViewerProps = {
   clip?: boolean;
   explode?: boolean;
   explodeFactor?: number;
+  explodeGroups?: ViewerPartGroup[];
   clipOffset?: number;
   clipAxis?: "x" | "y" | "z" | "free";
   hiddenNodes?: Set<string>;
@@ -144,15 +150,6 @@ function fitCameraToScene(camera: THREE.Camera, scene: THREE.Object3D, controls?
   }
 }
 
-function getMeshExtent(mesh: THREE.Mesh) {
-  const geometry = mesh.geometry as THREE.BufferGeometry | undefined;
-  if (!geometry) return 0;
-  if (!geometry.boundingBox) geometry.computeBoundingBox();
-  if (!geometry.boundingBox) return 0;
-  const size = geometry.boundingBox.getSize(new THREE.Vector3());
-  return Math.max(size.x, size.y, size.z);
-}
-
 function SceneModel({
   url,
   renderMode = "shadedEdges",
@@ -161,6 +158,7 @@ function SceneModel({
   clip = false,
   explode = false,
   explodeFactor = 0,
+  explodeGroups,
   clipOffset = 0,
   clipAxis = "y",
   hiddenNodes,
@@ -368,38 +366,68 @@ function SceneModel({
     const box = getRenderableBounds(scene);
     if (!box || box.isEmpty()) return;
     const center = box.getCenter(new THREE.Vector3());
-
+    const objectById = new Map<string, THREE.Object3D>();
     scene.traverse((obj) => {
-      const mesh = obj as THREE.Mesh;
-      if (!mesh.isMesh || !mesh.geometry) return;
+      objectById.set(obj.uuid, obj);
+    });
 
-      const cached = baseMeshPositionsRef.current.get(mesh.uuid);
-      if (!cached) {
-        baseMeshPositionsRef.current.set(mesh.uuid, mesh.position.clone());
-      }
-      const base = baseMeshPositionsRef.current.get(mesh.uuid) || mesh.position.clone();
+    const effectiveExplode = Math.max(0, Math.min(1, explodeFactor > 0 ? explodeFactor : explode ? 1 : 0));
+    const activeGroups = Array.isArray(explodeGroups)
+      ? explodeGroups.filter((group) => Array.isArray(group.nodeIds) && group.nodeIds.length > 0)
+      : [];
 
-      const effectiveExplode = Math.max(0, Math.min(1, explodeFactor > 0 ? explodeFactor : explode ? 1 : 0));
-      if (effectiveExplode <= 0) {
-        mesh.position.copy(base);
-        return;
-      }
+    if (activeGroups.length === 0 || effectiveExplode <= 0) {
+      baseMeshPositionsRef.current.forEach((base, nodeId) => {
+        const obj = objectById.get(nodeId);
+        if (obj) obj.position.copy(base);
+      });
+      scene.updateMatrixWorld(true);
+      invalidate();
+      return;
+    }
 
-      const worldCenter = new THREE.Box3().setFromObject(mesh).getCenter(new THREE.Vector3());
-      const dir = worldCenter.sub(center);
-      if (dir.lengthSq() < 1e-8) {
-        dir.set(0, 1, 0);
-      } else {
-        dir.normalize();
-      }
+    const modelSize = box.getSize(new THREE.Vector3());
+    const modelScale = Math.max(modelSize.length(), 1);
+    const touched = new Set<string>();
 
-      const offset = Math.max(getMeshExtent(mesh) * 0.24, 1.2) * effectiveExplode;
-      mesh.position.copy(base.clone().add(dir.multiplyScalar(offset)));
+    activeGroups.forEach((group) => {
+      const groupObjects = group.nodeIds
+        .map((nodeId) => objectById.get(nodeId))
+        .filter((obj): obj is THREE.Object3D => Boolean(obj));
+      if (!groupObjects.length) return;
+
+      const partBounds = new THREE.Box3();
+      groupObjects.forEach((obj) => partBounds.expandByObject(obj));
+      if (partBounds.isEmpty()) return;
+
+      const partCenter = partBounds.getCenter(new THREE.Vector3());
+      const dir = partCenter.sub(center);
+      if (dir.lengthSq() < 1e-8) dir.set(0, 1, 0);
+      else dir.normalize();
+
+      const partSize = partBounds.getSize(new THREE.Vector3());
+      const partScale = Math.max(partSize.length(), modelScale * 0.02, 0.5);
+      const offset = dir.multiplyScalar(Math.max(partScale * 0.35, modelScale * 0.08) * effectiveExplode);
+
+      groupObjects.forEach((obj) => {
+        if (!baseMeshPositionsRef.current.has(obj.uuid)) {
+          baseMeshPositionsRef.current.set(obj.uuid, obj.position.clone());
+        }
+        const base = baseMeshPositionsRef.current.get(obj.uuid) || obj.position.clone();
+        obj.position.copy(base.clone().add(offset));
+        touched.add(obj.uuid);
+      });
+    });
+
+    baseMeshPositionsRef.current.forEach((base, nodeId) => {
+      if (touched.has(nodeId)) return;
+      const obj = objectById.get(nodeId);
+      if (obj) obj.position.copy(base);
     });
 
     scene.updateMatrixWorld(true);
     invalidate();
-  }, [scene, explode, explodeFactor, invalidate]);
+  }, [scene, explode, explodeFactor, explodeGroups, invalidate]);
 
   useEffect(() => {
     scene.traverse((obj) => {

@@ -120,6 +120,28 @@ export type ShareResult = {
   expires_at: string;
 };
 
+export type LibraryItem = {
+  id: string;
+  file_id: string;
+  visibility: "private" | "unlisted" | "public";
+  slug: string;
+  title: string;
+  description?: string | null;
+  tags: string[];
+  cover_thumb?: string | null;
+  share_url?: string | null;
+  stats?: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type LibraryFeedResponse = {
+  items: LibraryItem[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+
 export type UploadDirectResult = {
   file_id: string;
 };
@@ -547,5 +569,59 @@ export async function requestRenderPreset(fileId: string, preset: string) {
     const err = await res.json().catch(() => null);
     throw new Error(err?.detail || "Render isteği başarısız.");
   }
+  return res.json();
+}
+
+export async function publishLibraryItem(input: {
+  file_id: string;
+  visibility: "private" | "unlisted" | "public";
+  title?: string;
+  description?: string;
+  tags?: string[];
+}): Promise<LibraryItem> {
+  const res = await authFetch(`${API_BASE}/library/publish`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) await throwHttpError(res, "Publish başarısız.");
+  return res.json();
+}
+
+export async function updateLibraryItem(
+  itemId: string,
+  input: { title?: string; description?: string; tags?: string[]; visibility?: "private" | "unlisted" | "public" }
+): Promise<LibraryItem> {
+  const res = await authFetch(`${API_BASE}/library/item/${itemId}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) await throwHttpError(res, "Library item güncellenemedi.");
+  return res.json();
+}
+
+export async function unpublishLibraryItem(itemId: string): Promise<void> {
+  const res = await authFetch(`${API_BASE}/library/unpublish`, {
+    method: "POST",
+    body: JSON.stringify({ item_id: itemId }),
+  });
+  if (!res.ok) await throwHttpError(res, "Unpublish başarısız.");
+}
+
+export async function getLibraryFeed(params?: { q?: string; sort?: "new" | "old"; page?: number; page_size?: number }): Promise<LibraryFeedResponse> {
+  const query = new URLSearchParams();
+  if (params?.q) query.set("q", params.q);
+  if (params?.sort) query.set("sort", params.sort);
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.page_size) query.set("page_size", String(params.page_size));
+  const suffix = query.toString();
+  const path = `${API_BASE}/library/feed${suffix ? `?${suffix}` : ""}`;
+  const res = await apiFetch(path);
+  if (!res.ok) await throwHttpError(res, "Library feed alınamadı.");
+  return res.json();
+}
+
+export async function getLibraryItem(slug: string): Promise<LibraryItem> {
+  const res = await apiFetch(`${API_BASE}/library/item/${encodeURIComponent(slug)}`);
+  if (!res.ok) await throwHttpError(res, "Library item alınamadı.");
   return res.json();
 }

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import cos, sin, radians
+from math import atan2, cos, hypot, pi, radians, sin
 from typing import Iterable, Optional
 
 import ezdxf
@@ -44,7 +44,7 @@ class Bounds:
 
 def _layer_color_hex(aci: int) -> str:
     r, g, b = aci2rgb(aci)
-    # ACI 7 is typically white/black depending background. Viewer is light, keep it visible.
+    # ACI 7 is white/black depending viewer bg. We force a visible dark line color.
     if (r, g, b) == (255, 255, 255):
         return "#111827"
     return f"#{r:02x}{g:02x}{b:02x}"
@@ -91,7 +91,7 @@ def _bounds_arc(entity) -> Bounds:
     end = float(entity.dxf.end_angle)
     b.update(*_arc_point(c, r, start))
     b.update(*_arc_point(c, r, end))
-    # include cardinal points if inside arc span
+
     def _within(a: float) -> bool:
         if start <= end:
             return start <= a <= end
@@ -118,6 +118,62 @@ def _polyline_points(entity) -> list[tuple[float, float]]:
     except Exception:
         pass
     return points
+
+
+def _ellipse_points(entity, segments: int = 96) -> list[tuple[float, float]]:
+    try:
+        center = entity.dxf.center
+        major_axis = entity.dxf.major_axis
+        ratio = float(entity.dxf.ratio or 0.0)
+        if ratio <= 0:
+            return []
+
+        major_len = hypot(float(major_axis.x), float(major_axis.y))
+        if major_len <= 0:
+            return []
+        rot = atan2(float(major_axis.y), float(major_axis.x))
+
+        start = float(getattr(entity.dxf, "start_param", 0.0))
+        end = float(getattr(entity.dxf, "end_param", 2 * pi))
+        if end <= start:
+            end += 2 * pi
+
+        step = (end - start) / max(segments, 12)
+        points: list[tuple[float, float]] = []
+        t = start
+        while t <= end + 1e-9:
+            x_local = major_len * cos(t)
+            y_local = (major_len * ratio) * sin(t)
+            x = center.x + (x_local * cos(rot) - y_local * sin(rot))
+            y = center.y + (x_local * sin(rot) + y_local * cos(rot))
+            points.append((x, y))
+            t += step
+        return points
+    except Exception:
+        return []
+
+
+def _spline_points(entity, segments: int = 96) -> list[tuple[float, float]]:
+    try:
+        tool = entity.construction_tool()
+        points = [(float(p.x), float(p.y)) for p in tool.approximate(segments=segments)]
+        if points:
+            return points
+    except Exception:
+        pass
+    try:
+        points = [(float(p[0]), float(p[1])) for p in entity.fit_points]
+        if points:
+            return points
+    except Exception:
+        pass
+    try:
+        points = [(float(p[0]), float(p[1])) for p in entity.control_points]
+        if points:
+            return points
+    except Exception:
+        pass
+    return []
 
 
 def load_doc(path: str):
@@ -183,6 +239,20 @@ def bounds_for_entity(entity) -> Optional[Bounds]:
         return _bounds_circle(entity)
     if etype == "ARC":
         return _bounds_arc(entity)
+    if etype == "ELLIPSE":
+        pts = _ellipse_points(entity)
+        return _bounds_polyline(pts) if pts else None
+    if etype == "SPLINE":
+        pts = _spline_points(entity)
+        return _bounds_polyline(pts) if pts else None
+    if etype == "POINT":
+        try:
+            p = entity.dxf.location
+            b = Bounds()
+            b.update(float(p.x), float(p.y))
+            return b
+        except Exception:
+            return None
     return None
 
 
@@ -195,12 +265,12 @@ def render_svg(doc, visible_layers: Optional[set[str]] = None) -> str:
         layer = e.dxf.layer
         if visible_layers is not None and layer not in visible_layers:
             continue
-        svg = entity_to_svg(e, layers)
-        if svg:
-            entities.append(svg)
         b = bounds_for_entity(e)
         if b:
             bounds.merge(b)
+        svg = entity_to_svg(e, layers)
+        if svg:
+            entities.append(svg)
 
     bb = bounds.as_dict()
     min_x = bb["min_x"]
@@ -214,6 +284,7 @@ def render_svg(doc, visible_layers: Optional[set[str]] = None) -> str:
     min_y -= padding
     width += padding * 2
     height += padding * 2
+    stroke_width = max(0.25, min(max(width, height) / 1800.0, 3.0))
 
     view_box = f"{min_x} {min_y} {width} {height}"
     header = (
@@ -221,20 +292,19 @@ def render_svg(doc, visible_layers: Optional[set[str]] = None) -> str:
         f'viewBox="{view_box}" width="100%" height="100%" '
         f'preserveAspectRatio="xMidYMid meet">'
     )
-    # Flip Y axis to match DXF coordinate system while keeping content inside the viewBox.
     y_flip_translate = min_y + max_y
     body = f'<g transform="translate(0,{y_flip_translate}) scale(1,-1)">'
-    body += "".join(entities)
+    body += "".join(entity_to_svg(e, layers, stroke_width=stroke_width) or "" for e in doc.modelspace() if visible_layers is None or e.dxf.layer in visible_layers)
     body += "</g>"
     footer = "</svg>"
     return header + body + footer
 
 
-def entity_to_svg(entity, layer_colors: dict[str, str]) -> str | None:
+def entity_to_svg(entity, layer_colors: dict[str, str], stroke_width: float = 1.0) -> str | None:
     etype = entity.dxftype()
     color = _color_for_entity(entity, layer_colors)
     stroke = f'stroke="{color}"'
-    base = f'{stroke} stroke-width="1" fill="none" vector-effect="non-scaling-stroke"'
+    base = f'{stroke} stroke-width="{stroke_width:.4f}" fill="none" vector-effect="non-scaling-stroke"'
 
     if etype == "LINE":
         s = entity.dxf.start
@@ -265,4 +335,27 @@ def entity_to_svg(entity, layer_colors: dict[str, str]) -> str | None:
         d = f"M {x1} {y1} A {r} {r} 0 {large} {sweep} {x2} {y2}"
         return f'<path d="{d}" {base} />'
 
+    if etype == "ELLIPSE":
+        pts = _ellipse_points(entity)
+        if not pts:
+            return None
+        d = " ".join(f"{x},{y}" for x, y in pts)
+        return f'<polyline points="{d}" {base} />'
+
+    if etype == "SPLINE":
+        pts = _spline_points(entity)
+        if not pts:
+            return None
+        d = " ".join(f"{x},{y}" for x, y in pts)
+        return f'<polyline points="{d}" {base} />'
+
+    if etype == "POINT":
+        try:
+            p = entity.dxf.location
+            radius = max(stroke_width * 1.6, 0.4)
+            return f'<circle cx="{p.x}" cy="{p.y}" r="{radius}" {base} />'
+        except Exception:
+            return None
+
     return None
+

@@ -53,5 +53,6 @@ def register_startup(app: FastAPI) -> None:
         # Ensure models are imported before metadata create_all.
         from app.models import core as _core  # noqa: F401
         from app.models import file as _file  # noqa: F401
+        from app.models import library_item as _library_item  # noqa: F401
         Base.metadata.create_all(bind=engine)
         _ensure_uploaded_files_schema()

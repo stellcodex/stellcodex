@@ -10,3 +10,7 @@ frontend/.next/
 frontend/.next_broken_*/
 *.bak
 *.bak.*
+# local agents / plugins
+.claude/
+.aider*
+.claude/plugins/marketplaces/claude-plugins-official/

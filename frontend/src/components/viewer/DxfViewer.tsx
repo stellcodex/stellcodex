@@ -17,6 +17,7 @@ export function DxfViewer({ fileId }: { fileId: string }) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
 
   const layerList = useMemo(() => manifest?.layers ?? [], [manifest]);
+  const bbox = useMemo(() => manifest?.bbox ?? null, [manifest]);
 
   const isPendingError = (value: string) => {
     const msg = value.toLowerCase();
@@ -42,7 +43,8 @@ export function DxfViewer({ fileId }: { fileId: string }) {
         if (cancelled) return;
         setManifest(data);
         if (!manifestLoadedRef.current) {
-          const initial = new Set(data.layers.filter((l) => l.is_visible).map((l) => l.name));
+          const preferred = data.layers.filter((l) => l.is_visible).map((l) => l.name);
+          const initial = new Set((preferred.length > 0 ? preferred : data.layers.map((l) => l.name)));
           setActiveLayers(initial);
         }
         manifestLoadedRef.current = true;
@@ -117,6 +119,22 @@ export function DxfViewer({ fileId }: { fileId: string }) {
     setScale((s) => Math.min(10, Math.max(0.2, s * delta)));
   }, []);
 
+  const fitToBounds = useCallback(() => {
+    const host = viewportRef.current;
+    if (!host || !bbox) {
+      setScale(1);
+      setOffset({ x: 0, y: 0 });
+      return;
+    }
+    const hostW = host.clientWidth || 1;
+    const hostH = host.clientHeight || 1;
+    const drawW = Math.max(1, bbox.max_x - bbox.min_x);
+    const drawH = Math.max(1, bbox.max_y - bbox.min_y);
+    const fit = Math.max(0.2, Math.min(10, Math.min(hostW / drawW, hostH / drawH) * 0.92));
+    setScale(fit);
+    setOffset({ x: 0, y: 0 });
+  }, [bbox]);
+
   useEffect(() => {
     const host = viewportRef.current;
     if (!host) return;
@@ -130,10 +148,12 @@ export function DxfViewer({ fileId }: { fileId: string }) {
     };
   }, [applyWheelZoom]);
 
-  const resetFit = () => {
-    setScale(1);
-    setOffset({ x: 0, y: 0 });
-  };
+  useEffect(() => {
+    if (!manifest || !svgUrl) return;
+    fitToBounds();
+  }, [manifest, svgUrl, fitToBounds]);
+
+  const resetFit = () => fitToBounds();
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     dragging.current = true;
@@ -166,7 +186,9 @@ export function DxfViewer({ fileId }: { fileId: string }) {
       {error ? (
         <div className="p-4 text-sm text-red-600">{error}</div>
       ) : !svgUrl ? (
-        <div className="p-4 text-sm text-slate-500">2D çizim hazırlanıyor...</div>
+        <div className="p-4 text-sm text-slate-500">
+          {manifest && activeLayers.size === 0 ? "Görünür katman seçili değil." : "2D çizim hazırlanıyor..."}
+        </div>
       ) : (
         <div className="absolute inset-0 flex items-center justify-center">
           <div

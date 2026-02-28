@@ -10,6 +10,7 @@ import {
   getExplorerList,
   getExplorerTree,
   getFile,
+  publishLibraryItem,
   setVisibility,
 } from "@/services/api";
 
@@ -70,6 +71,8 @@ export default function FilesPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [anchorIndex, setAnchorIndex] = useState<number | null>(null);
   const [shareLink, setShareLink] = useState<string | null>(null);
+  const [publishBusy, setPublishBusy] = useState(false);
+  const [publishNotice, setPublishNotice] = useState<string | null>(null);
   const [previewIndex, setPreviewIndex] = useState(0);
 
   const selectedMap = useMemo(() => new Set(selectedIds), [selectedIds]);
@@ -372,6 +375,30 @@ export default function FilesPage() {
                 </button>
                 <button
                   type="button"
+                  disabled={publishBusy || !["ready", "succeeded"].includes((activeItem.status || "").toLowerCase())}
+                  onClick={async () => {
+                    if (!activeItem) return;
+                    setPublishBusy(true);
+                    setPublishNotice(null);
+                    try {
+                      const item = await publishLibraryItem({
+                        file_id: activeItem.file_id,
+                        visibility: "public",
+                        title: activeItem.name,
+                      });
+                      setPublishNotice(`/m/${item.slug}`);
+                    } catch (err: unknown) {
+                      setPublishNotice(err instanceof Error ? err.message : "Yayınlama başarısız.");
+                    } finally {
+                      setPublishBusy(false);
+                    }
+                  }}
+                  className="h-9 rounded-lg border border-[#d6d3d1] bg-white text-xs font-semibold text-[#44403c] disabled:cursor-not-allowed disabled:text-[#a8a29e]"
+                >
+                  {publishBusy ? "Yayınlanıyor..." : "Yayınla (Public)"}
+                </button>
+                <button
+                  type="button"
                   onClick={async () => {
                     await setVisibility(activeItem.file_id, "hidden");
                     setSelectedIds([]);
@@ -383,6 +410,7 @@ export default function FilesPage() {
                 </button>
               </div>
               {shareLink ? <div className="rounded-lg border border-[#dbeafe] bg-[#eff6ff] px-2 py-2 text-xs text-[#1d4ed8] break-all">{shareLink}</div> : null}
+              {publishNotice ? <div className="rounded-lg border border-[#bbf7d0] bg-[#f0fdf4] px-2 py-2 text-xs text-[#166534] break-all">{publishNotice}</div> : null}
             </div>
           ) : null}
         </aside>

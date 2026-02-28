@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import shutil
 import struct
 import subprocess
@@ -199,8 +200,20 @@ def _bbox_from_stl(path: Path) -> tuple[float, float, float]:
 
 
 def _geometry_meta(input_path: Path, ext: str, part_count: int = 1) -> dict:
-    dims: tuple[float, float, float]
     triangle_count: int | None = None
+
+    # STEP files: use the real text-level geometry extractor
+    if ext in STEP_EXTS:
+        try:
+            from app.services.step_extractor import geometry_meta_from_step
+            meta = geometry_meta_from_step(input_path)
+            # Ensure part_count is at least what was estimated by the caller
+            meta["part_count"] = max(int(meta.get("part_count") or 1), max(1, int(part_count)))
+            return meta
+        except Exception:
+            pass  # fall through to size-based fallback
+
+    dims: tuple[float, float, float]
     if ext == "obj":
         dims = _bbox_from_obj(input_path)
     elif ext == "stl":
@@ -211,6 +224,7 @@ def _geometry_meta(input_path: Path, ext: str, part_count: int = 1) -> dict:
                 triangle_count = int(struct.unpack("<I", data[80:84])[0])
     else:
         dims = _default_dims_from_size(input_path.stat().st_size)
+
     diagonal = math.sqrt(dims[0] ** 2 + dims[1] ** 2 + dims[2] ** 2)
     return {
         "units": "mm",
@@ -222,25 +236,47 @@ def _geometry_meta(input_path: Path, ext: str, part_count: int = 1) -> dict:
     }
 
 
+def _estimate_step_part_count(path: Path) -> int:
+    try:
+        text = path.read_text(encoding="utf-8", errors="ignore").upper()
+    except Exception:
+        return 1
+
+    candidates = (
+        len(re.findall(r"\bNEXT_ASSEMBLY_USAGE_OCCURRENCE\s*\(", text)),
+        len(re.findall(r"\bPRODUCT_DEFINITION_SHAPE\s*\(", text)),
+        len(re.findall(r"\bMANIFOLD_SOLID_BREP\s*\(", text)),
+    )
+    for candidate in candidates:
+        if candidate > 0:
+            return max(1, min(candidate, 500))
+    return 1
+
+
 def _assembly_meta(mode: str, part_count: int, filename: str) -> dict:
     stem = Path(filename or "model").stem or "model"
     occurrences = []
+    occurrence_index: dict[str, list[str]] = {}
     count = max(1, part_count)
     for idx in range(count):
         occ_id = f"occ_{idx + 1:03d}"
+        part_id = f"part_{idx + 1:03d}"
         label = f"{stem}-{idx + 1}" if count > 1 else stem
         occurrences.append(
             {
                 "occurrence_id": occ_id,
+                "part_id": part_id,
                 "name": label,
                 "node_ref": label,
                 "children": [],
             }
         )
+        occurrence_index[occ_id] = []
     return {
         "mode": mode,
         "generated_at": _now().isoformat(),
         "occurrences": occurrences,
+        "occurrence_id_to_gltf_nodes": occurrence_index,
     }
 
 
@@ -413,7 +449,8 @@ def _pipeline_3d(f: UploadFile, input_path: Path, mode: str, s3) -> dict:
             # deterministic fallback: keep public contract complete and mark conversion fallback.
             gltf_key = f.object_key
 
-    geometry_meta = _geometry_meta(input_path, ext, part_count=1)
+    estimated_part_count = _estimate_step_part_count(input_path) if ext in STEP_EXTS else 1
+    geometry_meta = _geometry_meta(input_path, ext, part_count=estimated_part_count)
     assembly = _assembly_meta(mode, int(geometry_meta.get("part_count") or 1), f.original_filename)
     assembly_key = f"metadata/{f.file_id}/assembly_meta.json"
     _upload_bytes(

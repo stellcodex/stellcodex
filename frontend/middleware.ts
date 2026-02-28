@@ -38,9 +38,38 @@ function notFoundResponse() {
   return new NextResponse("Not Found", { status: 404 });
 }
 
+function expiredShareResponse() {
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"/><title>410 Link Expired</title><meta name="viewport" content="width=device-width,initial-scale=1"/></head><body style="margin:0;background:#0b1220;color:#e2e8f0;font-family:Segoe UI,Arial,sans-serif;display:grid;min-height:100vh;place-items:center"><div style="width:min(92vw,520px);border:1px solid #334155;border-radius:16px;background:#0f172a;padding:20px"><h1 style="margin:0 0 8px 0;font-size:20px;color:#fda4af">410 Link Expired</h1><p style="margin:0 0 12px 0;font-size:14px">Bu paylaşım bağlantısının süresi dolmuş.</p><a href=\"/\" style=\"display:inline-block;font-size:12px;padding:8px 12px;border-radius:10px;border:1px solid #334155;color:#fff;text-decoration:none;background:#111827\">Ana Sayfaya Dön</a></div></body></html>`;
+  return new NextResponse(html, {
+    status: 410,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+    },
+  });
+}
+
+async function enforceShareStatus(req: NextRequest): Promise<NextResponse | null> {
+  const { pathname } = req.nextUrl;
+  if (!pathname.startsWith("/s/")) return null;
+  const token = pathname.split("/")[2]?.trim();
+  if (!token) return notFoundResponse();
+
+  const apiBase = resolveApiBase(req);
+  const res = await fetch(`${apiBase}/share/resolve?share_token=${encodeURIComponent(token)}`, {
+    cache: "no-store",
+  });
+
+  if (res.status === 410) return expiredShareResponse();
+  if (res.status === 401 || res.status === 404) return notFoundResponse();
+  return null;
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   if (isSystemPath(pathname)) return NextResponse.next();
+  const shareGuard = await enforceShareStatus(req);
+  if (shareGuard) return shareGuard;
   if (!pathname.startsWith("/admin")) return NextResponse.next();
   if (process.env.STELLCODEX_ENABLE_MOCK_ADMIN === "1") return NextResponse.next();
 
@@ -68,6 +97,7 @@ function resolveApiBase(req: NextRequest): string {
     .trim()
     .replace(/\/+$/, "");
   if (!raw) return `${req.nextUrl.origin}/api/v1`;
+  if (raw.startsWith("/")) return `${req.nextUrl.origin}${raw}`;
   if (raw.endsWith("/api/v1")) return raw;
   return `${raw}/api/v1`;
 }

@@ -345,23 +345,78 @@ def _build_lod_map(f: UploadFileModel, include_key: bool = False) -> dict[str, d
     return lods
 
 
+def _assembly_tree_from_assembly_meta(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    occurrences = payload.get("occurrences")
+    if not isinstance(occurrences, list):
+        return []
+    occurrence_to_nodes = (
+        payload.get("occurrence_id_to_gltf_nodes")
+        if isinstance(payload.get("occurrence_id_to_gltf_nodes"), dict)
+        else {}
+    )
+
+    tree: list[dict[str, Any]] = []
+    for idx, item in enumerate(occurrences):
+        if not isinstance(item, dict):
+            continue
+        occurrence_id = str(item.get("occurrence_id") or f"occ_{idx + 1:03d}")
+        part_id = str(item.get("part_id") or occurrence_id)
+        label = str(item.get("name") or item.get("display_name") or part_id)
+        mapped_nodes = occurrence_to_nodes.get(occurrence_id, [])
+        gltf_nodes = [node for node in mapped_nodes if isinstance(node, str) and node.strip()]
+        tree.append(
+            {
+                "id": occurrence_id,
+                "occurrence_id": occurrence_id,
+                "part_id": part_id,
+                "name": label,
+                "display_name": label,
+                "kind": "part",
+                "part_count": 1,
+                "gltf_nodes": gltf_nodes,
+                "children": [],
+            }
+        )
+    return tree
+
+
+def _resolve_assembly_tree(f: UploadFileModel, meta: dict[str, Any]) -> list[dict[str, Any]]:
+    existing_tree = meta.get("assembly_tree")
+    if isinstance(existing_tree, list) and existing_tree:
+        return existing_tree
+
+    assembly_key = meta.get("assembly_meta_key")
+    if not isinstance(assembly_key, str) or not assembly_key:
+        return []
+
+    try:
+        s3 = s3_client()
+        obj = s3.get_object(Bucket=f.bucket, Key=assembly_key)
+        raw = obj["Body"].read()
+        payload = json.loads(raw.decode("utf-8"))
+    except Exception:
+        return []
+    if not isinstance(payload, dict):
+        return []
+    return _assembly_tree_from_assembly_meta(payload)
+
+
 def _build_scx_manifest(f: UploadFileModel, lods: dict[str, dict[str, Any]]) -> dict[str, Any]:
     meta = f.meta or {}
     defaults = meta.get("defaults") if isinstance(meta.get("defaults"), dict) else {}
-    assembly_tree = meta.get("assembly_tree") if isinstance(meta.get("assembly_tree"), list) else []
+    assembly_tree = _resolve_assembly_tree(f, meta)
     bbox = _coerce_bbox(meta)
     lod_stats = _coerce_lod_stats(meta)
     part_count = _count_parts_in_tree(assembly_tree)
     if part_count <= 0:
-        metadata = meta.get("metadata") if isinstance(meta.get("metadata"), dict) else {}
-        mesh_count = metadata.get("mesh_count_assimp")
-        if not isinstance(mesh_count, int):
-            mesh_count = metadata.get("meshes")
-        if not isinstance(mesh_count, int):
-            lod0 = lod_stats.get("lod0") if isinstance(lod_stats.get("lod0"), dict) else {}
-            mesh_count = lod0.get("mesh_count_assimp")
-        if isinstance(mesh_count, int) and mesh_count > 0:
-            part_count = mesh_count
+        explicit = meta.get("part_count")
+        if isinstance(explicit, int) and explicit > 0:
+            part_count = explicit
+        else:
+            geometry = _geometry_meta(f) or {}
+            geometry_count = geometry.get("part_count")
+            if isinstance(geometry_count, int) and geometry_count > 0:
+                part_count = geometry_count
     if part_count:
         lod0_stats = lod_stats.get("lod0") if isinstance(lod_stats.get("lod0"), dict) else {}
         lod_stats = {
@@ -1328,7 +1383,8 @@ def dxf_render(
 
     visible_layers = None
     if layers is not None:
-        visible_layers = {l.strip() for l in layers.split(",") if l.strip()}
+        parsed_layers = {l.strip() for l in layers.split(",") if l.strip()}
+        visible_layers = parsed_layers or None
 
     s3 = s3_client()
     obj = s3.get_object(Bucket=f.bucket, Key=f.object_key)
