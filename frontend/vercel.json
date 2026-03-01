@@ -2,5 +2,11 @@
   "buildCommand": "node scripts/prisma-safe.cjs && next build",
   "installCommand": "npm install",
   "framework": "nextjs",
-  "regions": ["fra1"]
+  "regions": ["fra1"],
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://api.stellcodex.com/api/:path*"
+    }
+  ]
 }
