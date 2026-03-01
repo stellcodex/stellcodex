@@ -7,9 +7,9 @@ import { applications } from "@/data/applications";
 import { tokens } from "@/lib/tokens";
 
 const primaryLinks = [
-  { label: "Yükle", href: "/upload" },
-  { label: "Dosyalarım", href: "/files" },
-  { label: "Ayarlar", href: "/settings" },
+  { label: "Panel", href: "/dashboard" },
+  { label: "Dosyalarım", href: "/dashboard/files" },
+  { label: "Ayarlar", href: "/dashboard/settings" },
 ];
 
 const adminLinks = [

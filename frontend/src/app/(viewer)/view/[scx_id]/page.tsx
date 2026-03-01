@@ -763,7 +763,7 @@ export default function ViewPage() {
         <EmptyState
           title="Dosya bulunamadı"
           description="Dosya bulunamadı. Yeni yükleme yapın."
-          action={<SecondaryButton href="/upload">Yükleme ekranına git</SecondaryButton>}
+          action={<SecondaryButton href="/dashboard">Panele git</SecondaryButton>}
         />
       );
     }
@@ -775,7 +775,7 @@ export default function ViewPage() {
           action={
             <div className="flex flex-wrap items-center gap-2">
               <SecondaryButton onClick={() => setRetryTick((t) => t + 1)}>Tekrar dene</SecondaryButton>
-              <PrimaryButton href="/account">Yöneticiye ulaş</PrimaryButton>
+              <PrimaryButton href="/dashboard">Panele git</PrimaryButton>
             </div>
           }
         />

@@ -18,10 +18,7 @@ export default function HomePage() {
             vericiler için. Dosyayı yükle, 2D/3D görüntüle, link ile paylaş.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <Button href="/upload">Dosya Yükle</Button>
-            <Button href="/community" variant="secondary">
-              Topluluk
-            </Button>
+            <Button href="/dashboard">Panel</Button>
             <Button href="/docs" variant="ghost">
               Dokümanlar
             </Button>
@@ -99,8 +96,8 @@ export default function HomePage() {
             görüntüleme akıcı, stabil ve güvenli.
           </p>
           <div className="mt-4">
-            <Button href="/upload" variant="secondary">
-              Yükleme ekranına git
+            <Button href="/dashboard" variant="secondary">
+              Panele git
             </Button>
           </div>
         </div>
@@ -176,8 +173,8 @@ export default function HomePage() {
             ))}
           </div>
           <div className="mt-4">
-            <Button href="/community" variant="secondary">
-              Topluluk sayfasına git
+            <Button href="/docs" variant="secondary">
+              Dokümanlar
             </Button>
           </div>
         </div>
@@ -216,7 +213,7 @@ export default function HomePage() {
           Stellcodex bir pazarlama sitesi değil, ürünün kendisi.
         </p>
         <div className="mt-5 flex flex-wrap justify-center gap-3">
-          <Button href="/upload">Şimdi dosya yükle</Button>
+          <Button href="/dashboard">Panele git</Button>
           <Button href="/login" variant="secondary">
             Giriş yap
           </Button>

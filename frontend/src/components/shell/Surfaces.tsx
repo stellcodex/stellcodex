@@ -178,10 +178,10 @@ function SelectedFileCard({
           <p className="mt-2 text-sm text-[#64748b]">Henüz dosya seçili değil. Dosya yükleyerek başlayın.</p>
           <div className="mt-4">
             <Link
-              href="/upload"
+              href="/dashboard"
               className="inline-flex h-10 items-center justify-center rounded-xl border border-[#1d4ed8] bg-[#2563eb] px-4 text-sm font-semibold text-white hover:bg-[#1d4ed8]"
             >
-              Dosya Yükle
+              Panele Git
             </Link>
           </div>
         </div>
@@ -664,10 +664,10 @@ export function HomeSurface() {
           <p className="mt-2 text-base text-[#58677a]">Henüz dosya yok. Dosya yükleyerek başlayın.</p>
           <div className="mt-4">
             <Link
-              href="/upload"
+              href="/dashboard"
               className="inline-flex h-10 items-center rounded-xl border border-[#cbd5e1] bg-white px-4 text-sm font-medium text-[#1e293b] hover:bg-[#f8fafc]"
             >
-              Dosya Yükle
+              Panele Git
             </Link>
           </div>
         </div>

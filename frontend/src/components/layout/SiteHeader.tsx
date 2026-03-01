@@ -6,11 +6,9 @@ import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { clsx } from "clsx";
-import logo from "@/app/gorsel/logo.png";
 
 const nav = [
   { href: "/", label: "Ana Sayfa" },
-  { href: "/community", label: "Topluluk" },
   { href: "/dashboard", label: "Panel" },
   { href: "/docs", label: "Dokümanlar" },
 ];
@@ -37,7 +35,7 @@ export function SiteHeader() {
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-3" onClick={() => setOpen(false)}>
             <Image
-              src={logo}
+              src="/stellcodex-logo.png"
               alt="STELLCODEX logo"
               width={40}
               height={40}
@@ -69,7 +67,7 @@ export function SiteHeader() {
             <Button href="/login" variant="ghost">
               Giriş
             </Button>
-            <Button href="/upload">Dosya Yükle</Button>
+            <Button href="/dashboard">Panel</Button>
           </div>
 
           <button
@@ -104,7 +102,7 @@ export function SiteHeader() {
                   <Button href="/login" variant="secondary">
                     Giriş
                   </Button>
-                  <Button href="/upload">Yükle</Button>
+                  <Button href="/dashboard">Panel</Button>
                 </div>
               </div>
             </div>

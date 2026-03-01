@@ -12,8 +12,8 @@ export function TopBar() {
         </div>
         <span className="hidden md:inline" style={tokens.typography.h2}>STELLCODEX</span>
       </Link>
-      <Link href="/projects" className="text-sm font-medium text-[#4f6f6b]">
-        Projeler
+      <Link href="/dashboard" className="text-sm font-medium text-[#4f6f6b]">
+        Panel
       </Link>
     </div>
   );

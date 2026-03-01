@@ -57,10 +57,10 @@ export function TopNav() {
 
         <div className="flex items-center gap-2">
           <Link
-            href="/files"
+            href="/dashboard"
             className="hidden sm:inline-flex rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
           >
-            Yükle
+            Panel
           </Link>
 
           <button

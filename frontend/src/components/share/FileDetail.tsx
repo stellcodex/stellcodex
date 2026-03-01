@@ -119,8 +119,8 @@ export function FileDetail({ fileId }: { fileId: string }) {
                 Çıkart
               </Button>
               {detail.file.extractedFolderId ? (
-                <Link className="self-center text-sm text-slate-600 hover:text-slate-900" href="/share">
-                  Çıkartılan klasörü StellShare içinde gör
+                <Link className="self-center text-sm text-slate-600 hover:text-slate-900" href="/dashboard/files">
+                  Çıkartılan klasörü Dosyalarım içinde gör
                 </Link>
               ) : null}
             </div>

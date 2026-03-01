@@ -7,11 +7,10 @@ import { clsx } from "clsx";
 import { useUser } from "@/context/UserContext";
 
 const ITEMS = [
-  { href: "/", label: "Ana Sayfa", icon: "⬜" },
-  { href: "/dashboard", label: "Dashboard", icon: "▦" },
-  { href: "/share", label: "StellShare", icon: "⇗" },
-  { href: "/view", label: "StellView", icon: "◎" },
-  { href: "/mold", label: "MoldCodes", icon: "⬡" },
+  { href: "/dashboard", label: "Dashboard", icon: "⬜" },
+  { href: "/files", label: "Dosyalarım", icon: "◎" },
+  { href: "/shares", label: "Paylaşımlar", icon: "⇗" },
+  { href: "/settings", label: "Ayarlar", icon: "⚙" },
 ];
 
 export function LeftNav() {
@@ -30,7 +29,10 @@ export function LeftNav() {
       {/* Nav items */}
       <nav className="mt-4 grid gap-1">
         {ITEMS.map((item) => {
-          const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`));
+          const active =
+            pathname === item.href ||
+            (item.href === "/dashboard" && pathname === "/") ||
+            (item.href !== "/" && pathname.startsWith(`${item.href}/`));
           return (
             <Link
               key={item.href}

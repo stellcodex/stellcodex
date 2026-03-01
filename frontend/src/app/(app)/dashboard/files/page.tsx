@@ -22,6 +22,9 @@ export default function DashboardFilesPage() {
   const [items, setItems] = useState<FileItem[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [filterFormat, setFilterFormat] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -41,6 +44,16 @@ export default function DashboardFilesPage() {
     };
   }, []);
 
+  const formats = Array.from(new Set(items.map((i) => i.content_type).filter(Boolean)));
+  const statuses = Array.from(new Set(items.map((i) => i.status).filter(Boolean)));
+
+  const filtered = items.filter((item) => {
+    if (search && !item.original_filename.toLowerCase().includes(search.toLowerCase())) return false;
+    if (filterFormat && item.content_type !== filterFormat) return false;
+    if (filterStatus && item.status !== filterStatus) return false;
+    return true;
+  });
+
   return (
     <div className="space-y-6">
       <SectionHeader
@@ -48,7 +61,7 @@ export default function DashboardFilesPage() {
         description="Dosyaları ara, filtrele ve yönet."
         crumbs={[
           { label: "Panel", href: "/dashboard" },
-          { label: "Kütüphane" },
+          { label: "Dosyalar" },
         ]}
       />
 
@@ -57,33 +70,38 @@ export default function DashboardFilesPage() {
           <input
             className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm"
             placeholder="Ara"
-            disabled
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
           />
-          <select className="rounded-xl border border-slate-200 px-3 py-2 text-sm" disabled>
-            <option>Format</option>
+          <select
+            className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+            value={filterFormat}
+            onChange={(e) => setFilterFormat(e.target.value)}
+          >
+            <option value="">Tüm Formatlar</option>
+            {formats.map((f) => <option key={f} value={f}>{f}</option>)}
           </select>
-          <select className="rounded-xl border border-slate-200 px-3 py-2 text-sm" disabled>
-            <option>Durum</option>
-          </select>
-          <select className="rounded-xl border border-slate-200 px-3 py-2 text-sm" disabled>
-            <option>Tarih</option>
+          <select
+            className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+          >
+            <option value="">Tüm Durumlar</option>
+            {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
-        <p className="mt-2 text-xs text-slate-500">
-          Filtreler yer tutucudur. Gerçek uç noktalara bağlayın.
-        </p>
 
         <div className="mt-5">
           {state === "loading" ? <LoadingState lines={6} /> : null}
           {state === "error" ? (
             <ErrorState title="Yüklenemedi" description={error || ""} />
           ) : null}
-          {state === "ready" && items.length === 0 ? (
+          {state === "ready" && filtered.length === 0 ? (
             <EmptyState title="Henüz dosya yok" description="Burada görmek için dosya yükleyin." />
           ) : null}
-          {state === "ready" && items.length > 0 ? (
+          {state === "ready" && filtered.length > 0 ? (
             <div className="grid gap-3">
-              {items.map((item) => (
+              {filtered.map((item) => (
                 <div
                   key={item.file_id}
                   className="flex flex-col gap-2 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"

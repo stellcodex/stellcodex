@@ -44,7 +44,7 @@ export function ProjectWorkspace() {
 
       {!files.length ? (
         <div className="rounded-r1 border-soft bg-surface px-cardPad py-cardPad text-fs0 text-muted">
-          Bu projede henüz dosya yok. <Link href="/upload" className="underline">Dosya yükleyin</Link>.
+          Bu projede henüz dosya yok. <Link href="/dashboard" className="underline">Panele git</Link>.
         </div>
       ) : (
         <div className="flex flex-col gap-3">

@@ -41,7 +41,7 @@ export default function HomeClient() {
                   </div>
                 </div>
                 <div>
-                  <PrimaryButton href="/upload">Dosya Yükle</PrimaryButton>
+                  <PrimaryButton href="/dashboard">Panele Git</PrimaryButton>
                 </div>
               </div>
             </div>
@@ -85,7 +85,7 @@ export default function HomeClient() {
               <EmptyState
                 title="Henüz dosya yok"
                 description="Henüz dosya yok. Dosya yükleyerek başlayın."
-                action={<SecondaryButton href="/upload">Dosya Yükle</SecondaryButton>}
+                action={<SecondaryButton href="/dashboard">Panele Git</SecondaryButton>}
               />
             )}
           </Section>

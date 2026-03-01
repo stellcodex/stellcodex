@@ -36,13 +36,11 @@ const appItems: NavLinkItem[] = appRegistry.map((item) => ({
 }));
 
 const userItems: NavLinkItem[] = [
-  { label: "Dosyalarım", href: "/files", icon: IconFiles, requiresAuth: true },
-  { label: "Projelerim", href: "/projects", icon: IconFolder, requiresAuth: true },
+  { label: "Dosyalarım", href: "/dashboard/files", icon: IconFiles, requiresAuth: true },
 ];
 
 const footerItems: NavLinkItem[] = [
-  { label: "Ayarlar", href: "/settings", icon: IconSettings, requiresAuth: true },
-  { label: "Hesap", href: "/account", icon: IconUser, requiresAuth: true },
+  { label: "Ayarlar", href: "/dashboard/settings", icon: IconSettings, requiresAuth: true },
 ];
 
 const mobileItems: NavLinkItem[] = [

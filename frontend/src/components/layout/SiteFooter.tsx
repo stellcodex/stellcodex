@@ -18,9 +18,6 @@ export function SiteFooter() {
             <Link className="text-[#4b5563] hover:text-[#111827]" href="/">
               Ana Sayfa
             </Link>
-            <Link className="text-[#4b5563] hover:text-[#111827]" href="/community">
-              Topluluk
-            </Link>
             <Link className="text-[#4b5563] hover:text-[#111827]" href="/docs">
               Dokümanlar
             </Link>
@@ -29,9 +26,6 @@ export function SiteFooter() {
             </Link>
             <Link className="text-[#4b5563] hover:text-[#111827]" href="/login">
               Giriş
-            </Link>
-            <Link className="text-[#4b5563] hover:text-[#111827]" href="/status">
-              Durum
             </Link>
             <Link className="text-[#4b5563] hover:text-[#111827]" href="/privacy">
               Gizlilik

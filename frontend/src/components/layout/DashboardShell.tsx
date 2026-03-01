@@ -8,14 +8,9 @@ import { clsx } from "clsx";
 import { Button } from "@/components/ui/Button";
 
 const nav = [
-  { href: "/dashboard", label: "Durum" },
-  { href: "/dashboard/overview", label: "Özet" },
+  { href: "/dashboard", label: "Genel Bakış" },
   { href: "/dashboard/files", label: "Dosyalar" },
-  { href: "/dashboard/library", label: "Library" },
-  { href: "/dashboard/projects", label: "Projeler" },
   { href: "/dashboard/shares", label: "Paylaşımlar" },
-  { href: "/dashboard/plans", label: "Plans" },
-  { href: "/dashboard/activity", label: "Aktivite" },
   { href: "/dashboard/settings", label: "Ayarlar" },
 ];
 
@@ -58,11 +53,8 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             ))}
           </nav>
           <div className="mt-auto grid gap-2 pt-6">
-            <Button href="/files" variant="secondary">
-              Yüklemeler
-            </Button>
-            <Button href="/home" variant="ghost">
-              Genel site
+            <Button href="/" variant="ghost">
+              Ana Sayfa
             </Button>
           </div>
         </aside>
@@ -82,8 +74,8 @@ export function DashboardShell({ children }: { children: ReactNode }) {
                 <div className="text-sm font-semibold text-slate-900">Kullanıcı Paneli</div>
               </div>
               <div className="flex items-center gap-2">
-                <Button href="/files" variant="secondary">
-                  Yükle
+                <Button href="/dashboard" variant="secondary">
+                  Panel
                 </Button>
                 <div className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500">
                   Oturum
