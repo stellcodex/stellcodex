@@ -106,10 +106,25 @@ export async function deleteFiles(input: { projectId: string; fileIds: string[] 
 }
 
 export async function getAdminSnapshot() {
-  return api<{
-    jobs: JobRecord[];
-    pendingApprovals: JobRecord[];
-    systemInfo: Record<string, unknown>;
-  }>("/api/admin/mock");
+  function getToken() {
+    if (typeof window === "undefined") return null;
+    return window.localStorage.getItem("scx_token");
+  }
+  const token = getToken();
+  const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+
+  const [healthRes, queuesRes] = await Promise.all([
+    fetch("/api/v1/admin/health", { headers, cache: "no-store" }),
+    fetch("/api/v1/admin/queues", { headers, cache: "no-store" }),
+  ]);
+
+  const systemInfo = healthRes.ok ? await healthRes.json() : {};
+  const queues = queuesRes.ok ? await queuesRes.json() : {};
+
+  return {
+    jobs: [] as JobRecord[],
+    pendingApprovals: [] as JobRecord[],
+    systemInfo: { ...systemInfo, queues },
+  };
 }
 
