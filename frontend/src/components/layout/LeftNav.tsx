@@ -15,78 +15,76 @@ const ITEMS = [
 
 export function LeftNav() {
   const pathname = usePathname() || "/";
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { user, logout, isAuthenticated, loading } = useUser();
   const [open, setOpen] = useState(false);
 
+  // NavItem bileşeni (tekrarları önlemek için)
+  const NavItem = ({ href, label, icon }: { href: string; label: string; icon: string }) => {
+    const active =
+      pathname === href ||
+      (href === "/dashboard" && pathname === "/") ||
+      (href !== "/" && pathname.startsWith(`${href}/`));
+
+    return (
+      <Link
+        href={href}
+        onClick={() => setOpen(false)}
+        className={clsx(
+          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+          active
+            ? "bg-accent/10 text-accent border border-accent/20"
+            : "text-muted hover:bg-surface-2 hover:text-text"
+        )}
+      >
+        <span className="text-lg opacity-80">{icon}</span>
+        {label}
+      </Link>
+    );
+  };
+
   const navContent = (
-    <div className="flex h-full w-full flex-col p-4">
+    <div className="flex h-full w-full flex-col p-4 bg-surface border-r border-white/5">
       {/* Logo */}
-      <Link href="/" onClick={() => setOpen(false)} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">STELLCODEX</div>
-        <div className="mt-1 text-sm text-slate-700">Engineering Workflow Suite</div>
+      <Link href="/" onClick={() => setOpen(false)} className="mb-6 flex flex-col px-2">
+        <div className="text-xs font-bold uppercase tracking-[0.2em] text-accent">STELLCODEX</div>
+        <div className="text-[10px] text-muted-2">Engineering Workflow Suite</div>
       </Link>
 
       {/* Nav items */}
-      <nav className="mt-4 grid gap-1">
-        {ITEMS.map((item) => {
-          const active =
-            pathname === item.href ||
-            (item.href === "/dashboard" && pathname === "/") ||
-            (item.href !== "/" && pathname.startsWith(`${item.href}/`));
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setOpen(false)}
-              className={clsx(
-                "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition",
-                active
-                  ? "bg-slate-900 text-white"
-                  : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
-              )}
-            >
-              <span className="text-base">{item.icon}</span>
-              {item.label}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 space-y-1">
+        {ITEMS.map((item) => (
+          <NavItem key={item.href} {...item} />
+        ))}
 
-        {user.role === "admin" && (
-          <Link
-            href="/admin"
-            onClick={() => setOpen(false)}
-            className={clsx(
-              "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition",
-              pathname === "/admin" || pathname.startsWith("/admin/")
-                ? "bg-slate-900 text-white"
-                : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
-            )}
-          >
-            <span className="text-base">⚙</span>
-            Admin
-          </Link>
+        {user?.role === "admin" && (
+           <NavItem href="/admin" label="Admin Paneli" icon="🔒" />
         )}
       </nav>
 
       {/* Alt: kullanıcı */}
-      <div className="mt-auto pt-4 border-t border-slate-200">
+      <div className="mt-auto border-t border-white/5 pt-4">
         {loading ? (
-          <div className="text-xs text-slate-400 px-2">Yükleniyor...</div>
+          <div className="animate-pulse px-2 text-xs text-muted-2">Yükleniyor...</div>
         ) : isAuthenticated ? (
           <div className="flex items-center justify-between gap-2 px-2">
-            <div className="text-sm font-medium text-slate-700 truncate">{user.name}</div>
+            <div className="flex flex-col overflow-hidden">
+                <span className="truncate text-sm font-medium text-text">{user?.name}</span>
+                <span className="truncate text-xs text-muted-2">{user?.email}</span>
+            </div>
             <button
-              onClick={logout}
-              className="text-xs text-slate-500 hover:text-red-600 transition"
+              onClick={() => logout()}
+              className="rounded p-1 text-muted-2 hover:bg-red-500/10 hover:text-red-500 transition-colors"
+              title="Çıkış Yap"
             >
-              Çıkış
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
             </button>
           </div>
         ) : (
           <Link
             href="/login"
             onClick={() => setOpen(false)}
-            className="block rounded-xl bg-slate-900 px-3 py-2 text-center text-sm font-semibold text-white"
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-accent/20 transition hover:bg-accent/90"
           >
             Giriş Yap
           </Link>
@@ -100,42 +98,31 @@ export function LeftNav() {
       {/* Mobil toggle butonu */}
       <button
         onClick={() => setOpen(true)}
-        className="fixed left-3 top-3 z-40 flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm lg:hidden"
+        className="fixed left-3 top-3 z-50 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-surface shadow-lg text-text lg:hidden"
         aria-label="Menüyü aç"
       >
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <rect y="3" width="18" height="2" rx="1" fill="#374151" />
-          <rect y="8" width="18" height="2" rx="1" fill="#374151" />
-          <rect y="13" width="18" height="2" rx="1" fill="#374151" />
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+           <line x1="3" y1="12" x2="21" y2="12"></line>
+           <line x1="3" y1="6" x2="21" y2="6"></line>
+           <line x1="3" y1="18" x2="21" y2="18"></line>
         </svg>
       </button>
 
-      {/* Mobil overlay */}
+      {/* Mobil Overlay */}
       {open && (
         <div
-          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
           onClick={() => setOpen(false)}
         />
       )}
 
-      {/* Mobil drawer */}
+      {/* Desktop & Mobile Sidebar */}
       <aside
         className={clsx(
-          "fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-xl transition-transform duration-200 lg:hidden",
+          "fixed inset-y-0 left-0 z-50 h-full w-64 transform transition-transform duration-300 lg:relative lg:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <button
-          onClick={() => setOpen(false)}
-          className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
-        >
-          ✕
-        </button>
-        {navContent}
-      </aside>
-
-      {/* Desktop sidebar */}
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 border-r border-slate-200 bg-white lg:flex">
         {navContent}
       </aside>
     </>

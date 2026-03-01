@@ -1,5 +1,24 @@
 @import "tailwindcss";
 
+@theme {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-muted-2: var(--muted-2);
+  --color-icon: var(--icon);
+  --color-accent: var(--accent);
+  --color-accent-weak: var(--accent-weak);
+
+  --shadow-1: var(--sh-1);
+  --shadow-2: var(--sh-2);
+
+  --radius-0: var(--r-0);
+  --radius-1: var(--r-1);
+  --radius-2: var(--r-2);
+}
+
 :root {
   --font-sans: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --fs-0: 13px; --fs-1: 15px; --fs-2: 16px; --fs-3: 20px;
