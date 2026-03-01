@@ -70,7 +70,6 @@ export function LeftNav() {
           <div className="flex items-center justify-between gap-2 px-2">
             <div className="flex flex-col overflow-hidden">
                 <span className="truncate text-sm font-medium text-text">{user?.name}</span>
-                <span className="truncate text-xs text-muted-2">{user?.email}</span>
             </div>
             <button
               onClick={() => logout()}
