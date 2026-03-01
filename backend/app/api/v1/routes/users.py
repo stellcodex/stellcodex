@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.models.user import User
 from app.security.deps import get_current_principal, Principal
 from app.security.jwt import create_user_token
+from app.services.email import send_welcome, send_invite
 
 router = APIRouter(tags=["users"])
 
@@ -71,6 +72,10 @@ def register(data: RegisterIn, db: Session = Depends(get_db)):
     db.refresh(user)
 
     token = create_user_token(str(user.id), user.role)
+    try:
+        send_welcome(user.email)
+    except Exception:
+        pass
     return AuthOut(
         access_token=token,
         user_id=str(user.id),
@@ -124,6 +129,10 @@ def invite_user(
     db.refresh(user)
 
     token = create_user_token(str(user.id), user.role)
+    try:
+        send_invite(user.email, password)
+    except Exception:
+        pass
     return AuthOut(
         access_token=token,
         user_id=str(user.id),
