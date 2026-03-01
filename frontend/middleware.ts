@@ -73,21 +73,19 @@ export async function middleware(req: NextRequest) {
   if (!pathname.startsWith("/admin")) return NextResponse.next();
   if (process.env.STELLCODEX_ENABLE_MOCK_ADMIN === "1") return NextResponse.next();
 
-  const token = req.cookies.get("admin_session")?.value;
+  const token = req.cookies.get("scx_token")?.value;
   if (!token) return notFoundResponse();
 
-  const required = requiredPermFor(pathname);
-  if (!required) return NextResponse.next();
-
   const apiBase = resolveApiBase(req);
-  const meResp = await fetch(`${apiBase}/admin/auth/me`, {
+  const meResp = await fetch(`${apiBase}/me`, {
     headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
   });
 
   if (!meResp.ok) return notFoundResponse();
 
-  const me = (await meResp.json()) as { permissions: string[] };
-  if (!hasPerm(me.permissions, required)) return notFoundResponse();
+  const me = (await meResp.json()) as { role?: string };
+  if (me.role !== "admin") return notFoundResponse();
 
   return NextResponse.next();
 }

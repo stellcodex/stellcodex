@@ -33,6 +33,7 @@ export default function LoginPage() {
         return;
       }
       window.localStorage.setItem("scx_token", token);
+      document.cookie = `scx_token=${token}; path=/; max-age=86400; SameSite=Lax`;
       router.push("/dashboard");
     } catch {
       setError("Sunucuya bağlanılamadı. Lütfen tekrar deneyin.");
