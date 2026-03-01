@@ -94,7 +94,7 @@ function resolveApiBase(req: NextRequest): string {
   const raw = (process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE || "")
     .trim()
     .replace(/\/+$/, "");
-  if (!raw) return `${req.nextUrl.origin}/api/v1`;
+  if (!raw) return "https://api.stellcodex.com/api/v1";
   if (raw.startsWith("/")) return `${req.nextUrl.origin}${raw}`;
   if (raw.endsWith("/api/v1")) return raw;
   return `${raw}/api/v1`;
