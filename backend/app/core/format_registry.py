@@ -174,12 +174,15 @@ def match_content_type(content_type: str, ext: str) -> bool:
         "model/gltf+json": {"gltf"},
         "model/gltf-binary": {"glb"},
         "application/octet-stream": set(allowed_extensions()),
+        "image/vnd.dxf": {"dxf"},
+        "application/dxf": {"dxf"},
+        "application/x-dxf": {"dxf"},
     }
     exact = mapping.get(ctype)
     if exact is not None:
         return ext in exact
     if ctype.startswith("image/"):
-        return ext in {"png", "jpg", "jpeg", "webp", "bmp", "gif", "tif", "tiff", "svg"}
+        return ext in {"png", "jpg", "jpeg", "webp", "bmp", "gif", "tif", "tiff", "svg", "dxf"}
     return True
 
 

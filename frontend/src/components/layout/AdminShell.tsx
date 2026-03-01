@@ -15,6 +15,7 @@ const nav = [
   { href: "/admin/system", label: "Sağlık" },
   { href: "/admin/audit", label: "Denetim" },
   { href: "/admin/ai", label: "AI Önerileri" },
+  { href: "/admin/stell", label: "🤖 Stell" },
 ];
 
 function isActivePath(pathname: string, href: string) {
