@@ -34,7 +34,7 @@ export default function LoginPage() {
       }
       window.localStorage.setItem("scx_token", token);
       document.cookie = `scx_token=${token}; path=/; max-age=86400; SameSite=Lax`;
-      router.push("/dashboard");
+      router.push("/console"); // Redirect to the NEW console
     } catch {
       setError("Sunucuya bağlanılamadı. Lütfen tekrar deneyin.");
     } finally {
@@ -43,32 +43,36 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#f5f3ef] px-4">
+    <main className="flex min-h-screen items-center justify-center bg-[#1a1a1a] px-4 text-gray-100">
       <div className="w-full max-w-md">
-        <div className="mb-6 text-center">
-          <span className="text-2xl font-bold tracking-tight text-[#0c2a2a]">Stellcodex</span>
+        <div className="mb-10 text-center">
+          <span className="text-3xl font-bold tracking-tight text-white">STELL<span className="text-blue-500">CONSOLE</span></span>
         </div>
 
-        <section className="rounded-3xl border border-[#d7d3c8] bg-white/90 p-8 shadow-sm">
-          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#4f6f6b]">Giriş Yap</div>
-          <h1 className="mt-2 text-xl font-semibold text-[#0c2a2a]">Hesabına giriş yap</h1>
+        <section className="rounded-2xl border border-gray-800 bg-[#2d2d2d] p-8 shadow-xl">
+          <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-blue-500 mb-2">Security Portal</div>
+          <h1 className="text-2xl font-semibold text-white">Sign In</h1>
+          <p className="text-gray-400 text-sm mt-1">Access your engineering workspace.</p>
 
-          <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
+          <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-5">
             <div>
-              <label className="mb-1 block text-sm font-medium text-[#2c4b49]">Email</label>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-gray-500">Email Address</label>
               <input
                 type="email"
                 required
                 autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="ornek@sirket.com"
-                className="w-full rounded-xl border border-[#d7d3c8] bg-white px-4 py-2.5 text-sm text-[#1f2937] outline-none focus:border-[#4f6f6b] focus:ring-2 focus:ring-[#4f6f6b]/20"
+                placeholder="engineer@stellcodex.com"
+                className="w-full rounded-lg border border-gray-700 bg-black/30 px-4 py-3 text-sm text-white outline-none focus:border-blue-500 transition-colors"
               />
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium text-[#2c4b49]">Şifre</label>
+              <div className="flex justify-between items-center mb-2">
+                 <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500">Password</label>
+                 <Link href="/forgot" className="text-[10px] text-blue-500 hover:underline uppercase font-bold">Forgot?</Link>
+              </div>
               <input
                 type="password"
                 required
@@ -76,12 +80,12 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full rounded-xl border border-[#d7d3c8] bg-white px-4 py-2.5 text-sm text-[#1f2937] outline-none focus:border-[#4f6f6b] focus:ring-2 focus:ring-[#4f6f6b]/20"
+                className="w-full rounded-lg border border-gray-700 bg-black/30 px-4 py-3 text-sm text-white outline-none focus:border-blue-500 transition-colors"
               />
             </div>
 
             {error && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <div className="rounded-lg border border-red-900/50 bg-red-900/20 px-4 py-3 text-xs text-red-400">
                 {error}
               </div>
             )}
@@ -89,19 +93,15 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="mt-1 w-full rounded-xl bg-[#0c2a2a] py-2.5 text-sm font-semibold text-white transition hover:bg-[#1a3d3d] disabled:opacity-60"
+              className="mt-2 w-full rounded-lg bg-blue-600 py-3 text-sm font-bold text-white shadow-lg shadow-blue-900/20 hover:bg-blue-500 active:scale-[0.98] transition-all disabled:opacity-50"
             >
-              {loading ? "Giriş yapılıyor..." : "Giriş Yap"}
+              {loading ? "AUTHENTICATING..." : "SIGN IN"}
             </button>
           </form>
 
-          <div className="mt-5 flex items-center justify-between text-xs text-[#6b7280]">
-            <Link href="/register" className="hover:text-[#0c2a2a] hover:underline">
-              Hesap oluştur
-            </Link>
-            <Link href="/dashboard" className="hover:text-[#0c2a2a] hover:underline">
-              Misafir olarak devam et
-            </Link>
+          <div className="mt-8 flex items-center justify-center text-xs text-gray-500 border-t border-gray-800 pt-6">
+            <span>New here?</span>
+            <Link href="/register" className="ml-2 text-blue-500 hover:underline font-bold">Create Account</Link>
           </div>
         </section>
       </div>
