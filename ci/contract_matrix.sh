@@ -2,8 +2,10 @@
 set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://127.0.0.1:8000}"
+BACKEND_BASE_URL="${BACKEND_BASE_URL:-http://127.0.0.1:8000}"
 AUTH_TOKEN="${AUTH_TOKEN:-}"
 SAMPLE_FILE="${SAMPLE_FILE:-}"
+RESOLVED_BASE_URL_FILE="${RESOLVED_BASE_URL_FILE:-/tmp/stellcodex_smoke_base_url}"
 TARGETS=(docs/contracts schemas)
 
 FORBIDDEN_REGEX='storage_key|s3://|r2://|bucket|revision_id'
@@ -43,7 +45,16 @@ RG_EXCLUDES=(
 
 echo "== Contract Matrix =="
 echo "[1] Smoke"
-bash scripts/smoke_test.sh
+rm -f "$RESOLVED_BASE_URL_FILE"
+BASE_URL="$BASE_URL" \
+BACKEND_BASE_URL="$BACKEND_BASE_URL" \
+RESOLVED_BASE_URL_FILE="$RESOLVED_BASE_URL_FILE" \
+  bash scripts/smoke_test.sh
+
+RUNTIME_BASE_URL="$BASE_URL"
+if [ -s "$RESOLVED_BASE_URL_FILE" ]; then
+  RUNTIME_BASE_URL="$(head -n 1 "$RESOLVED_BASE_URL_FILE")"
+fi
 
 echo "[2] Forbidden token scan (docs/contracts + schemas only)"
 SCAN_TARGETS=()
@@ -75,12 +86,16 @@ fi
 echo "PASS: scoped public leak scan"
 
 echo "[3] Runtime openapi reachable"
-curl -fsS --max-time 5 "$BASE_URL/openapi.json" >/dev/null
+openapi_code="$(curl -sS -o /dev/null -w "%{http_code}" --max-time 5 "$RUNTIME_BASE_URL/openapi.json" || true)"
+if [ "$openapi_code" != "200" ]; then
+  echo "FAIL: openapi endpoint returned HTTP $openapi_code at $RUNTIME_BASE_URL/openapi.json"
+  exit 1
+fi
 echo "PASS: openapi reachable"
 
 echo "[4] Release gate (optional upload chain)"
 if [ -n "$SAMPLE_FILE" ]; then
-  bash scripts/release_gate.sh
+  BASE_URL="$RUNTIME_BASE_URL" bash scripts/release_gate.sh
 else
   echo "SKIP: provide SAMPLE_FILE to run upload/decision validation"
 fi

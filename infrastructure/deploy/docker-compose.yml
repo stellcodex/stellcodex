@@ -86,6 +86,10 @@ services:
       PUBLIC_S3_BASE_URL: https://stellcodex.com
       WORKDIR: /var/stellcodex/work
       ADMIN_TOKEN: a876a9832ea0ae153fa7872d3573c22fee9874cc4c5df8c1a7af065f5e1f7169
+      STELL_WEBHOOK_BASE_URL: http://172.27.0.1:4500
+      STELL_WEBHOOK_BRIDGE_HOST: ""
+      STELL_INTERNAL_CHAT_TRANSPORT: http_first
+      STELL_HTTP_BRIDGE_TIMEOUT: "3"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8000/api/v1/health || exit 1"]
       interval: 5s
