@@ -6,7 +6,7 @@ Detaylı bağlam: `/root/workspace/PROJECT.md`
 
 - **Backend:** FastAPI → `backend/app/`
 - **Frontend:** Next.js → `frontend/src/app/`
-- **Docker:** `docker/docker-compose.yml`
+- **Docker:** `infrastructure/deploy/docker-compose.yml`
 
 ## V7 Constitution (Bağlayıcı)
 
@@ -19,6 +19,7 @@ Detaylı bağlam: `/root/workspace/PROJECT.md`
 ## Sık Kullanılan
 
 ```bash
+cd /var/www/stellcodex/infrastructure/deploy && ./compose-safe.sh ps
 docker logs stellcodex-backend --tail=50
 docker logs stellcodex-worker --tail=50
 docker exec stellcodex-postgres psql -U stellcodex -d stellcodex -c "\dt"

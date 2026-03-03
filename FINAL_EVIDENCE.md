@@ -62,8 +62,8 @@ Before route kanıtı: `evidence/network_traces_before.md`, `evidence/console_er
 ### Build / servis
 1. `cd /var/www/stellcodex/frontend && npm run build`
 2. `pm2 restart stellcodex-next && pm2 list`
-3. `cd /var/www/stellcodex/infrastructure/deploy && docker-compose up -d --build minio backend worker`
-4. `docker-compose ps`
+3. `cd /var/www/stellcodex/infrastructure/deploy && ./compose-safe.sh up -d --build minio backend worker`
+4. `./compose-safe.sh ps`
 5. `nginx -t`
 
 ### Route doğrulama
