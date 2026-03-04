@@ -123,8 +123,8 @@ export const platformApps: PlatformApp[] = [
     name: "Social Manager",
     shortName: "SOC",
     category: "Social",
-    description: "Baglanti kayitlari ve kanal hazirliklarini tutar.",
-    summary: "OAuth olmadan draft ve account register MVP.",
+    description: "Baglanti taslaklarini tutar; canli OAuth baglantisi blocker anahtarlari gelene kadar gizlidir.",
+    summary: "Draft account registry, blocker gorunumu ve gizli post aksiyonlari.",
     route: "/app/socialmanager",
   },
   {
@@ -132,8 +132,8 @@ export const platformApps: PlatformApp[] = [
     name: "Feed Publisher",
     shortName: "FED",
     category: "Social",
-    description: "Icerik taslagi ve scheduler kayitlarini saklar.",
-    summary: "Draft ve yayin takvimi MVP.",
+    description: "Icerik taslagi ve scheduler kayitlarini saklar; publish aksiyonu blocker anahtarlari gelene kadar gizlidir.",
+    summary: "Draft scheduler MVP, publish hidden until OAuth creds exist.",
     route: "/app/feedpublisher",
   },
   {

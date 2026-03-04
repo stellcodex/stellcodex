@@ -1,12 +1,18 @@
-name: stellcodex-v7-ci
+name: stellcodex-ci
 
 on:
   push:
   pull_request:
 
 jobs:
-  v7-gates:
+  backend-contracts:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      DATABASE_URL: postgresql://stellcodex:stellcodex@localhost:5432/stellcodex
+      JWT_SECRET: stellcodex-ci-jwt-secret-1234567890
+      PYTHONPATH: backend
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,24 +25,43 @@ jobs:
       - name: Install validator deps
         run: |
           python -m pip install --upgrade pip
-          pip install jsonschema
+          pip install -r backend/requirements.txt pytest jsonschema
 
       - name: Repo leak scan (forbidden tokens)
         run: |
           bash scripts/leak_scan_repo.sh .
 
-      - name: Start stack (template)
+      - name: Backend unit and contract tests
         run: |
-          echo "NOTE: This workflow is a skeleton. Wire it to your images/build."
-          echo "If you have docker images, you can run docker compose here."
-          # docker compose -f docker/docker-compose.prod.yml --env-file docker/.env.example up -d
+          python -m pytest backend/tests -q
 
-      - name: Smoke test (template)
-        run: |
-          echo "NOTE: Enable after wiring stack startup."
-          # BASE_URL=http://localhost:8000 bash scripts/smoke_test.sh
+  frontend-release-gate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:8000
+      NEXT_PUBLIC_API_BASE: http://127.0.0.1:8000
+      STELLCODEX_ENABLE_MOCK_ADMIN: "1"
+      DATABASE_URL: postgresql://stellcodex:stellcodex@localhost:5432/stellcodex
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Release gate (template)
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend deps
         run: |
-          echo "NOTE: Enable after wiring stack + auth flow + SAMPLE_FILE."
-          # BASE_URL=http://localhost:8000 SAMPLE_FILE=./samples/sample.step bash scripts/release_gate.sh
+          npm ci --no-audit --no-fund
+
+      - name: Frontend release gate
+        run: |
+          bash scripts/release-gate.sh

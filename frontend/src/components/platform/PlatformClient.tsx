@@ -69,6 +69,7 @@ type WorkspaceData = {
 type RunnerTab = "Overview" | "Inputs" | "Run" | "Progress" | "Output";
 
 const RUNNER_TABS: RunnerTab[] = ["Overview", "Inputs", "Run", "Progress", "Output"];
+const SOCIAL_OAUTH_BLOCKERS = ["META_APP_ID", "META_APP_SECRET"] as const;
 
 type MoldFamilyConfig = {
   label: string;
@@ -224,6 +225,30 @@ function EmptyPanel({ title, description }: { title: string; description: string
     <div className="rounded-[24px] border border-dashed border-white/12 bg-black/10 p-6 text-sm text-white/55">
       <div className="font-medium text-white/80">{title}</div>
       <div className="mt-1">{description}</div>
+    </div>
+  );
+}
+
+function BlockerPanel({
+  title,
+  description,
+  blockerKeys,
+}: {
+  title: string;
+  description: string;
+  blockerKeys: readonly string[];
+}) {
+  return (
+    <div className="rounded-[24px] border border-amber-500/20 bg-amber-500/8 p-5 text-sm text-amber-50">
+      <div className="font-semibold text-amber-100">{title}</div>
+      <div className="mt-2 text-amber-50/80">{description}</div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {blockerKeys.map((key) => (
+          <span key={key} className="rounded-full border border-amber-400/20 bg-black/20 px-3 py-1 text-xs tracking-[0.14em] text-amber-100/90">
+            {key}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -794,6 +819,13 @@ function AdminScreen() {
             </div>
           </div>
         </SectionCard>
+        <SectionCard title="Known Blockers" description="Only variable names are exposed; secrets are never rendered in the UI.">
+          <BlockerPanel
+            title="Social provider credentials missing"
+            description="Social connect and publishing remain intentionally hidden until these environment keys exist on the deployed stack."
+            blockerKeys={SOCIAL_OAUTH_BLOCKERS}
+          />
+        </SectionCard>
       </div>
     </PlatformLayout>
   );
@@ -1326,7 +1358,23 @@ function AppRunnerScreen({ appId }: { appId: string }) {
       );
     }
 
-    if (["accounting", "socialmanager", "feedpublisher", "webbuilder", "cms"].includes(app.id)) {
+    if (["socialmanager", "feedpublisher"].includes(app.id)) {
+      return (
+        <>
+          <BlockerPanel
+            title="OAuth provider blocker"
+            description="Posting and live account connection stay hidden until provider credentials exist in the deployment environment."
+            blockerKeys={SOCIAL_OAUTH_BLOCKERS}
+          />
+          <EmptyPanel
+            title="Inputs are saved through record workspaces"
+            description="Use the Output tab to store draft accounts and scheduler records without exposing non-working OAuth actions."
+          />
+        </>
+      );
+    }
+
+    if (["accounting", "webbuilder", "cms"].includes(app.id)) {
       return (
         <EmptyPanel
           title="Inputs are saved through record workspaces"
@@ -1373,7 +1421,19 @@ function AppRunnerScreen({ appId }: { appId: string }) {
   }
 
   function renderRun() {
-    if (["accounting", "socialmanager", "feedpublisher", "webbuilder", "cms"].includes(app.id)) {
+    if (["socialmanager", "feedpublisher"].includes(app.id)) {
+      return (
+        <SectionCard title="Run" description="Blocked actions stay hidden until the provider credentials are available.">
+          <BlockerPanel
+            title="Publish actions hidden"
+            description="This MVP only stores account and feed drafts. Real OAuth connect and posting remain disabled because the required Meta application secrets are not configured."
+            blockerKeys={SOCIAL_OAUTH_BLOCKERS}
+          />
+        </SectionCard>
+      );
+    }
+
+    if (["accounting", "webbuilder", "cms"].includes(app.id)) {
       return (
         <SectionCard title="Run" description="These MVP apps persist records directly; no worker execution is required.">
           <div className="text-sm text-white/55">Use the Output tab to create or update persisted records.</div>
@@ -1447,40 +1507,54 @@ function AppRunnerScreen({ appId }: { appId: string }) {
 
     if (app.id === "socialmanager") {
       return (
-        <RecordWorkspace
-          projectId={selectedProject.id}
-          kind="social-account"
-          title="Social Accounts"
-          description="Connection metadata is storable; posting remains hidden without provider OAuth implementation."
-          initialPayload={{ title: "Instagram account", network: "instagram", accountLabel: "", connectionState: "draft", owner: "", notes: "" }}
-          fields={[
-            { key: "title", label: "Title", type: "text", placeholder: "Instagram account" },
-            { key: "network", label: "Network", type: "select", options: ["instagram", "linkedin", "x", "facebook"] },
-            { key: "accountLabel", label: "Account Label", type: "text", placeholder: "@stellcodex" },
-            { key: "connectionState", label: "Connection State", type: "select", options: ["draft", "pending", "connected"] },
-            { key: "owner", label: "Owner", type: "text", placeholder: "Growth team" },
-            { key: "notes", label: "Notes", type: "textarea", placeholder: "Posting hidden until OAuth is wired." },
-          ]}
-        />
+        <div className="space-y-4">
+          <BlockerPanel
+            title="Social OAuth blocked"
+            description="Secure provider connect cannot be completed on this deployment because the Meta OAuth credentials are missing. Posting and live connection actions remain hidden."
+            blockerKeys={SOCIAL_OAUTH_BLOCKERS}
+          />
+          <RecordWorkspace
+            projectId={selectedProject.id}
+            kind="social-account"
+            title="Social Accounts"
+            description="Draft account ownership and onboarding notes persist per project without claiming a live connection."
+            initialPayload={{ title: "Instagram account", network: "instagram", accountLabel: "", connectionState: "draft", owner: "", notes: "" }}
+            fields={[
+              { key: "title", label: "Title", type: "text", placeholder: "Instagram account" },
+              { key: "network", label: "Network", type: "select", options: ["instagram", "linkedin", "x", "facebook"] },
+              { key: "accountLabel", label: "Account Label", type: "text", placeholder: "@stellcodex" },
+              { key: "connectionState", label: "Connection State", type: "select", options: ["draft", "blocked"] },
+              { key: "owner", label: "Owner", type: "text", placeholder: "Growth team" },
+              { key: "notes", label: "Notes", type: "textarea", placeholder: "Blocked until META_APP_ID and META_APP_SECRET exist." },
+            ]}
+          />
+        </div>
       );
     }
 
     if (app.id === "feedpublisher") {
       return (
-        <RecordWorkspace
-          projectId={selectedProject.id}
-          kind="feed-draft"
-          title="Feed Publisher"
-          description="Scheduler drafts and captions persist per project."
-          initialPayload={{ title: "Launch post", channel: "instagram", publishAt: "", caption: "", assetFileId: selectedFileId }}
-          fields={[
-            { key: "title", label: "Title", type: "text", placeholder: "Launch post" },
-            { key: "channel", label: "Channel", type: "select", options: ["instagram", "linkedin", "x", "facebook"] },
-            { key: "publishAt", label: "Publish At", type: "date" },
-            { key: "assetFileId", label: "Asset File Id", type: "text", placeholder: "Optional file_id" },
-            { key: "caption", label: "Caption", type: "textarea", placeholder: "Write the post draft" },
-          ]}
-        />
+        <div className="space-y-4">
+          <BlockerPanel
+            title="Publishing blocked"
+            description="Feed drafts are stored, but publish and scheduler execution remain hidden until the live Meta OAuth credentials are configured."
+            blockerKeys={SOCIAL_OAUTH_BLOCKERS}
+          />
+          <RecordWorkspace
+            projectId={selectedProject.id}
+            kind="feed-draft"
+            title="Feed Publisher"
+            description="Scheduler drafts and captions persist per project without exposing a non-working publish action."
+            initialPayload={{ title: "Launch post", channel: "instagram", publishAt: "", caption: "", assetFileId: selectedFileId }}
+            fields={[
+              { key: "title", label: "Title", type: "text", placeholder: "Launch post" },
+              { key: "channel", label: "Channel", type: "select", options: ["instagram", "linkedin", "x", "facebook"] },
+              { key: "publishAt", label: "Publish At", type: "date" },
+              { key: "assetFileId", label: "Asset File Id", type: "text", placeholder: "Optional file_id" },
+              { key: "caption", label: "Caption", type: "textarea", placeholder: "Write the post draft" },
+            ]}
+          />
+        </div>
       );
     }
 

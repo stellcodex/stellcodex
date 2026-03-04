@@ -9,6 +9,7 @@ backups/
 
 frontend/.next/
 frontend/.next_broken_*/
+frontend/public/build_id.txt
 *.bak
 *.bak.*
 # local agents / plugins
