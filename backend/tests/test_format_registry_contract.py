@@ -18,6 +18,7 @@ class FormatRegistryContractTests(unittest.TestCase):
         self.assertEqual(get_rule_by_ext("glb").mode, "visual_only")
         self.assertEqual(get_rule_by_ext("dxf").mode, "2d_only")
         self.assertEqual(get_rule_by_ext("docx").kind, "doc")
+        self.assertEqual(get_rule_by_ext("html").kind, "doc")
 
     def test_rejected_formats_include_reason(self) -> None:
         groups = grouped_payload()
@@ -35,6 +36,7 @@ class FormatRegistryContractTests(unittest.TestCase):
         sniffed = infer_mime_from_bytes(b"%PDF-1.4\n", "sample.pdf")
         self.assertEqual(sniffed, "application/pdf")
         self.assertTrue(match_content_type("application/pdf", "pdf"))
+        self.assertTrue(match_content_type("text/html", "html"))
         self.assertFalse(match_content_type("image/png", "step"))
 
 

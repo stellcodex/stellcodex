@@ -55,6 +55,8 @@ _RULES: tuple[FormatRule, ...] = (
     FormatRule("rtf", "doc", "doc", "pipeline_doc", True, "RTF"),
     FormatRule("txt", "doc", "doc", "pipeline_doc", True, "TXT"),
     FormatRule("csv", "doc", "doc", "pipeline_doc", True, "CSV"),
+    FormatRule("html", "doc", "doc", "pipeline_doc", True, "HTML"),
+    FormatRule("htm", "doc", "doc", "pipeline_doc", True, "HTML"),
     # Images
     FormatRule("png", "image", "image", "pipeline_image", True, "PNG"),
     FormatRule("jpg", "image", "image", "pipeline_image", True, "JPG"),
@@ -171,6 +173,7 @@ def match_content_type(content_type: str, ext: str) -> bool:
         "image/tiff": {"tif", "tiff"},
         "text/plain": {"txt", "csv"},
         "text/csv": {"csv"},
+        "text/html": {"html", "htm"},
         "model/gltf+json": {"gltf"},
         "model/gltf-binary": {"glb"},
         "application/octet-stream": set(allowed_extensions()),
@@ -222,6 +225,9 @@ def infer_mime_from_bytes(head: bytes, filename: str) -> str:
         return "model/off"
     if b"<?xml" in data[:256] and b"<svg" in data[:2048]:
         return "image/svg+xml"
+    html_head = data[:4096].lower()
+    if b"<!doctype html" in html_head or b"<html" in html_head:
+        return "text/html"
     if b'"asset"' in data[:4096] and b'"version"' in data[:4096]:
         return "model/gltf+json"
     return "application/octet-stream"

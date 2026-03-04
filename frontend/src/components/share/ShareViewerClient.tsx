@@ -70,6 +70,16 @@ export function ShareViewerClient({ fileId, shareToken, policy }: ShareViewerCli
     if (state.policy.contentType === "application/pdf") {
       return <iframe title="Shared PDF" src={state.policy.originalUrl} className="h-full w-full rounded-xl" />;
     }
+    if (state.policy.contentType === "text/html") {
+      return (
+        <iframe
+          title="Shared HTML"
+          src={state.policy.originalUrl}
+          sandbox="allow-same-origin"
+          className="h-full w-full rounded-xl bg-white"
+        />
+      );
+    }
     if (state.policy.contentType.startsWith("image/")) {
       return <img src={state.policy.originalUrl} alt={state.policy.originalFilename} className="h-full w-full object-contain" />;
     }
@@ -107,4 +117,3 @@ export function ShareViewerClient({ fileId, shareToken, policy }: ShareViewerCli
     </main>
   );
 }
-

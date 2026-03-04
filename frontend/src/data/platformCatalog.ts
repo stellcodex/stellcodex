@@ -141,8 +141,8 @@ export const platformApps: PlatformApp[] = [
     name: "Web Builder",
     shortName: "WEB",
     category: "Web",
-    description: "Landing ve sayfa taslaklarini kaydeder.",
-    summary: "Gercek save/edit akisi.",
+    description: "Landing ve sayfa taslaklarini kaydeder ve gercek /s token publish linki uretebilir.",
+    summary: "Gercek save/edit ve publish-through-share akisi.",
     route: "/app/webbuilder",
   },
   {
@@ -150,8 +150,8 @@ export const platformApps: PlatformApp[] = [
     name: "CMS",
     shortName: "CMS",
     category: "Web",
-    description: "Slug, baslik ve govde icerigi icin basit icerik yonetimi saglar.",
-    summary: "Taslak tabanli CMS MVP.",
+    description: "Slug, baslik ve govde icerigi icin basit icerik yonetimi saglar ve gercek public share linki uretebilir.",
+    summary: "Taslak + publish-through-share CMS MVP.",
     route: "/app/cms",
   },
   {

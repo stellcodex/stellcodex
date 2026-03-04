@@ -68,6 +68,13 @@ type WorkspaceData = {
 
 type RunnerTab = "Overview" | "Inputs" | "Run" | "Progress" | "Output";
 
+type PublishDocument = {
+  filename: string;
+  title: string;
+  html: string;
+  expiresInSeconds?: number;
+};
+
 const RUNNER_TABS: RunnerTab[] = ["Overview", "Inputs", "Run", "Progress", "Output"];
 const SOCIAL_OAUTH_BLOCKERS = ["META_APP_ID", "META_APP_SECRET"] as const;
 
@@ -129,6 +136,111 @@ function titleCase(input: string) {
     .replace(/\s+/g, " ")
     .trim()
     .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function escapeHtml(value: unknown) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function slugify(value: unknown, fallback: string) {
+  const normalized = String(value ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || fallback;
+}
+
+function richTextToHtml(value: unknown) {
+  return escapeHtml(value).replace(/\n/g, "<br />");
+}
+
+function buildPublishedPage(kind: "webbuilder" | "cms", payload: Record<string, unknown>): PublishDocument {
+  const title = String(payload.title || (kind === "webbuilder" ? "Landing Page" : "Knowledge Article")).trim() || "Published Page";
+  const slug = slugify(payload.slug || title, kind === "webbuilder" ? "landing-page" : "knowledge-article");
+  const headline = String(payload.headline || title).trim() || title;
+  const ctaLabel = String(payload.ctaLabel || "Contact sales").trim() || "Contact sales";
+  const body = richTextToHtml(payload.body || "");
+  const status = escapeHtml(payload.status || "draft");
+  const publishedAt = new Date().toLocaleString("tr-TR");
+
+  if (kind === "webbuilder") {
+    return {
+      filename: `${slug}.html`,
+      title,
+      expiresInSeconds: 30 * 24 * 60 * 60,
+      html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${escapeHtml(title)}</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Segoe UI", sans-serif; background: radial-gradient(circle at top, #132238, #050816 72%); color: #f8fafc; }
+    .shell { min-height: 100vh; display: grid; place-items: center; padding: 48px 20px; }
+    .card { width: min(920px, 100%); border: 1px solid rgba(148,163,184,0.22); border-radius: 28px; background: rgba(15,23,42,0.88); padding: 48px; box-shadow: 0 32px 80px rgba(2,6,23,0.45); }
+    .eyebrow { text-transform: uppercase; letter-spacing: 0.18em; color: #7dd3fc; font-size: 12px; }
+    h1 { margin: 18px 0 0; font-size: clamp(40px, 7vw, 72px); line-height: 0.95; }
+    .body { margin-top: 20px; max-width: 700px; color: #cbd5e1; font-size: 18px; line-height: 1.7; }
+    .cta { display: inline-block; margin-top: 28px; padding: 14px 22px; border-radius: 999px; background: #f8fafc; color: #020617; text-decoration: none; font-weight: 700; }
+    .meta { margin-top: 28px; color: #94a3b8; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="card">
+      <div class="eyebrow">STELLCODEX Web Builder Publish</div>
+      <h1>${escapeHtml(headline)}</h1>
+      <div class="body">${body || "Published from the STELLCODEX Web Builder runner."}</div>
+      <a class="cta" href="#">${escapeHtml(ctaLabel)}</a>
+      <div class="meta">Slug: ${escapeHtml(slug)} | Published: ${escapeHtml(publishedAt)}</div>
+    </section>
+  </main>
+</body>
+</html>`,
+    };
+  }
+
+  return {
+    filename: `${slug}.html`,
+    title,
+    expiresInSeconds: 30 * 24 * 60 * 60,
+    html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${escapeHtml(title)}</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Georgia, "Times New Roman", serif; background: #f7f7f5; color: #111827; }
+    .shell { min-height: 100vh; padding: 48px 20px 80px; }
+    article { width: min(860px, 100%); margin: 0 auto; background: #fff; border-radius: 28px; border: 1px solid #e5e7eb; padding: 56px 48px; box-shadow: 0 24px 60px rgba(15,23,42,0.08); }
+    .eyebrow { text-transform: uppercase; letter-spacing: 0.16em; color: #0f766e; font: 600 12px/1.4 "Segoe UI", sans-serif; }
+    h1 { margin: 18px 0 0; font-size: clamp(34px, 6vw, 56px); line-height: 1.02; }
+    .meta { margin-top: 18px; color: #6b7280; font: 500 14px/1.6 "Segoe UI", sans-serif; }
+    .body { margin-top: 28px; font-size: 20px; line-height: 1.8; color: #1f2937; }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <article>
+      <div class="eyebrow">STELLCODEX CMS Publish</div>
+      <h1>${escapeHtml(title)}</h1>
+      <div class="meta">Slug: ${escapeHtml(slug)} | Status: ${status} | Published: ${escapeHtml(publishedAt)}</div>
+      <div class="body">${body || "Published from the STELLCODEX CMS runner."}</div>
+    </article>
+  </main>
+</body>
+</html>`,
+  };
 }
 
 function summarizeResult(value?: string | null) {
@@ -897,6 +1009,9 @@ function RecordWorkspace({
   description,
   fields,
   initialPayload,
+  publishBuilder,
+  publishDescription,
+  onArtifactCreated,
 }: {
   projectId: string;
   kind: string;
@@ -904,12 +1019,18 @@ function RecordWorkspace({
   description: string;
   fields: RecordField[];
   initialPayload: Record<string, unknown>;
+  publishBuilder?: (payload: Record<string, unknown>) => PublishDocument | null;
+  publishDescription?: string;
+  onArtifactCreated?: () => Promise<void>;
 }) {
   const [payload, setPayload] = useState<Record<string, unknown>>(initialPayload);
   const [records, setRecords] = useState<PersistedRecord[]>([]);
   const [busy, setBusy] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
+  const [publishedUrl, setPublishedUrl] = useState<string | null>(null);
+  const [publishedFileId, setPublishedFileId] = useState<string | null>(null);
 
   async function refresh() {
     try {
@@ -986,6 +1107,39 @@ function RecordWorkspace({
     setError(null);
   }
 
+  async function waitForFileReady(fileId: string) {
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const state = await getFileStatus(fileId);
+      if (state.state === "succeeded" || state.state === "ready") return;
+      if (state.state === "failed") {
+        throw new Error("Published page processing failed.");
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 750));
+    }
+    throw new Error("Published page did not become ready in time.");
+  }
+
+  async function onPublish() {
+    if (!publishBuilder) return;
+    setPublishing(true);
+    setError(null);
+    try {
+      const document = publishBuilder(payload);
+      if (!document) throw new Error("Publish content could not be generated.");
+      const artifact = new File([document.html], document.filename, { type: "text/html" });
+      const uploaded = await uploadDirect(artifact, projectId);
+      await waitForFileReady(uploaded.file_id);
+      const share = await createShare(uploaded.file_id, document.expiresInSeconds);
+      await onArtifactCreated?.();
+      setPublishedFileId(uploaded.file_id);
+      setPublishedUrl(`${window.location.origin}/s/${share.token}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Publish failed.");
+    } finally {
+      setPublishing(false);
+    }
+  }
+
   return (
     <SectionCard title={title} description={description}>
       <div className="grid gap-4 lg:grid-cols-2">
@@ -1033,6 +1187,11 @@ function RecordWorkspace({
             <button type="button" onClick={() => void onSave()} disabled={busy} className="rounded-2xl bg-white px-5 py-3 text-sm font-medium text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60">
               {busy ? "Saving..." : editingRecordId ? "Update record" : "Save record"}
             </button>
+            {publishBuilder ? (
+              <button type="button" onClick={() => void onPublish()} disabled={busy || publishing} className="rounded-2xl border border-emerald-500/20 px-5 py-3 text-sm font-medium text-emerald-100 hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-60">
+                {publishing ? "Publishing..." : "Publish live page"}
+              </button>
+            ) : null}
             <button type="button" onClick={onReset} disabled={busy} className="rounded-2xl border border-white/10 px-5 py-3 text-sm font-medium text-white/80 hover:bg-white/8 disabled:cursor-not-allowed disabled:opacity-60">
               New record
             </button>
@@ -1042,7 +1201,17 @@ function RecordWorkspace({
               </button>
             ) : null}
           </div>
+          {publishDescription ? <div className="text-xs text-white/40">{publishDescription}</div> : null}
           {error ? <div className="text-sm text-red-200">{error}</div> : null}
+          {publishedUrl ? (
+            <div className="rounded-[20px] border border-emerald-500/20 bg-emerald-500/8 p-4 text-sm text-emerald-100">
+              <div className="font-semibold">Published link is live</div>
+              <a href={publishedUrl} target="_blank" rel="noreferrer" className="mt-2 block break-all text-emerald-50 underline underline-offset-4">
+                {publishedUrl}
+              </a>
+              {publishedFileId ? <div className="mt-2 text-xs text-emerald-100/80">artifact file_id: {publishedFileId}</div> : null}
+            </div>
+          ) : null}
         </div>
         <div className="space-y-3">
           {records.map((record) => (
@@ -1436,7 +1605,10 @@ function AppRunnerScreen({ appId }: { appId: string }) {
     if (["accounting", "webbuilder", "cms"].includes(app.id)) {
       return (
         <SectionCard title="Run" description="These MVP apps persist records directly; no worker execution is required.">
-          <div className="text-sm text-white/55">Use the Output tab to create or update persisted records.</div>
+          <div className="text-sm text-white/55">
+            Use the Output tab to create or update persisted records.
+            {["webbuilder", "cms"].includes(app.id) ? " Web apps can also publish a real /s token link from the current draft." : ""}
+          </div>
         </SectionCard>
       );
     }
@@ -1564,8 +1736,11 @@ function AppRunnerScreen({ appId }: { appId: string }) {
           projectId={selectedProject.id}
           kind="web-page"
           title="Web Builder"
-          description="Create and save page drafts with real persistence."
+          description="Create, save and publish page drafts with real persistence."
           initialPayload={{ title: "Landing page", slug: "landing-page", headline: "", body: "", ctaLabel: "Contact sales" }}
+          publishBuilder={(payload) => buildPublishedPage("webbuilder", payload)}
+          publishDescription="Publish uploads a real HTML artifact to the selected project and exposes it through a live /s token."
+          onArtifactCreated={workspace.refresh}
           fields={[
             { key: "title", label: "Title", type: "text", placeholder: "Landing page" },
             { key: "slug", label: "Slug", type: "text", placeholder: "landing-page" },
@@ -1583,8 +1758,11 @@ function AppRunnerScreen({ appId }: { appId: string }) {
           projectId={selectedProject.id}
           kind="cms-entry"
           title="CMS Entries"
-          description="Slug, title and body content persist as editable drafts."
+          description="Slug, title and body content persist as editable drafts and can be published through a live share link."
           initialPayload={{ title: "Knowledge article", slug: "knowledge-article", body: "", status: "draft" }}
+          publishBuilder={(payload) => buildPublishedPage("cms", payload)}
+          publishDescription="Publish uploads a real HTML article artifact to the selected project and exposes it through a live /s token."
+          onArtifactCreated={workspace.refresh}
           fields={[
             { key: "title", label: "Title", type: "text", placeholder: "Knowledge article" },
             { key: "slug", label: "Slug", type: "text", placeholder: "knowledge-article" },
