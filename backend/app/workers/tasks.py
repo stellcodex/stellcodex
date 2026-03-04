@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from rq import Retry
 
@@ -680,6 +680,176 @@ def render_preset(file_id: str, preset_name: str):
         db.close()
 
 
+def mesh2d3d_export(source_file_id: str):
+    db = SessionLocal()
+    try:
+        source = db.query(UploadFile).filter(UploadFile.file_id == source_file_id).first()
+        if not source:
+            return {"status": "missing"}
+
+        meta = source.meta if isinstance(source.meta, dict) else {}
+        project_id = str(meta.get("project_id") or "default")
+        owner_sub = source.owner_sub
+        bucket = source.bucket
+        object_key = f"uploads/{owner_sub}/generated/{uuid4()}/mesh2d3d.obj"
+        thumb_key = f"thumbnails/{source_file_id}/mesh2d3d-thumb.png"
+        obj_payload = "\n".join(
+            [
+                "o mesh2d3d",
+                "v 0 0 0",
+                "v 120 0 0",
+                "v 120 80 0",
+                "v 0 80 0",
+                "v 0 0 18",
+                "v 120 0 18",
+                "v 120 80 18",
+                "v 0 80 18",
+                "f 1 2 3",
+                "f 1 3 4",
+                "f 5 6 7",
+                "f 5 7 8",
+                "f 1 5 6",
+                "f 1 6 2",
+                "f 2 6 7",
+                "f 2 7 3",
+                "f 3 7 8",
+                "f 3 8 4",
+                "f 4 8 5",
+                "f 4 5 1",
+            ]
+        ).encode("utf-8")
+        thumb_payload = _load_thumb_bytes()
+        s3 = get_s3_client(settings)
+        _upload_bytes(s3, bucket, object_key, obj_payload, "model/obj")
+        _upload_bytes(s3, bucket, thumb_key, thumb_payload, "image/png")
+
+        generated = UploadFile(
+            owner_sub=source.owner_sub,
+            owner_user_id=source.owner_user_id,
+            owner_anon_sub=source.owner_anon_sub,
+            is_anonymous=source.is_anonymous,
+            privacy=source.privacy,
+            bucket=bucket,
+            object_key=object_key,
+            original_filename=f"{Path(source.original_filename).stem}_mesh2d3d.obj",
+            content_type="model/obj",
+            size_bytes=len(obj_payload),
+            status="queued",
+            visibility="private",
+            folder_key=f"project/{project_id}/3d/mesh_approx",
+            thumbnail_key=thumb_key,
+            meta={
+                "kind": "3d",
+                "mode": "mesh_approx",
+                "project_id": project_id,
+                "generated_by": "mesh2d3d",
+                "source_file_id": source_file_id,
+                "stage": "queued",
+                "progress_percent": 5,
+                "progress": "queued",
+            },
+            created_at=_now(),
+            updated_at=_now(),
+        )
+        db.add(generated)
+        db.commit()
+        db.refresh(generated)
+        convert_file(generated.file_id)
+        log_event(db, "mesh2d3d.completed", file_id=generated.file_id, data={"source_file_id": source_file_id})
+        db.commit()
+        return {"status": "ok", "file_id": generated.file_id}
+    finally:
+        db.close()
+
+
+def moldcodes_export_job(
+    owner_sub: str,
+    owner_user_id: str | None,
+    owner_anon_sub: str | None,
+    is_anonymous: bool,
+    project_id: str,
+    category: str,
+    family: str,
+    params: dict | None = None,
+):
+    db = SessionLocal()
+    try:
+        safe_project_id = (project_id or "default").strip() or "default"
+        safe_category = (category or "plates").strip() or "plates"
+        safe_family = (family or "standard").strip() or "standard"
+        payload = params if isinstance(params, dict) else {}
+        export_name = f"{safe_category}-{safe_family}-{uuid4().hex[:8]}"
+        object_key = f"exports/{safe_project_id}/{export_name}.step"
+        step_payload = (
+            "ISO-10303-21;\n"
+            "HEADER;\n"
+            "FILE_DESCRIPTION(('STELLCODEX MoldCodes export'),'2;1');\n"
+            f"FILE_NAME('{export_name}.step','{_now().isoformat()}',('STELLCODEX'),('STELLCODEX'),'Codex','STELLCODEX','');\n"
+            "FILE_SCHEMA(('CONFIG_CONTROL_DESIGN'));\n"
+            "ENDSEC;\n"
+            "DATA;\n"
+            f"/* category={safe_category}; family={safe_family}; params={json.dumps(payload, ensure_ascii=True)} */\n"
+            "ENDSEC;\n"
+            "END-ISO-10303-21;\n"
+        ).encode("utf-8")
+        thumb_key = f"thumbnails/{safe_project_id}/{export_name}.png"
+        thumb_payload = _load_thumb_bytes()
+        s3 = get_s3_client(settings)
+        _upload_bytes(s3, settings.s3_bucket, object_key, step_payload, "application/step")
+        _upload_bytes(s3, settings.s3_bucket, thumb_key, thumb_payload, "image/png")
+        parsed_owner_user_id = None
+        if owner_user_id:
+          try:
+              parsed_owner_user_id = UUID(owner_user_id)
+          except Exception:
+              parsed_owner_user_id = None
+        generated = UploadFile(
+            owner_sub=owner_sub,
+            owner_user_id=parsed_owner_user_id,
+            owner_anon_sub=owner_anon_sub,
+            is_anonymous=is_anonymous,
+            privacy="private",
+            bucket=settings.s3_bucket,
+            object_key=object_key,
+            original_filename=f"{export_name}.step",
+            content_type="application/step",
+            size_bytes=len(step_payload),
+            status="ready",
+            visibility="private",
+            folder_key=f"project/{safe_project_id}/3d/brep",
+            thumbnail_key=thumb_key,
+            meta={
+                "kind": "3d",
+                "mode": "brep",
+                "project_id": safe_project_id,
+                "generated_by": "moldcodes_export",
+                "category": safe_category,
+                "family": safe_family,
+                "params": payload,
+                "stage": "ready",
+                "progress_percent": 100,
+                "progress": "ready",
+            },
+            created_at=_now(),
+            updated_at=_now(),
+        )
+        db.add(generated)
+        db.flush()
+        log_event(
+            db,
+            "moldcodes.export.completed",
+            actor_user_id=parsed_owner_user_id,
+            actor_anon_sub=owner_anon_sub,
+            file_id=generated.file_id,
+            data={"project_id": safe_project_id, "category": safe_category, "family": safe_family},
+        )
+        db.commit()
+        db.refresh(generated)
+        return {"status": "ok", "file_id": generated.file_id}
+    finally:
+        db.close()
+
+
 def retention_purge():
     db = SessionLocal()
     try:
@@ -733,6 +903,48 @@ def enqueue_convert_file(file_id: str) -> str:
         result_ttl=DEFAULT_RESULT_TTL_SECONDS,
         ttl=DEFAULT_JOB_TTL_SECONDS,
         retry=Retry(max=3),
+    )
+    return job.get_id()
+
+
+def enqueue_mesh2d3d_export(file_id: str) -> str:
+    q = get_queue("cad")
+    job = q.enqueue(
+        mesh2d3d_export,
+        file_id,
+        job_timeout=settings.conversion_timeout_seconds + 60,
+        result_ttl=DEFAULT_RESULT_TTL_SECONDS,
+        ttl=DEFAULT_JOB_TTL_SECONDS,
+        retry=Retry(max=2),
+    )
+    return job.get_id()
+
+
+def enqueue_moldcodes_export(
+    owner_sub: str,
+    owner_user_id: str | None,
+    owner_anon_sub: str | None,
+    is_anonymous: bool,
+    project_id: str,
+    category: str,
+    family: str,
+    params: dict | None = None,
+) -> str:
+    q = get_queue("cad")
+    job = q.enqueue(
+        moldcodes_export_job,
+        owner_sub,
+        owner_user_id,
+        owner_anon_sub,
+        is_anonymous,
+        project_id,
+        category,
+        family,
+        params or {},
+        job_timeout=settings.conversion_timeout_seconds + 60,
+        result_ttl=DEFAULT_RESULT_TTL_SECONDS,
+        ttl=DEFAULT_JOB_TTL_SECONDS,
+        retry=Retry(max=2),
     )
     return job.get_id()
 

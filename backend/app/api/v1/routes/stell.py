@@ -197,6 +197,11 @@ def stell_chat(
     raise HTTPException(status_code=503, detail=f"Stell servisi yanit vermiyor: {detail}")
 
 
+@router.get("/health")
+def stell_health():
+    return {"status": "ok", "service": "stell"}
+
+
 @router.get("/context")
 def stell_context(
     principal: Principal = Depends(require_role("admin")),

@@ -1,0 +1,10 @@
+import { PlatformClient } from "@/components/platform/PlatformClient";
+
+export default async function ProjectPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  return <PlatformClient view="project" projectId={id} />;
+}

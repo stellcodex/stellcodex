@@ -14,6 +14,7 @@ from app.api.v1.routes.ownership import router as ownership_router
 from app.api.v1.routes.product import router as product_router
 from app.api.v1.routes.share import router as share_router
 from app.api.v1.routes.library import router as library_router
+from app.api.v1.routes.platform_contract import router as platform_contract_router
 from app.api.v1.routes.quotes import router as quotes_router
 from app.api.v1.routes.stell import router as stell_router
 
@@ -24,6 +25,7 @@ api_router.include_router(auth_router, tags=["auth"])
 api_router.include_router(users_router, tags=["users"])
 api_router.include_router(bootstrap_router, tags=["bootstrap"])
 api_router.include_router(me_router, tags=["me"])
+api_router.include_router(platform_contract_router, tags=["platform-contract"])
 api_router.include_router(files_router, prefix="/files", tags=["files"])
 api_router.include_router(explorer_router, tags=["explorer"])
 api_router.include_router(jobs_router, prefix="/jobs", tags=["jobs"])

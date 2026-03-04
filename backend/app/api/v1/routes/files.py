@@ -11,7 +11,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from botocore.exceptions import ClientError
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File as FastAPIFile, Response
+from fastapi import APIRouter, HTTPException, Depends, Form, UploadFile, File as FastAPIFile, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -741,6 +741,8 @@ def initiate_upload(
 @router.post("/upload", response_model=FileOut)
 async def direct_upload(
     upload: UploadFile = FastAPIFile(...),
+    project_id: str | None = Form(default=None),
+    projectId: str | None = Form(default=None),
     db: Session = Depends(get_db),
     principal: Principal = Depends(_require_principal),
 ):
@@ -768,10 +770,11 @@ async def direct_upload(
     bucket = settings.s3_bucket
     key = _safe_object_key(owner_sub)
     kind, mode = _derive_kind_mode(upload.filename)
+    effective_project_id = (project_id or projectId or "default").strip() or "default"
     file_meta = {
         "kind": kind,
         "mode": mode,
-        "project_id": "default",
+        "project_id": effective_project_id,
         "sniffed_content_type": sniffed,
         "virus_scan_status": "queued",
     }
@@ -810,7 +813,7 @@ async def direct_upload(
         from app.workers.tasks import enqueue_convert_file
         job_id = enqueue_convert_file(f.file_id)
         if job_id:
-            f.meta = {**(f.meta or {}), "job_id": job_id}
+            f.meta = {**(f.meta or {}), "job_id": job_id, "project_id": effective_project_id}
             db.add(f)
             db.commit()
         print(
@@ -830,7 +833,7 @@ async def direct_upload(
         actor_user_id=principal.user_id,
         actor_anon_sub=principal.owner_sub,
         file_id=f.file_id,
-        data={"filename": f.original_filename, "size_bytes": int(f.size_bytes)},
+        data={"filename": f.original_filename, "size_bytes": int(f.size_bytes), "project_id": effective_project_id},
     )
     db.commit()
 

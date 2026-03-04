@@ -164,6 +164,34 @@ export type UploadDirectResult = {
   file_id: string;
 };
 
+export type ProjectSummary = {
+  id: string;
+  name: string;
+  file_count: number;
+  updated_at?: string | null;
+  files?: Array<{
+    file_id: string;
+    original_filename: string;
+    status: string;
+    kind?: string | null;
+    mode?: string | null;
+    created_at?: string | null;
+  }>;
+};
+
+export type JobStatus = {
+  job_id: string;
+  status: string;
+  enqueued_at?: string | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+  origin?: string | null;
+  timeout?: number | null;
+  meta?: Record<string, unknown> | null;
+  result?: string | null;
+  error?: string | null;
+};
+
 export class ApiHttpError extends Error {
   status: number;
 
@@ -492,9 +520,12 @@ export async function getFileStatus(fileId: string) {
   await throwHttpError(res, "Durum yüklenemedi.");
 }
 
-export async function uploadDirect(file: File): Promise<UploadDirectResult> {
+export async function uploadDirect(file: File, projectId?: string): Promise<UploadDirectResult> {
   const form = new FormData();
   form.append("upload", file);
+  if (projectId) {
+    form.append("projectId", projectId);
+  }
   const abortController = new AbortController();
   const timeoutId = setTimeout(() => abortController.abort(), UPLOAD_TIMEOUT_MS);
   let res: Response;
@@ -644,5 +675,80 @@ export async function getLibraryFeed(params?: { q?: string; sort?: "new" | "old"
 export async function getLibraryItem(slug: string): Promise<LibraryItem> {
   const res = await apiFetch(`${API_BASE}/library/item/${encodeURIComponent(slug)}`);
   if (!res.ok) await throwHttpError(res, "Library item alınamadı.");
+  return res.json();
+}
+
+export async function logoutMe() {
+  const res = await authFetch(`${API_BASE}/auth/logout`, { method: "POST" });
+  if (!res.ok) await throwHttpError(res, "Oturum kapatilamadi.");
+  return res.json();
+}
+
+export async function listProjects(): Promise<ProjectSummary[]> {
+  const res = await authFetch(`${API_BASE}/projects`);
+  if (!res.ok) await throwHttpError(res, "Projeler yuklenemedi.");
+  const data = await res.json().catch(() => []);
+  return Array.isArray(data) ? (data as ProjectSummary[]) : [];
+}
+
+export async function createProject(name: string): Promise<ProjectSummary> {
+  const res = await authFetch(`${API_BASE}/projects`, {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) await throwHttpError(res, "Proje olusturulamadi.");
+  return res.json();
+}
+
+export async function getProject(projectId: string): Promise<ProjectSummary> {
+  const res = await authFetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}`);
+  if (!res.ok) await throwHttpError(res, "Proje yuklenemedi.");
+  return res.json();
+}
+
+export async function downloadFileText(fileId: string): Promise<string> {
+  const res = await authFetch(`${API_BASE}/files/${encodeURIComponent(fileId)}/download`);
+  if (!res.ok) await throwHttpError(res, "Dosya indirilemedi.");
+  return res.text();
+}
+
+export async function enqueueConvert(fileId: string): Promise<JobStatus> {
+  const res = await authFetch(`${API_BASE}/jobs/convert`, {
+    method: "POST",
+    body: JSON.stringify({ file_id: fileId }),
+  });
+  if (!res.ok) await throwHttpError(res, "Convert isi baslatilamadi.");
+  const data = await res.json();
+  return { job_id: data.job_id, status: "queued" };
+}
+
+export async function enqueueMesh2d3d(fileId: string): Promise<JobStatus> {
+  const res = await authFetch(`${API_BASE}/jobs/mesh2d3d`, {
+    method: "POST",
+    body: JSON.stringify({ file_id: fileId }),
+  });
+  if (!res.ok) await throwHttpError(res, "Mesh2D3D isi baslatilamadi.");
+  const data = await res.json();
+  return { job_id: data.job_id, status: "queued" };
+}
+
+export async function enqueueMoldcodesExport(input: {
+  project_id: string;
+  category: string;
+  family: string;
+  params: Record<string, unknown>;
+}): Promise<JobStatus> {
+  const res = await authFetch(`${API_BASE}/jobs/moldcodes_export`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) await throwHttpError(res, "MoldCodes export isi baslatilamadi.");
+  const data = await res.json();
+  return { job_id: data.job_id, status: "queued" };
+}
+
+export async function getJob(jobId: string): Promise<JobStatus> {
+  const res = await authFetch(`${API_BASE}/jobs/${encodeURIComponent(jobId)}`);
+  if (!res.ok) await throwHttpError(res, "Job durumu yuklenemedi.");
   return res.json();
 }

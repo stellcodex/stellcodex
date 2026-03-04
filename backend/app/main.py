@@ -17,6 +17,11 @@ def root_health():
     return api_health()
 
 
+@app.get("/stell/health", include_in_schema=False)
+def root_stell_health():
+    return {"status": "ok", "service": "stell"}
+
+
 @app.get("/s/{token}")
 def resolve_share_short(token: str, db: Session = Depends(get_db)):
     return resolve_share_token(token=token, db=db)
