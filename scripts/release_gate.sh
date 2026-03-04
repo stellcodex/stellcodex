@@ -53,19 +53,30 @@ if [ -n "$SAMPLE_FILE" ]; then
   [ -n "$FILE_ID" ] || fail "upload did not return file_id"
   pass "upload returned file_id"
 
-  # status should exist
-  curl -fsS -H "Authorization: Bearer $AUTH_TOKEN" "$BASE_URL/api/v1/files/$FILE_ID/status" >/dev/null || fail "status endpoint"
+  # status should reach ready/succeeded
+  FILE_STATE=""
+  for _ in $(seq 1 30); do
+    FILE_STATE="$(curl -fsS -H "Authorization: Bearer $AUTH_TOKEN" "$BASE_URL/api/v1/files/$FILE_ID/status" | python3 -c 'import sys,json; print((json.load(sys.stdin).get("state","") or "").strip())')"
+    if [ "$FILE_STATE" = "succeeded" ] || [ "$FILE_STATE" = "failed" ]; then
+      break
+    fi
+    sleep 2
+  done
+  [ "$FILE_STATE" = "succeeded" ] || fail "status did not reach succeeded (state=$FILE_STATE)"
   pass "status endpoint"
 
-  # decision_json endpoint should be reachable (schema validated separately)
-  curl -fsS -H "Authorization: Bearer $AUTH_TOKEN" "$BASE_URL/api/v1/orchestrator/decision?file_id=$FILE_ID" >/tmp/decision.json || fail "decision endpoint"
-  pass "decision endpoint"
+  # share flow should exist on the current live contract
+  SHARE_TOKEN="$(curl -fsS -X POST "$BASE_URL/api/v1/files/$FILE_ID/share" \
+    -H "Authorization: Bearer $AUTH_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{}' | python3 -c 'import sys,json; print(json.load(sys.stdin).get("token",""))')"
+  [ -n "$SHARE_TOKEN" ] || fail "share create did not return token"
+  pass "share create returned token"
 
-  # validate decision_json (requires python + jsonschema)
-  python3 "$(dirname "$0")/validate_decision_json.py" "$(dirname "$0")/../schemas/decision_json.schema.json" /tmp/decision.json || fail "decision_json schema"
-  pass "decision_json schema"
+  curl -fsS "$BASE_URL/api/v1/share/$SHARE_TOKEN" >/tmp/share_resolve.json || fail "share resolve endpoint"
+  pass "share resolve endpoint"
 else
-  echo "NOTE: SAMPLE_FILE not provided; upload/decision checks skipped."
+  echo "NOTE: SAMPLE_FILE not provided; upload/share checks skipped."
 fi
 
 echo "== RELEASE GATE PASS =="

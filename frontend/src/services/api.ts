@@ -86,6 +86,7 @@ export type AssemblyTreeNode = {
   name?: string;
   display_name?: string;
   label?: string;
+  occurrence_id?: string;
   kind?: string;
   selectable?: boolean;
   children?: AssemblyTreeNode[];
@@ -116,8 +117,25 @@ export type DxfManifest = {
 };
 
 export type ShareResult = {
+  id?: string;
   token: string;
   expires_at: string;
+  permission?: string;
+};
+
+export type ShareResolveResult = {
+  file_id: string;
+  status: string;
+  permission: string;
+  can_view: boolean;
+  can_download: boolean;
+  expires_at: string;
+  content_type: string;
+  original_filename: string;
+  size_bytes: number;
+  gltf_url?: string | null;
+  original_url?: string | null;
+  expires_in_seconds?: number;
 };
 
 export type LibraryItem = {
@@ -343,6 +361,12 @@ async function throwHttpError(res: Response, fallback: string): Promise<never> {
   if (res.status === 404) {
     throw new ApiHttpError(404, "Bulunamadı.");
   }
+  if (res.status === 410) {
+    throw new ApiHttpError(410, "Paylaşım süresi doldu.");
+  }
+  if (res.status === 429) {
+    throw new ApiHttpError(429, "Çok fazla istek gönderildi.");
+  }
   throw new ApiHttpError(res.status, readErrorDetail(err, `${fallback} (${res.status})`));
 }
 
@@ -519,12 +543,9 @@ export async function createShare(fileId: string, expiresInSeconds?: number): Pr
   return res.json();
 }
 
-export async function resolveShare(token: string) {
-  const res = await apiFetch(`/shares/${token}`);
-  if (!res.ok) {
-    const err = await res.json().catch(() => null);
-    throw new Error(err?.detail || "Paylaşım geçersiz.");
-  }
+export async function resolveShare(token: string): Promise<ShareResolveResult> {
+  const res = await apiFetch(`${API_BASE}/shares/${encodeURIComponent(token)}`);
+  if (!res.ok) await throwHttpError(res, "Paylaşım geçersiz.");
   return res.json();
 }
 

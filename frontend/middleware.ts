@@ -49,6 +49,28 @@ function expiredShareResponse() {
   });
 }
 
+function deniedShareResponse() {
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"/><title>403 Share Unavailable</title><meta name="viewport" content="width=device-width,initial-scale=1"/></head><body style="margin:0;background:#0b1220;color:#e2e8f0;font-family:Segoe UI,Arial,sans-serif;display:grid;min-height:100vh;place-items:center"><div style="width:min(92vw,520px);border:1px solid #334155;border-radius:16px;background:#0f172a;padding:20px"><h1 style="margin:0 0 8px 0;font-size:20px;color:#fda4af">403 Share Unavailable</h1><p style="margin:0 0 12px 0;font-size:14px">Bu paylaşım bağlantısı iptal edilmiş veya erişime kapatılmış.</p><a href=\"/\" style=\"display:inline-block;font-size:12px;padding:8px 12px;border-radius:10px;border:1px solid #334155;color:#fff;text-decoration:none;background:#111827\">Ana Sayfaya Dön</a></div></body></html>`;
+  return new NextResponse(html, {
+    status: 403,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+    },
+  });
+}
+
+function shareRateLimitedResponse() {
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"/><title>429 Too Many Requests</title><meta name="viewport" content="width=device-width,initial-scale=1"/></head><body style="margin:0;background:#0b1220;color:#e2e8f0;font-family:Segoe UI,Arial,sans-serif;display:grid;min-height:100vh;place-items:center"><div style="width:min(92vw,520px);border:1px solid #334155;border-radius:16px;background:#0f172a;padding:20px"><h1 style="margin:0 0 8px 0;font-size:20px;color:#fcd34d">429 Too Many Requests</h1><p style="margin:0 0 12px 0;font-size:14px">Bu paylaşım bağlantısı için çok fazla istek gönderildi. Biraz sonra tekrar deneyin.</p><a href=\"/\" style=\"display:inline-block;font-size:12px;padding:8px 12px;border-radius:10px;border:1px solid #334155;color:#fff;text-decoration:none;background:#111827\">Ana Sayfaya Dön</a></div></body></html>`;
+  return new NextResponse(html, {
+    status: 429,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+    },
+  });
+}
+
 async function enforceShareStatus(req: NextRequest): Promise<NextResponse | null> {
   const { pathname } = req.nextUrl;
   if (!pathname.startsWith("/s/")) return null;
@@ -58,9 +80,15 @@ async function enforceShareStatus(req: NextRequest): Promise<NextResponse | null
   const apiBase = resolveApiBase(req);
   const res = await fetch(`${apiBase}/share/resolve?share_token=${encodeURIComponent(token)}`, {
     cache: "no-store",
+    headers: {
+      "x-forwarded-for": req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "",
+      "user-agent": req.headers.get("user-agent") || "stellcodex-next-middleware",
+    },
   });
 
   if (res.status === 410) return expiredShareResponse();
+  if (res.status === 403) return deniedShareResponse();
+  if (res.status === 429) return shareRateLimitedResponse();
   if (res.status === 401 || res.status === 404) return notFoundResponse();
   return null;
 }

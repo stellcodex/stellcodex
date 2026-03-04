@@ -50,6 +50,7 @@ function shortName(name: string) {
 
 type AssemblyRow = {
   key: string;
+  occurrenceId: string;
   label: string;
   depth: number;
   nodeIds: string[];
@@ -70,6 +71,14 @@ function readAssemblyLabel(node: AssemblyTreeNode, fallback: string): string {
     if (typeof candidate === "string" && candidate.trim().length > 0) return candidate;
   }
   return fallback;
+}
+
+function readOccurrenceId(node: AssemblyTreeNode): string | null {
+  const candidates = [node.occurrence_id, node.id];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim().length > 0) return candidate.trim();
+  }
+  return null;
 }
 
 function normalizeAssemblyTree(value: unknown): AssemblyTreeNode[] {
@@ -151,8 +160,9 @@ function flattenAssemblyTree(nodes: AssemblyTreeNode[], lookup: ViewerLookup, de
   const rows: AssemblyRow[] = [];
   nodes.forEach((node, index) => {
     const label = readAssemblyLabel(node, `Item ${index + 1}`);
+    const occurrenceId = readOccurrenceId(node);
     const rawKey =
-      (typeof node.id === "string" && node.id) ||
+      occurrenceId ||
       (typeof node.name === "string" && node.name) ||
       (typeof node.display_name === "string" && node.display_name) ||
       (typeof node.label === "string" && node.label) ||
@@ -164,7 +174,7 @@ function flattenAssemblyTree(nodes: AssemblyTreeNode[], lookup: ViewerLookup, de
       ...resolveAssemblyNodeIds(node, lookup, label),
       ...childRows.flatMap((row) => row.nodeIds),
     ]);
-    rows.push({ key, label, depth, nodeIds });
+    rows.push({ key: occurrenceId || key, occurrenceId: occurrenceId || key, label, depth, nodeIds });
     rows.push(...childRows);
   });
   return rows;
@@ -512,7 +522,7 @@ export default function ViewPage() {
     [meshViewerNodes, viewerNodes]
   );
   const explodePartGroups = useMemo<ViewerPartGroup[]>(
-    () => mappedAssemblyRows.map((row) => ({ partId: row.key, nodeIds: row.nodeIds })),
+    () => mappedAssemblyRows.map((row) => ({ partId: row.occurrenceId, nodeIds: row.nodeIds })),
     [mappedAssemblyRows]
   );
   const explodeAvailable = explodePartGroups.length > 0;

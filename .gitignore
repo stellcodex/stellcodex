@@ -5,6 +5,7 @@ __pycache__/
 evidence_*.txt
 evidence/
 FINAL_EVIDENCE_REPORT.md
+backups/
 
 frontend/.next/
 frontend/.next_broken_*/
