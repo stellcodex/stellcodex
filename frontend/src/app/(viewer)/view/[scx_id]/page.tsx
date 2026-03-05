@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { SecondaryButton } from "@/components/ui/SecondaryButton";
 import { Card } from "@/components/ui/Card";
@@ -38,9 +38,10 @@ type StatusInfo = {
 
 function is2dFile(file: FileDetail) {
   const lower = file.original_filename.toLowerCase();
+  if (["2d", "doc", "image", "archive"].includes((file.kind || "").toLowerCase())) return true;
   if (file.content_type === "application/pdf") return true;
   if (file.content_type.startsWith("image/")) return true;
-  return lower.endsWith(".dxf");
+  return lower.endsWith(".dxf") || lower.endsWith(".dwg") || lower.endsWith(".svg");
 }
 
 function shortName(name: string) {
@@ -209,7 +210,6 @@ function classifyViewerError(error: unknown): ViewerError {
 }
 
 export default function ViewPage() {
-  const router = useRouter();
   const params = useParams();
   const fileId = typeof params.scx_id === "string" ? params.scx_id : "";
   const [file, setFile] = useState<FileDetail | null>(null);
@@ -356,7 +356,8 @@ export default function ViewPage() {
         setProcessingSince(null);
         setProcessingElapsedMs(0);
         if (is2dFile(f)) {
-          setContentType(f.content_type);
+          const resolvedContentType = (f.original_url || "").endsWith("/pdf") ? "application/pdf" : f.content_type;
+          setContentType(resolvedContentType);
           if (f.original_filename.toLowerCase().endsWith(".dxf")) {
             lastResolvedUrlRef.current = null;
             setBlobUrl(null);
@@ -773,7 +774,7 @@ export default function ViewPage() {
         <EmptyState
           title="Dosya bulunamadı"
           description="Dosya bulunamadı. Yeni yükleme yapın."
-          action={<SecondaryButton href="/dashboard">Panele git</SecondaryButton>}
+          action={<SecondaryButton href="/">Workspace'e git</SecondaryButton>}
         />
       );
     }
@@ -785,7 +786,7 @@ export default function ViewPage() {
           action={
             <div className="flex flex-wrap items-center gap-2">
               <SecondaryButton onClick={() => setRetryTick((t) => t + 1)}>Tekrar dene</SecondaryButton>
-              <PrimaryButton href="/dashboard">Panele git</PrimaryButton>
+              <PrimaryButton href="/">Workspace'e git</PrimaryButton>
             </div>
           }
         />
@@ -821,9 +822,8 @@ export default function ViewPage() {
               {statusInfo?.stage ? ` · aşama: ${statusInfo.stage}` : ""}
             </span>
             <div className="flex flex-wrap items-center gap-2">
-              <SecondaryButton href="/dashboard">Durumu gör</SecondaryButton>
+              <SecondaryButton href="/">Workspace'e don</SecondaryButton>
               <SecondaryButton onClick={() => setRetryTick((t) => t + 1)}>Yeniden dene</SecondaryButton>
-              <SecondaryButton onClick={() => router.push(`/view/${fileId}`)}>Viewer’a git</SecondaryButton>
             </div>
             {processingTimedOut ? (
               <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-amber-700">
@@ -920,7 +920,6 @@ export default function ViewPage() {
     handleMeasure,
     handleScreenshotReady,
     mappedAssemblyRows,
-    router,
   ]);
 
   const panelContent = (
@@ -1107,7 +1106,7 @@ export default function ViewPage() {
           <Card className="p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <SecondaryButton href="/dashboard">Geri</SecondaryButton>
+                <SecondaryButton href="/">Workspace'e don</SecondaryButton>
                 <div style={tokens.typography.body} className="max-w-[40vw] truncate text-[#6b7280] sm:max-w-none">
                   {file ? shortName(file.original_filename) : "Görüntüleyici"}
                 </div>
@@ -1133,7 +1132,6 @@ export default function ViewPage() {
                 </button>
                 <button type="button" className="rounded border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={handleScreenshot}>Export PNG</button>
                 <button type="button" className="rounded border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={handleDownloadScx}>Download</button>
-                <button type="button" className="rounded border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={() => router.push("/dashboard/settings")}>Settings</button>
                 <button type="button" className="rounded border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={toggleFullscreen}>Full</button>
                 <button type="button" className="rounded border border-[#d1d5db] bg-white px-2 py-1 text-xs lg:hidden" onClick={() => setRightDrawerOpen(true)}>Panel</button>
                 <button type="button" className="rounded border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={() => setPanelCollapsed((v) => !v)}>

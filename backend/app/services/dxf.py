@@ -44,9 +44,14 @@ class Bounds:
 
 def _layer_color_hex(aci: int) -> str:
     r, g, b = aci2rgb(aci)
-    # ACI 7 is white/black depending viewer bg. We force a visible dark line color.
-    if (r, g, b) == (255, 255, 255):
-        return "#111827"
+    # Black / near-black source geometry also disappears on dark canvases.
+    if max(r, g, b) <= 28:
+        return "#9fb4ff"
+    if max(r, g, b) <= 48 and min(r, g, b) <= 24:
+        return "#87a0ff"
+    # White / near-white source geometry disappears on a dark CAD canvas.
+    if max(r, g, b) >= 245 and min(r, g, b) >= 230:
+        return "#e7ecff"
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
@@ -56,7 +61,7 @@ def _color_for_entity(entity, layer_colors: dict[str, str]) -> str:
     except Exception:
         color = 256
     if color in (0, 256):  # BYBLOCK or BYLAYER
-        return layer_colors.get(entity.dxf.layer, "#0f172a")
+        return layer_colors.get(entity.dxf.layer, "#dbe4ff")
     return _layer_color_hex(color)
 
 
@@ -358,4 +363,3 @@ def entity_to_svg(entity, layer_colors: dict[str, str], stroke_width: float = 1.
             return None
 
     return None
-

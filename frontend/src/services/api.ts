@@ -192,6 +192,45 @@ export type JobStatus = {
   error?: string | null;
 };
 
+export type StellKnowledgeResult = {
+  title: string;
+  url: string;
+  snippet: string;
+  source: string;
+};
+
+export type StellAgentDescriptor = {
+  agent_id: string;
+  name: string;
+  description: string;
+  capabilities: string[];
+};
+
+export type StellAgentRunResult = {
+  agent_id: string;
+  status: string;
+  summary: string;
+  findings: string[];
+  data: Record<string, unknown>;
+  generated_at: string;
+};
+
+export type StellAnalysisResult = {
+  file_id: string;
+  filename: string;
+  content_type: string;
+  status: string;
+  kind: string;
+  mode: string;
+  geometry: Record<string, unknown>;
+  assembly: Record<string, unknown>;
+  manufacturing: Record<string, unknown>;
+  features: Record<string, unknown>;
+  recommendations: string[];
+  web_context: StellKnowledgeResult[];
+  generated_at: string;
+};
+
 export class ApiHttpError extends Error {
   status: number;
 
@@ -751,4 +790,61 @@ export async function getJob(jobId: string): Promise<JobStatus> {
   const res = await authFetch(`${API_BASE}/jobs/${encodeURIComponent(jobId)}`);
   if (!res.ok) await throwHttpError(res, "Job durumu yuklenemedi.");
   return res.json();
+}
+
+export async function getStellAnalysis(fileId: string, options?: { includeWebContext?: boolean; webQuery?: string }): Promise<StellAnalysisResult> {
+  const params = new URLSearchParams();
+  if (options?.includeWebContext) params.set("include_web_context", "1");
+  if (options?.webQuery) params.set("web_query", options.webQuery);
+  const suffix = params.toString();
+  const res = await authFetch(`${API_BASE}/stell-ai/analysis/${encodeURIComponent(fileId)}${suffix ? `?${suffix}` : ""}`);
+  if (!res.ok) await throwHttpError(res, "STELL-AI analiz sonucu alinamadi.");
+  return res.json();
+}
+
+export async function listStellAgents(): Promise<StellAgentDescriptor[]> {
+  const res = await authFetch(`${API_BASE}/stell-ai/agents`);
+  if (!res.ok) await throwHttpError(res, "Agent listesi alinamadi.");
+  const data = await res.json().catch(() => null);
+  if (!data || typeof data !== "object" || !Array.isArray((data as { items?: unknown }).items)) return [];
+  return (data as { items: StellAgentDescriptor[] }).items;
+}
+
+export async function runStellAgent(input: {
+  agent_id: string;
+  file_id?: string;
+  prompt?: string;
+  include_web_context?: boolean;
+  web_query?: string;
+}): Promise<StellAgentRunResult> {
+  const res = await authFetch(`${API_BASE}/stell-ai/agents/run`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) await throwHttpError(res, "Agent calistirilamadi.");
+  return res.json();
+}
+
+export async function orchestrateStellAgents(input: {
+  tasks: Array<{ agent_id: string; file_id?: string; prompt?: string }>;
+  include_web_context?: boolean;
+  web_query?: string;
+}): Promise<{ status: string; runs: StellAgentRunResult[]; summary: string; generated_at: string }> {
+  const res = await authFetch(`${API_BASE}/stell-ai/agents/orchestrate`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) await throwHttpError(res, "Agent orkestrasyonu baslatilamadi.");
+  return res.json();
+}
+
+export async function searchStellKnowledge(query: string, maxResults = 5): Promise<StellKnowledgeResult[]> {
+  const res = await authFetch(`${API_BASE}/stell-ai/knowledge/search`, {
+    method: "POST",
+    body: JSON.stringify({ query, max_results: maxResults }),
+  });
+  if (!res.ok) await throwHttpError(res, "Web knowledge aramasi basarisiz.");
+  const data = await res.json().catch(() => null);
+  if (!data || typeof data !== "object" || !Array.isArray((data as { results?: unknown }).results)) return [];
+  return (data as { results: StellKnowledgeResult[] }).results;
 }

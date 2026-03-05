@@ -1,4 +1,4 @@
-import { PlatformClient } from "@/components/platform/PlatformClient";
+import { WorkspaceRedirect } from "@/components/workspace/WorkspaceRedirect";
 
 export default async function ProjectPage({
   params,
@@ -6,5 +6,5 @@ export default async function ProjectPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  return <PlatformClient view="project" projectId={id} />;
+  return <WorkspaceRedirect suffix={`/projects/${id}`} />;
 }

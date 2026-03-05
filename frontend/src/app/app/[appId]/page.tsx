@@ -1,4 +1,4 @@
-import { PlatformClient } from "@/components/platform/PlatformClient";
+import { WorkspaceRedirect } from "@/components/workspace/WorkspaceRedirect";
 
 export default async function AppRunnerPage({
   params,
@@ -6,5 +6,5 @@ export default async function AppRunnerPage({
   params: Promise<{ appId: string }>;
 }) {
   const { appId } = await params;
-  return <PlatformClient view="app" appId={appId} />;
+  return <WorkspaceRedirect suffix={`/app/${appId}`} preserveSearch />;
 }

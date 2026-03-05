@@ -17,6 +17,7 @@ from app.api.v1.routes.library import router as library_router
 from app.api.v1.routes.platform_contract import router as platform_contract_router
 from app.api.v1.routes.quotes import router as quotes_router
 from app.api.v1.routes.stell import router as stell_router
+from app.api.v1.routes.stell_ai import router as stell_ai_router
 
 api_router = APIRouter()
 api_router.include_router(health_router, tags=["health"])
@@ -36,3 +37,4 @@ api_router.include_router(library_router, tags=["library"])
 api_router.include_router(quotes_router, prefix="/quotes", tags=["quotes"])
 api_router.include_router(admin_router, tags=["admin"])
 api_router.include_router(stell_router, tags=["stell"])
+api_router.include_router(stell_ai_router, tags=["stell-ai"])

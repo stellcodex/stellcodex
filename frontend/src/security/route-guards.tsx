@@ -2,9 +2,10 @@
 
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { ErrorState } from "@/components/ui/StateBlocks";
+import { useUser } from "@/context/UserContext";
+import { ErrorState, LoadingState } from "@/components/ui/StateBlocks";
 import { BLOCKING_PERMISSION, ROUTE_PERMISSION_MAP } from "./route-permissions";
-import { getSessionPermissions, hasPermission } from "./permissions";
+import { getPermissionsForRole, getSessionPermissions, hasPermission } from "./permissions";
 
 function resolveRequiredPermission(pathname: string): string | null {
   let best: { route: string; perm: string } | null = null;
@@ -26,6 +27,7 @@ export function RouteGuard({
   fallback?: ReactNode;
 }) {
   const pathname = usePathname() || "/";
+  const { user, isAuthenticated, loading } = useUser();
   const required = resolveRequiredPermission(pathname);
 
   if (!required) return <>{children}</>;
@@ -41,7 +43,19 @@ export function RouteGuard({
     );
   }
 
-  const perms = getSessionPermissions();
+  const eagerPerms = getSessionPermissions();
+  const perms = eagerPerms.length > 0 ? eagerPerms : getPermissionsForRole(isAuthenticated ? user.role : null);
+
+  if (loading && perms.length === 0) {
+    return (
+      fallback ?? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <LoadingState lines={3} />
+        </div>
+      )
+    );
+  }
+
   if (!hasPermission(perms, required)) {
     return (
       fallback ?? (

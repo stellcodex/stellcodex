@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@/context/UserContext";
-import { getPlatformApp, getVisiblePlatformApps, platformApps, PlatformAppId } from "@/data/platformCatalog";
+import { getPlatformApp, getVisiblePlatformApps } from "@/data/platformCatalog";
 import { loadLatestRecords, saveRecordFile, type PersistedRecord } from "@/lib/fileRecords";
 import {
   appendSessionMessage,
-  loadActiveSessionId,
+  ensureSession,
   loadSessions,
   newSession,
   saveActiveSessionId,
@@ -16,6 +16,16 @@ import {
   upsertSession,
   type WorkspaceSession,
 } from "@/lib/sessionStore";
+import {
+  buildStandaloneViewerPath,
+  buildWorkspaceAppPath,
+  buildWorkspaceOpenPath,
+  buildWorkspacePath,
+  buildWorkspaceProjectPath,
+  classifyWorkspaceApp,
+  extractWorkspaceId,
+  resolveWorkspaceHref,
+} from "@/lib/workspace-routing";
 import {
   ApiHttpError,
   createProject,
@@ -29,14 +39,23 @@ import {
   getJob,
   getLibraryFeed,
   getProject,
+  getStellAnalysis,
   listFiles,
   listProjects,
+  listStellAgents,
+  orchestrateStellAgents,
   publishLibraryItem,
+  runStellAgent,
+  searchStellKnowledge,
   type FileDetail,
   type FileItem,
   type JobStatus,
   type LibraryItem,
   type ProjectSummary,
+  type StellAgentDescriptor,
+  type StellAgentRunResult,
+  type StellAnalysisResult,
+  type StellKnowledgeResult,
   uploadDirect,
 } from "@/services/api";
 import { PlatformLayout } from "./PlatformLayout";
@@ -261,11 +280,8 @@ function extractOutputFileId(job?: JobStatus | null) {
   return matched ? matched[1] : null;
 }
 
-function appForFile(file: FileItem | FileDetail) {
-  const name = file.original_filename.toLowerCase();
-  if (name.endsWith(".dxf")) return "viewer2d";
-  if (file.content_type === "application/pdf" || file.content_type.startsWith("image/")) return "docviewer";
-  return "viewer3d";
+function appForFile(file: { original_filename?: string | null; content_type?: string | null }) {
+  return classifyWorkspaceApp(file);
 }
 
 function formatBytes(size?: number | null) {
@@ -273,6 +289,20 @@ function formatBytes(size?: number | null) {
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function resolveAppHref(workspaceId: string | null, appId: string, fileId?: string | null) {
+  if (workspaceId) return buildWorkspaceAppPath(workspaceId, appId, fileId);
+  const base = `/app/${encodeURIComponent(appId)}`;
+  return fileId ? `${base}?file_id=${encodeURIComponent(fileId)}` : base;
+}
+
+function resolveProjectHref(workspaceId: string | null, projectId: string) {
+  return workspaceId ? buildWorkspaceProjectPath(workspaceId, projectId) : `/project/${encodeURIComponent(projectId)}`;
+}
+
+function resolveFileOpenHref(workspaceId: string | null, fileId: string) {
+  return workspaceId ? buildWorkspaceOpenPath(workspaceId, fileId) : buildStandaloneViewerPath(fileId);
 }
 
 function useWorkspaceData(): WorkspaceData {
@@ -367,24 +397,19 @@ function BlockerPanel({
 
 function HomeScreen() {
   const router = useRouter();
+  const pathname = usePathname();
   const { user } = useUser();
   const [sessions, setSessions] = useState<WorkspaceSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const workspaceId = extractWorkspaceId(pathname);
 
   useEffect(() => {
+    const current = ensureSession(workspaceId || undefined);
     const stored = loadSessions();
-    if (stored.length > 0) {
-      setSessions(stored);
-      setActiveSessionId(loadActiveSessionId() || stored[0].id);
-      return;
-    }
-    const created = newSession();
-    saveSessions([created]);
-    saveActiveSessionId(created.id);
-    setSessions([created]);
-    setActiveSessionId(created.id);
-  }, []);
+    setSessions(stored.length > 0 ? stored : [current]);
+    setActiveSessionId(current.id);
+  }, [workspaceId]);
 
   const activeSession = sessions.find((item) => item.id === activeSessionId) || sessions[0] || null;
   const visibleApps = getVisiblePlatformApps(user.role);
@@ -392,6 +417,7 @@ function HomeScreen() {
   function onSelectSession(sessionId: string) {
     setActiveSessionId(sessionId);
     saveActiveSessionId(sessionId);
+    router.push(buildWorkspacePath(sessionId));
   }
 
   function onNewSession() {
@@ -401,6 +427,7 @@ function HomeScreen() {
     saveActiveSessionId(created.id);
     setSessions(next);
     setActiveSessionId(created.id);
+    router.push(buildWorkspacePath(created.id));
   }
 
   function onSendMessage() {
@@ -454,7 +481,7 @@ function HomeScreen() {
                   <button
                     key={app.id}
                     type="button"
-                    onClick={() => router.push(app.route)}
+                    onClick={() => router.push(resolveAppHref(workspaceId, app.id))}
                     className="rounded-[24px] border border-white/10 bg-black/10 p-4 text-left transition hover:border-white/20 hover:bg-white/[0.05]"
                   >
                     <div className="flex items-center justify-between">
@@ -498,6 +525,7 @@ function HomeScreen() {
 }
 
 function ProjectsScreen() {
+  const workspaceId = extractWorkspaceId(usePathname());
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -560,7 +588,7 @@ function ProjectsScreen() {
             {projects.map((project) => (
               <Link
                 key={project.id}
-                href={`/project/${project.id}`}
+                href={resolveProjectHref(workspaceId, project.id)}
                 className="rounded-[24px] border border-white/10 bg-black/10 p-5 transition hover:border-white/20 hover:bg-white/[0.04]"
               >
                 <div className="flex items-center justify-between">
@@ -581,6 +609,7 @@ function ProjectsScreen() {
 }
 
 function ProjectScreen({ projectId }: { projectId: string }) {
+  const workspaceId = extractWorkspaceId(usePathname());
   const [project, setProject] = useState<ProjectSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -637,10 +666,10 @@ function ProjectScreen({ projectId }: { projectId: string }) {
                   <StatusBadge label={file.status} />
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Link href={`/viewer/${file.file_id}`} className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/70 hover:bg-white/8">
+                  <Link href={resolveFileOpenHref(workspaceId, file.file_id)} className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/70 hover:bg-white/8">
                     Open viewer
                   </Link>
-                  <Link href={`/app/${file.kind === "2d" ? "viewer2d" : "viewer3d"}?file_id=${encodeURIComponent(file.file_id)}`} className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/70 hover:bg-white/8">
+                  <Link href={resolveAppHref(workspaceId, appForFile(file), file.file_id)} className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/70 hover:bg-white/8">
                     Open runner
                   </Link>
                 </div>
@@ -655,6 +684,7 @@ function ProjectScreen({ projectId }: { projectId: string }) {
 }
 
 function FilesScreen() {
+  const workspaceId = extractWorkspaceId(usePathname());
   const workspace = useWorkspaceData();
   const [selectedProjectId, setSelectedProjectId] = useState("all");
   const [shareLinks, setShareLinks] = useState<Record<string, string>>({});
@@ -737,11 +767,11 @@ function FilesScreen() {
                     <StatusBadge label={file.status} />
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <Link href={`/viewer/${file.file_id}`} className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/70 hover:bg-white/8">
+                    <Link href={resolveFileOpenHref(workspaceId, file.file_id)} className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/70 hover:bg-white/8">
                       View
                     </Link>
                     <Link
-                      href={`/app/${appForFile(file)}?file_id=${encodeURIComponent(file.file_id)}`}
+                      href={resolveAppHref(workspaceId, appForFile(file), file.file_id)}
                       className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/70 hover:bg-white/8"
                     >
                       Open in app
@@ -944,6 +974,7 @@ function AdminScreen() {
 }
 
 function ViewerScreen({ fileId }: { fileId: string }) {
+  const workspaceId = extractWorkspaceId(usePathname());
   const [file, setFile] = useState<FileDetail | null>(null);
   const [status, setStatus] = useState<string>("loading");
   const [error, setError] = useState<string | null>(null);
@@ -991,7 +1022,7 @@ function ViewerScreen({ fileId }: { fileId: string }) {
               <iframe src={`/view/${fileId}`} className="h-[760px] w-full bg-[#111]" title="STELLCODEX viewer" />
             </div>
             <div className="mt-4">
-              <Link href={`/app/${appId}?file_id=${encodeURIComponent(fileId)}`} className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/70 hover:bg-white/8">
+              <Link href={resolveAppHref(workspaceId, appId, fileId)} className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/70 hover:bg-white/8">
                 Open same file in application runner
               </Link>
             </div>
@@ -1235,15 +1266,17 @@ function RecordWorkspace({
   );
 }
 
-function AppRunnerScreen({ appId }: { appId: string }) {
+function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: string }) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const workspace = useWorkspaceData();
   const { user } = useUser();
   const app = getPlatformApp(appId);
   const [activeTab, setActiveTab] = useState<RunnerTab>("Overview");
   const [selectedProjectId, setSelectedProjectId] = useState("default");
-  const [selectedFileId, setSelectedFileId] = useState(searchParams.get("file_id") || "");
+  const searchFileId = searchParams.get("file_id") || "";
+  const [selectedFileId, setSelectedFileId] = useState(fileId || searchFileId);
   const [selectedFile, setSelectedFile] = useState<FileDetail | null>(null);
   const [job, setJob] = useState<JobStatus | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -1255,14 +1288,32 @@ function AppRunnerScreen({ appId }: { appId: string }) {
   const [moldHeight, setMoldHeight] = useState(240);
   const [moldThickness, setMoldThickness] = useState(24);
   const [moldMaterial, setMoldMaterial] = useState("1.2311");
+  const [analysisBusy, setAnalysisBusy] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<StellAnalysisResult | null>(null);
+  const [analysisWebQuery, setAnalysisWebQuery] = useState("");
+  const [analysisIncludeWeb, setAnalysisIncludeWeb] = useState(false);
+  const [agentCatalog, setAgentCatalog] = useState<StellAgentDescriptor[]>([]);
+  const [selectedAgentId, setSelectedAgentId] = useState("geometry_agent");
+  const [agentPrompt, setAgentPrompt] = useState("");
+  const [agentIncludeWeb, setAgentIncludeWeb] = useState(false);
+  const [agentWebQuery, setAgentWebQuery] = useState("");
+  const [agentBusy, setAgentBusy] = useState(false);
+  const [agentResult, setAgentResult] = useState<StellAgentRunResult | null>(null);
+  const [agentOrchestrationSummary, setAgentOrchestrationSummary] = useState<string | null>(null);
+  const [knowledgeResults, setKnowledgeResults] = useState<StellKnowledgeResult[]>([]);
   const completedJobRef = useRef<string | null>(null);
+  const workspaceId = extractWorkspaceId(pathname);
 
   useEffect(() => {
     if (!app) return;
     if (app.adminOnly && user.role !== "admin") {
-      router.replace("/");
+      router.replace(resolveWorkspaceHref(workspaceId, "/"));
     }
-  }, [app, router, user.role]);
+  }, [app, router, user.role, workspaceId]);
+
+  useEffect(() => {
+    setSelectedFileId(fileId || searchFileId);
+  }, [fileId, searchFileId]);
 
   useEffect(() => {
     if (workspace.projects.length > 0 && !workspace.projects.some((project) => project.id === selectedProjectId)) {
@@ -1289,6 +1340,34 @@ function AppRunnerScreen({ appId }: { appId: string }) {
       mounted = false;
     };
   }, [selectedFileId]);
+
+  useEffect(() => {
+    if (app?.id !== "agentdashboard") return;
+    let mounted = true;
+    listStellAgents()
+      .then((items) => {
+        if (!mounted) return;
+        setAgentCatalog(items);
+        if (items.length > 0 && !items.some((row) => row.agent_id === selectedAgentId)) {
+          setSelectedAgentId(items[0].agent_id);
+        }
+      })
+      .catch((err) => {
+        if (!mounted) return;
+        setError(err instanceof Error ? err.message : "Agent listesi alinamadi.");
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [app?.id, selectedAgentId]);
+
+  useEffect(() => {
+    setAnalysisResult(null);
+    setAgentResult(null);
+    setKnowledgeResults([]);
+    setAgentOrchestrationSummary(null);
+    setError(null);
+  }, [app?.id]);
 
   useEffect(() => {
     if (!jobId) return;
@@ -1342,8 +1421,54 @@ function AppRunnerScreen({ appId }: { appId: string }) {
   async function onRun() {
     setError(null);
     setShareUrl(null);
-    setActiveTab("Progress");
     try {
+      if (app.id === "dataanalyzer") {
+        if (!selectedFileId) {
+          setError("Analyze icin bir kaynak dosya secin.");
+          setActiveTab("Inputs");
+          return;
+        }
+        setAnalysisBusy(true);
+        const analysis = await getStellAnalysis(selectedFileId, {
+          includeWebContext: analysisIncludeWeb,
+          webQuery: analysisWebQuery || undefined,
+        });
+        setAnalysisResult(analysis);
+        setActiveTab("Output");
+        setAnalysisBusy(false);
+        return;
+      }
+      if (app.id === "agentdashboard") {
+        if (!selectedAgentId) {
+          setError("Calistirilacak agent secilemedi.");
+          return;
+        }
+        if (["geometry_agent", "manufacturing_agent", "cad_repair_agent", "document_agent", "data_analysis_agent"].includes(selectedAgentId) && !selectedFileId) {
+          setError("Bu agent icin file secimi zorunlu.");
+          setActiveTab("Inputs");
+          return;
+        }
+        setAgentBusy(true);
+        const run = await runStellAgent({
+          agent_id: selectedAgentId,
+          file_id: selectedFileId || undefined,
+          prompt: agentPrompt || undefined,
+          include_web_context: agentIncludeWeb,
+          web_query: agentWebQuery || undefined,
+        });
+        setAgentResult(run);
+        if (agentIncludeWeb) {
+          const refs = await searchStellKnowledge(agentWebQuery || agentPrompt || selectedFile?.original_filename || "engineering reference", 5);
+          setKnowledgeResults(refs);
+        } else {
+          setKnowledgeResults([]);
+        }
+        setActiveTab("Output");
+        setAgentBusy(false);
+        return;
+      }
+
+      setActiveTab("Progress");
       if (app.id === "convert" && selectedFileId) {
         const next = await enqueueConvert(selectedFileId);
         setJobId(next.job_id);
@@ -1404,22 +1529,58 @@ function AppRunnerScreen({ appId }: { appId: string }) {
         return;
       }
       if (app.id === "library") {
-        router.push("/library");
+        router.push(resolveWorkspaceHref(workspaceId, "/library"));
         return;
       }
       if (app.id === "drive") {
-        router.push("/files");
+        router.push(resolveWorkspaceHref(workspaceId, "/files"));
         return;
       }
       if (app.id === "projects") {
-        router.push("/projects");
+        router.push(resolveWorkspaceHref(workspaceId, "/projects"));
         return;
       }
       if (app.id === "admin") {
-        router.push("/admin");
+        router.push(resolveWorkspaceHref(workspaceId, "/admin"));
       }
     } catch (err) {
+      setAnalysisBusy(false);
+      setAgentBusy(false);
       setError(err instanceof Error ? err.message : "Run failed.");
+    }
+  }
+
+  async function onRunAgentOrchestration() {
+    if (!selectedFileId) {
+      setError("Orchestration icin bir kaynak dosya secin.");
+      setActiveTab("Inputs");
+      return;
+    }
+    setError(null);
+    setAgentBusy(true);
+    try {
+      const result = await orchestrateStellAgents({
+        tasks: [
+          { agent_id: "geometry_agent", file_id: selectedFileId, prompt: agentPrompt || undefined },
+          { agent_id: "manufacturing_agent", file_id: selectedFileId, prompt: agentPrompt || undefined },
+          { agent_id: "cad_repair_agent", file_id: selectedFileId, prompt: agentPrompt || undefined },
+        ],
+        include_web_context: agentIncludeWeb,
+        web_query: agentWebQuery || undefined,
+      });
+      setAgentOrchestrationSummary(result.summary);
+      setAgentResult(result.runs[0] || null);
+      if (agentIncludeWeb) {
+        const refs = await searchStellKnowledge(agentWebQuery || agentPrompt || selectedFile?.original_filename || "engineering reference", 5);
+        setKnowledgeResults(refs);
+      } else {
+        setKnowledgeResults([]);
+      }
+      setActiveTab("Output");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Agent orchestration failed.");
+    } finally {
+      setAgentBusy(false);
     }
   }
 
@@ -1527,6 +1688,120 @@ function AppRunnerScreen({ appId }: { appId: string }) {
       );
     }
 
+    if (app.id === "agentdashboard") {
+      return (
+        <SectionCard title="Inputs" description="Select an agent, optional source file, prompt and web-context options.">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <label className="block">
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/35">Agent</div>
+              <select
+                value={selectedAgentId}
+                onChange={(event) => setSelectedAgentId(event.target.value)}
+                className="h-12 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none"
+              >
+                {(agentCatalog.length > 0 ? agentCatalog : [{ agent_id: "geometry_agent", name: "Geometry Agent", description: "", capabilities: [] }]).map((agent) => (
+                  <option key={agent.agent_id} value={agent.agent_id}>
+                    {agent.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/35">Source file</div>
+              <select
+                value={selectedFileId}
+                onChange={(event) => setSelectedFileId(event.target.value)}
+                className="h-12 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none"
+              >
+                <option value="">Optional</option>
+                {workspace.files.map((file) => (
+                  <option key={file.file_id} value={file.file_id}>
+                    {file.original_filename}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="mt-4 grid gap-3">
+            <label className="block">
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/35">Prompt</div>
+              <textarea
+                value={agentPrompt}
+                onChange={(event) => setAgentPrompt(event.target.value)}
+                rows={4}
+                className="w-full rounded-2xl border border-white/10 bg-black/10 px-4 py-3 text-sm text-white outline-none"
+                placeholder="Agent execution context..."
+              />
+            </label>
+            <label className="flex items-center gap-3 text-sm text-white/70">
+              <input
+                type="checkbox"
+                checked={agentIncludeWeb}
+                onChange={(event) => setAgentIncludeWeb(event.target.checked)}
+              />
+              Include web knowledge context
+            </label>
+            {agentIncludeWeb ? (
+              <input
+                value={agentWebQuery}
+                onChange={(event) => setAgentWebQuery(event.target.value)}
+                className="h-11 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none"
+                placeholder="Web query (optional)"
+              />
+            ) : null}
+          </div>
+        </SectionCard>
+      );
+    }
+
+    if (app.id === "dataanalyzer") {
+      return (
+        <SectionCard title="Inputs" description="Select a file and optional web context for engineering analysis.">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <label className="block">
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/35">Project</div>
+              <select value={selectedProject.id} onChange={(event) => setSelectedProjectId(event.target.value)} className="h-12 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none">
+                {projectOptions.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/35">Source file</div>
+              <select value={selectedFileId} onChange={(event) => setSelectedFileId(event.target.value)} className="h-12 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none">
+                <option value="">Select file</option>
+                {workspace.files.map((file) => (
+                  <option key={file.file_id} value={file.file_id}>
+                    {file.original_filename}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="mt-4 grid gap-3">
+            <label className="flex items-center gap-3 text-sm text-white/70">
+              <input
+                type="checkbox"
+                checked={analysisIncludeWeb}
+                onChange={(event) => setAnalysisIncludeWeb(event.target.checked)}
+              />
+              Include web knowledge context
+            </label>
+            {analysisIncludeWeb ? (
+              <input
+                value={analysisWebQuery}
+                onChange={(event) => setAnalysisWebQuery(event.target.value)}
+                className="h-11 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none"
+                placeholder="Web query (optional)"
+              />
+            ) : null}
+          </div>
+        </SectionCard>
+      );
+    }
+
     if (["socialmanager", "feedpublisher"].includes(app.id)) {
       return (
         <>
@@ -1590,6 +1865,38 @@ function AppRunnerScreen({ appId }: { appId: string }) {
   }
 
   function renderRun() {
+    if (app.id === "dataanalyzer") {
+      return (
+        <SectionCard title="Run" description="Execute STELL-AI engineering analysis for the selected file.">
+          <div className="flex flex-wrap gap-3">
+            <button type="button" onClick={() => void onRun()} className="rounded-2xl bg-white px-5 py-3 text-sm font-medium text-black hover:bg-white/90">
+              {analysisBusy ? "Analyzing..." : "Run Analysis"}
+            </button>
+          </div>
+          {error ? <div className="mt-4 text-sm text-red-200">{error}</div> : null}
+        </SectionCard>
+      );
+    }
+
+    if (app.id === "agentdashboard") {
+      return (
+        <SectionCard title="Run" description="Run single-agent or orchestrated multi-agent workflows.">
+          <div className="flex flex-wrap gap-3">
+            <button type="button" onClick={() => void onRun()} className="rounded-2xl bg-white px-5 py-3 text-sm font-medium text-black hover:bg-white/90">
+              {agentBusy ? "Running..." : "Run Agent"}
+            </button>
+            <button type="button" onClick={() => void onRunAgentOrchestration()} className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-white/75 hover:bg-white/8">
+              {agentBusy ? "Orchestrating..." : "Run Orchestration"}
+            </button>
+          </div>
+          {agentOrchestrationSummary ? (
+            <div className="mt-4 rounded-[20px] border border-white/10 bg-black/10 px-4 py-3 text-sm text-white/75">{agentOrchestrationSummary}</div>
+          ) : null}
+          {error ? <div className="mt-4 text-sm text-red-200">{error}</div> : null}
+        </SectionCard>
+      );
+    }
+
     if (["socialmanager", "feedpublisher"].includes(app.id)) {
       return (
         <SectionCard title="Run" description="Blocked actions stay hidden until the provider credentials are available.">
@@ -1656,6 +1963,88 @@ function AppRunnerScreen({ appId }: { appId: string }) {
   }
 
   function renderOutput() {
+    if (app.id === "dataanalyzer") {
+      if (!analysisResult) {
+        return <EmptyPanel title="No analysis yet" description="Run Data Analyzer to produce geometry and manufacturing insights." />;
+      }
+      return (
+        <SectionCard title="Analysis Output" description="STELL-AI engineering analysis result">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-[20px] border border-white/10 bg-black/10 p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-white/35">Geometry</div>
+              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-white/65">{JSON.stringify(analysisResult.geometry || {}, null, 2)}</pre>
+            </div>
+            <div className="rounded-[20px] border border-white/10 bg-black/10 p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-white/35">Manufacturing</div>
+              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-white/65">{JSON.stringify(analysisResult.manufacturing || {}, null, 2)}</pre>
+            </div>
+            <div className="rounded-[20px] border border-white/10 bg-black/10 p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-white/35">Assembly</div>
+              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-white/65">{JSON.stringify(analysisResult.assembly || {}, null, 2)}</pre>
+            </div>
+            <div className="rounded-[20px] border border-white/10 bg-black/10 p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-white/35">Recommendations</div>
+              <ul className="mt-3 space-y-2 text-sm text-white/75">
+                {(analysisResult.recommendations || []).map((item) => (
+                  <li key={item}>• {item}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          {(analysisResult.web_context || []).length > 0 ? (
+            <div className="mt-4 rounded-[20px] border border-white/10 bg-black/10 p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-white/35">Web Context</div>
+              <div className="mt-3 grid gap-3">
+                {analysisResult.web_context.map((item) => (
+                  <a key={`${item.url}-${item.title}`} href={item.url} target="_blank" rel="noreferrer" className="rounded-lg border border-white/10 px-3 py-2 text-sm text-white/75 hover:bg-white/8">
+                    <div className="font-semibold text-white/90">{item.title}</div>
+                    <div className="mt-1 text-xs text-white/45">{item.snippet}</div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </SectionCard>
+      );
+    }
+
+    if (app.id === "agentdashboard") {
+      if (!agentResult) {
+        return <EmptyPanel title="No agent output yet" description="Run an agent or orchestration to see findings." />;
+      }
+      return (
+        <SectionCard title="Agent Output" description={agentResult.summary || "Agent run result"}>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-[20px] border border-white/10 bg-black/10 p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-white/35">Findings</div>
+              <ul className="mt-3 space-y-2 text-sm text-white/75">
+                {(agentResult.findings || []).map((item) => (
+                  <li key={item}>• {item}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="rounded-[20px] border border-white/10 bg-black/10 p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-white/35">Payload</div>
+              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-white/65">{JSON.stringify(agentResult.data || {}, null, 2)}</pre>
+            </div>
+          </div>
+          {knowledgeResults.length > 0 ? (
+            <div className="mt-4 rounded-[20px] border border-white/10 bg-black/10 p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-white/35">Knowledge Results</div>
+              <div className="mt-3 grid gap-3">
+                {knowledgeResults.map((item) => (
+                  <a key={`${item.url}-${item.title}`} href={item.url} target="_blank" rel="noreferrer" className="rounded-lg border border-white/10 px-3 py-2 text-sm text-white/75 hover:bg-white/8">
+                    <div className="font-semibold text-white/90">{item.title}</div>
+                    <div className="mt-1 text-xs text-white/45">{item.snippet}</div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </SectionCard>
+      );
+    }
+
     if (app.id === "accounting") {
       return (
         <RecordWorkspace
@@ -1791,7 +2180,7 @@ function AppRunnerScreen({ appId }: { appId: string }) {
     if (app.id === "library") {
       return (
         <SectionCard title="Library Output" description="Open the full library route for publish and feed management.">
-          <Link href="/library" className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-white/75 hover:bg-white/8">
+          <Link href={resolveWorkspaceHref(workspaceId, "/library")} className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-white/75 hover:bg-white/8">
             Open library route
           </Link>
         </SectionCard>
@@ -1801,7 +2190,7 @@ function AppRunnerScreen({ appId }: { appId: string }) {
     if (app.id === "projects") {
       return (
         <SectionCard title="Projects Output" description="Open the full projects route for project CRUD.">
-          <Link href="/projects" className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-white/75 hover:bg-white/8">
+          <Link href={resolveWorkspaceHref(workspaceId, "/projects")} className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-white/75 hover:bg-white/8">
             Open projects route
           </Link>
         </SectionCard>
@@ -1811,7 +2200,7 @@ function AppRunnerScreen({ appId }: { appId: string }) {
     if (app.id === "status" || app.id === "admin") {
       return (
         <SectionCard title="System Output" description="Use the admin route for release proof and health status.">
-          <Link href="/admin" className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-white/75 hover:bg-white/8">
+          <Link href={resolveWorkspaceHref(workspaceId, "/admin")} className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-white/75 hover:bg-white/8">
             Open admin route
           </Link>
         </SectionCard>
@@ -1826,7 +2215,7 @@ function AppRunnerScreen({ appId }: { appId: string }) {
             <iframe src={`/view/${embeddedFileId}`} className="h-[760px] w-full bg-[#111]" title="Embedded STELLCODEX output" />
           </div>
           <div className="mt-4 flex flex-wrap gap-3">
-            <Link href={`/viewer/${embeddedFileId}`} className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-white/75 hover:bg-white/8">
+            <Link href={buildStandaloneViewerPath(embeddedFileId)} className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-white/75 hover:bg-white/8">
               Open deep link
             </Link>
             <button type="button" onClick={() => void onDownloadOutput(embeddedFileId)} className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-white/75 hover:bg-white/8">
@@ -1877,5 +2266,5 @@ export function PlatformClient({ view, appId = "", projectId = "", fileId = "" }
   if (view === "settings") return <SettingsScreen />;
   if (view === "admin") return <AdminScreen />;
   if (view === "viewer") return <ViewerScreen fileId={fileId} />;
-  return <AppRunnerScreen appId={appId} />;
+  return <AppRunnerScreen appId={appId} fileId={fileId} />;
 }

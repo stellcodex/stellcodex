@@ -566,6 +566,8 @@ def _file_kind(content_type: str, filename: str) -> str:
         return "image"
     if ctype == "application/pdf":
         return "doc"
+    if ctype in {"application/zip", "application/x-rar-compressed", "application/x-7z-compressed"}:
+        return "archive"
     return "3d"
 
 
@@ -573,13 +575,13 @@ def _build_file_urls(f: UploadFileModel) -> tuple[str | None, str | None, str | 
     if (_effective_status(f) or "").lower() != "ready":
         return None, None, None
     public_id = _public_file_id(f.file_id)
+    meta = f.meta or {}
     if f.gltf_key:
         gltf_url = f"/api/v1/files/{public_id}/gltf"
         previews = _preview_urls(f)
         return (previews[0] if previews else gltf_url), gltf_url, None
-    if _file_kind(f.content_type, f.original_filename) == "doc":
-        if (f.meta or {}).get("pdf_key"):
-            return f"/api/v1/files/{public_id}/pdf", None, f"/api/v1/files/{public_id}/pdf"
+    if isinstance(meta.get("pdf_key"), str):
+        return f"/api/v1/files/{public_id}/pdf", None, f"/api/v1/files/{public_id}/pdf"
     original_url = f"/api/v1/files/{public_id}/content"
     return original_url, None, original_url
 
@@ -641,6 +643,12 @@ def _meets_ready_contract(f: UploadFileModel) -> bool:
         return bool(f.gltf_key and isinstance(meta.get("assembly_meta_key"), str) and isinstance(previews, list) and len(previews) >= 3)
     if kind == "doc":
         return bool(isinstance(meta.get("pdf_key"), str) and f.thumbnail_key)
+    if kind == "archive":
+        return bool(
+            isinstance(meta.get("pdf_key"), str)
+            and isinstance(meta.get("archive_manifest_key"), str)
+            and f.thumbnail_key
+        )
     if kind in {"2d", "image"}:
         return bool(f.thumbnail_key)
     return True
@@ -659,7 +667,7 @@ def _serialize_file_out(f: UploadFileModel) -> FileOut:
     effective_status = _effective_status(f)
     err = (f.meta or {}).get("error") if effective_status == "failed" else None
     if effective_status == "failed" and not err and (f.status or "").lower() == "ready":
-        err = "assembly_meta_key and preview_jpg_keys are mandatory for ready status"
+        err = "Required artifacts missing for ready status"
     return FileOut(
         file_id=_public_file_id(f.file_id),
         original_name=f.original_filename,
@@ -1093,6 +1101,8 @@ def file_status(
         derivatives.append("assembly_meta")
     if isinstance((f.meta or {}).get("pdf_key"), str):
         derivatives.append("pdf")
+    if isinstance((f.meta or {}).get("archive_manifest_key"), str):
+        derivatives.append("archive_manifest")
     if f.content_type.startswith("image/") or f.content_type == "application/pdf":
         if f.status == "ready":
             derivatives.append("original")
@@ -1398,3 +1408,33 @@ def dxf_render(
         doc = load_doc(tmp.name)
     svg = render_svg(doc, visible_layers)
     return Response(content=svg, media_type="image/svg+xml")
+
+
+@router.get("/{file_id}/archive/manifest")
+def archive_manifest(
+    file_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(_require_principal),
+):
+    _feature_on()
+    f = _get_file_by_identifier(db, file_id)
+    if not f:
+        raise HTTPException(status_code=404, detail="File not found")
+    _assert_file_access(f, principal)
+    if f.status != "ready":
+        raise HTTPException(status_code=409, detail="File not ready")
+
+    meta = f.meta if isinstance(f.meta, dict) else {}
+    manifest_key = meta.get("archive_manifest_key")
+    if not isinstance(manifest_key, str) or not manifest_key:
+        raise HTTPException(status_code=404, detail="Archive manifest not found")
+
+    s3 = s3_client()
+    try:
+        obj = s3.get_object(Bucket=f.bucket, Key=manifest_key)
+        payload = json.loads(obj["Body"].read().decode("utf-8"))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Archive manifest unavailable")
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=500, detail="Archive manifest invalid")
+    return payload

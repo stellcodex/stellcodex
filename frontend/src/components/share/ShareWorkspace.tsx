@@ -6,7 +6,7 @@ import { Breadcrumbs } from "@/components/common/Breadcrumbs";
 import { Button } from "@/components/common/Button";
 import { FileList } from "@/components/share/FileList";
 import { FileTree } from "@/components/share/FileTree";
-import { createFolder, deleteFiles, getDefaultProject, getProjectTree, moveFiles } from "@/lib/api";
+import { deleteFiles, getDefaultProject, getProjectTree } from "@/lib/api";
 import type { FileRecord, FolderRecord, ProjectTreeResponse } from "@/lib/stellcodex/types";
 
 export function ShareWorkspace() {
@@ -61,34 +61,17 @@ export function ShareWorkspace() {
 
   const currentFolder = tree?.folders.find((f) => f.id === currentFolderId) || null;
 
-  async function handleCreateFolder() {
-    if (!projectId) return;
-    const name = window.prompt("Yeni klasör adı");
-    if (!name) return;
-    await createFolder({ projectId, parentId: currentFolderId, name });
-    await reload(projectId);
-  }
-
-  async function handleMoveSelected() {
-    if (!tree || !projectId || selectedFileIds.length === 0) return;
-    const targetName = window.prompt("Hedef klasör adı (tam isim)");
-    if (!targetName) return;
-    const target = tree.folders.find((f) => f.name.toLowerCase() === targetName.toLowerCase());
-    if (!target) {
-      setError("Hedef klasör bulunamadı.");
-      return;
-    }
-    await moveFiles({ projectId, fileIds: selectedFileIds, folderId: target.id });
-    setSelectedFileIds([]);
-    await reload(projectId);
-  }
-
   async function handleDeleteSelected() {
     if (!projectId || selectedFileIds.length === 0) return;
     if (!window.confirm("Seçili dosyalar silinsin mi?")) return;
-    await deleteFiles({ projectId, fileIds: selectedFileIds });
-    setSelectedFileIds([]);
-    await reload(projectId);
+    setError(null);
+    try {
+      await deleteFiles({ projectId, fileIds: selectedFileIds });
+      setSelectedFileIds([]);
+      await reload(projectId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Silme işlemi başarısız.");
+    }
   }
 
   if (loading) {
@@ -119,7 +102,6 @@ export function ShareWorkspace() {
               className="h-10 w-64 rounded-xl border border-slate-200 px-3 text-sm"
               placeholder="Ara"
             />
-            <Button onClick={handleCreateFolder}>Yeni klasör</Button>
           </div>
         </div>
       </div>
@@ -137,7 +119,6 @@ export function ShareWorkspace() {
           {selectedFileIds.length > 0 ? (
             <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3">
               <span className="text-sm text-slate-600">{selectedFileIds.length} dosya seçili</span>
-              <Button onClick={handleMoveSelected}>Taşı</Button>
               <Button onClick={handleDeleteSelected} variant="danger">
                 Sil
               </Button>
@@ -165,4 +146,3 @@ export function ShareWorkspace() {
     </div>
   );
 }
-

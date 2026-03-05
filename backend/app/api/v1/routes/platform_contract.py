@@ -69,6 +69,13 @@ class JobEnqueueOut(BaseModel):
     job_id: str
 
 
+class ViewerContractOut(BaseModel):
+    status: str = "ok"
+    default_app: str = "viewer3d"
+    mappings: dict[str, list[str]]
+    deep_link_template: str = "/view/{file_id}"
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -147,6 +154,17 @@ def auth_me(
 @router.post("/auth/logout", response_model=LogoutOut)
 def auth_logout():
     return LogoutOut()
+
+
+@router.get("/viewer", response_model=ViewerContractOut)
+def viewer_contract():
+    return ViewerContractOut(
+        mappings={
+            "viewer3d": ["step", "stp", "iges", "igs", "brep", "brp", "stl", "obj", "ply", "off", "3mf", "amf", "dae", "glb", "gltf"],
+            "viewer2d": ["dxf", "dwg", "svg"],
+            "docviewer": ["pdf", "doc", "docx", "xlsx", "pptx", "odt", "ods", "odp", "rtf", "txt", "md", "csv", "html", "htm", "png", "jpg", "jpeg", "zip", "rar", "7z"],
+        }
+    )
 
 
 @router.get("/projects", response_model=list[ProjectOut])

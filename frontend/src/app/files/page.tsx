@@ -1,5 +1,5 @@
-import { PlatformClient } from "@/components/platform/PlatformClient";
+import { WorkspaceRedirect } from "@/components/workspace/WorkspaceRedirect";
 
 export default function FilesPage() {
-  return <PlatformClient view="files" />;
+  return <WorkspaceRedirect suffix="/files" />;
 }

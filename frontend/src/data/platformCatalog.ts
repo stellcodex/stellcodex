@@ -2,6 +2,8 @@ export type PlatformAppId =
   | "viewer3d"
   | "viewer2d"
   | "docviewer"
+  | "dataanalyzer"
+  | "agentdashboard"
   | "convert"
   | "mesh2d3d"
   | "moldcodes"
@@ -30,11 +32,11 @@ export type PlatformApp = {
 export const platformApps: PlatformApp[] = [
   {
     id: "viewer3d",
-    name: "Viewer 3D",
-    shortName: "3D",
+    name: "CAD Viewer",
+    shortName: "CAD",
     category: "Engineering",
-    description: "STEP, STL, OBJ ve GLB dosyalarini embedded workspace icinde acar.",
-    summary: "3D inceleme, deep-link viewer ve proje bagli cikti akisi.",
+    description: "STEP/STP, Parasolid, IGES, STL, OBJ, GLTF ve benzeri 3D CAD dosyalarini acar.",
+    summary: "Orbit/pan/zoom, fit, section, explode, hide-isolate ve olcum akislarini sunar.",
     route: "/app/viewer3d",
   },
   {
@@ -48,12 +50,30 @@ export const platformApps: PlatformApp[] = [
   },
   {
     id: "docviewer",
-    name: "Doc Viewer",
+    name: "Document Viewer",
     shortName: "DOC",
     category: "Engineering",
-    description: "PDF ve dokuman dosyalarini isleme durumuyla birlikte acar.",
-    summary: "Dokuman preview, processing ve download akisi.",
+    description: "PDF/DOCX/XLSX/TXT/MD ve arsiv preview dosyalarini acar.",
+    summary: "Dokuman preview, arama, download ve donusum fallback akislarini sunar.",
     route: "/app/docviewer",
+  },
+  {
+    id: "dataanalyzer",
+    name: "Data Analyzer",
+    shortName: "ANL",
+    category: "Engineering",
+    description: "CAD geometry, assembly ve DFM bulgularini tek raporda analiz eder.",
+    summary: "Bounding box, part count, wall/draft, risk flag ve oneriler uretir.",
+    route: "/app/dataanalyzer",
+  },
+  {
+    id: "agentdashboard",
+    name: "Agent Dashboard",
+    shortName: "AGT",
+    category: "Engineering",
+    description: "Geometry/Manufacturing/CAD Repair/Document/Web/Data agentlerini calistirir.",
+    summary: "Tek agent cagrisi veya coklu agent orchestrator akisi.",
+    route: "/app/agentdashboard",
   },
   {
     id: "convert",
@@ -84,7 +104,7 @@ export const platformApps: PlatformApp[] = [
   },
   {
     id: "library",
-    name: "Library",
+    name: "Library Manager",
     shortName: "LIB",
     category: "Library",
     description: "Paylasilan varliklari ve publish akislarini listeler.",
@@ -102,7 +122,7 @@ export const platformApps: PlatformApp[] = [
   },
   {
     id: "projects",
-    name: "Projects",
+    name: "Project Manager",
     shortName: "PRJ",
     category: "Business",
     description: "Proje olusturur, acar ve dosyalari projeye baglar.",

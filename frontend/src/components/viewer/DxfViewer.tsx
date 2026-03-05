@@ -3,7 +3,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DxfManifest, getDxfManifest, getDxfRender } from "@/services/api";
 
-export function DxfViewer({ fileId }: { fileId: string }) {
+type DxfViewerProps = {
+  fileId: string;
+  fitRequestKey?: number;
+  background?: "dark" | "light";
+  showLayers?: boolean;
+  className?: string;
+  onSvgUrlChange?: (url: string | null) => void;
+  onStatusChange?: (state: { ready: boolean; error: string | null }) => void;
+};
+
+export function DxfViewer({
+  fileId,
+  fitRequestKey = 0,
+  background = "dark",
+  showLayers = true,
+  className,
+  onSvgUrlChange,
+  onStatusChange,
+}: DxfViewerProps) {
   const [manifest, setManifest] = useState<DxfManifest | null>(null);
   const [activeLayers, setActiveLayers] = useState<Set<string>>(new Set());
   const [svgUrl, setSvgUrl] = useState<string | null>(null);
@@ -106,6 +124,14 @@ export function DxfViewer({ fileId }: { fileId: string }) {
   }, [fileId, manifest, activeLayers]);
 
   useEffect(() => {
+    onSvgUrlChange?.(svgUrl);
+  }, [onSvgUrlChange, svgUrl]);
+
+  useEffect(() => {
+    onStatusChange?.({ ready: Boolean(svgUrl), error });
+  }, [error, onStatusChange, svgUrl]);
+
+  useEffect(() => {
     return () => {
       if (svgRef.current) {
         URL.revokeObjectURL(svgRef.current);
@@ -153,7 +179,14 @@ export function DxfViewer({ fileId }: { fileId: string }) {
     fitToBounds();
   }, [manifest, svgUrl, fitToBounds]);
 
+  useEffect(() => {
+    if (!manifest) return;
+    fitToBounds();
+  }, [fitRequestKey, fitToBounds, manifest]);
+
   const resetFit = () => fitToBounds();
+
+  const isDark = background === "dark";
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     dragging.current = true;
@@ -177,16 +210,20 @@ export function DxfViewer({ fileId }: { fileId: string }) {
   return (
     <div
       ref={viewportRef}
-      className="relative h-full rounded-2xl border border-slate-200 bg-white overflow-hidden"
+      className={[
+        "relative h-full overflow-hidden rounded-2xl border",
+        isDark ? "border-slate-800 bg-[#07111f]" : "border-slate-200 bg-white",
+        className || "",
+      ].join(" ")}
       style={{ touchAction: "none" }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
     >
       {error ? (
-        <div className="p-4 text-sm text-red-600">{error}</div>
+        <div className={`p-4 text-sm ${isDark ? "text-red-200" : "text-red-600"}`}>{error}</div>
       ) : !svgUrl ? (
-        <div className="p-4 text-sm text-slate-500">
+        <div className={`p-4 text-sm ${isDark ? "text-slate-300" : "text-slate-500"}`}>
           {manifest && activeLayers.size === 0 ? "Görünür katman seçili değil." : "2D çizim hazırlanıyor..."}
         </div>
       ) : (
@@ -200,13 +237,21 @@ export function DxfViewer({ fileId }: { fileId: string }) {
         </div>
       )}
 
-      {manifest && layerList.length > 0 ? (
-        <div className="absolute right-3 top-3 max-h-[45%] w-[220px] overflow-auto rounded-lg border border-slate-200 bg-white/95 p-2 text-xs">
+      {showLayers && manifest && layerList.length > 0 ? (
+        <div
+          className={[
+            "absolute right-3 top-3 max-h-[45%] w-[220px] overflow-auto rounded-lg border p-2 text-xs",
+            isDark ? "border-slate-700 bg-slate-950/92 text-slate-100" : "border-slate-200 bg-white/95 text-slate-700",
+          ].join(" ")}
+        >
           <div className="mb-1 flex items-center justify-between gap-2">
-            <div className="font-semibold text-slate-900">Katmanlar</div>
+            <div className={`font-semibold ${isDark ? "text-white" : "text-slate-900"}`}>Katmanlar</div>
             <button
               type="button"
-              className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] text-slate-600"
+              className={[
+                "rounded border px-1.5 py-0.5 text-[10px]",
+                isDark ? "border-slate-700 bg-slate-900 text-slate-200" : "border-slate-300 bg-white text-slate-600",
+              ].join(" ")}
               onClick={resetFit}
             >
               Fit
@@ -214,7 +259,7 @@ export function DxfViewer({ fileId }: { fileId: string }) {
           </div>
           <div className="space-y-1.5">
             {layerList.map((layer) => (
-              <label key={layer.name} className="flex items-center gap-2 text-slate-700">
+              <label key={layer.name} className={`flex items-center gap-2 ${isDark ? "text-slate-200" : "text-slate-700"}`}>
                 <input
                   type="checkbox"
                   checked={activeLayers.has(layer.name)}
@@ -225,7 +270,7 @@ export function DxfViewer({ fileId }: { fileId: string }) {
                     setActiveLayers(next);
                   }}
                 />
-                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: layer.color }} />
+                <span className="h-2 w-2 rounded-full border border-black/15" style={{ backgroundColor: layer.color }} />
                 <span className="truncate" title={layer.name}>
                   {layer.name}
                 </span>

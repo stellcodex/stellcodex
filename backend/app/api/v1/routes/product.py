@@ -99,7 +99,16 @@ async def upload(
             status_code=422,
             detail="Missing multipart file field: expected 'file' or 'upload'.",
         )
-    return await direct_upload(upload=selected, db=db, principal=principal)
+    # Calling the handler directly bypasses FastAPI dependency/form coercion, so
+    # project fields must be passed explicitly as plain strings/None.
+    normalized_project_id = str(project_id) if project_id is not None else None
+    return await direct_upload(
+        upload=selected,
+        project_id=normalized_project_id,
+        projectId=None,
+        db=db,
+        principal=principal,
+    )
 
 
 @router.get("/status/{revision_id}", response_model=StatusResponse)

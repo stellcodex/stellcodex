@@ -1,5 +1,5 @@
-import { PlatformClient } from "@/components/platform/PlatformClient";
+import { WorkspaceRedirect } from "@/components/workspace/WorkspaceRedirect";
 
 export default function SettingsPage() {
-  return <PlatformClient view="settings" />;
+  return <WorkspaceRedirect suffix="/settings" />;
 }

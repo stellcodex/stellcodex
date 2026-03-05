@@ -1,4 +1,4 @@
-import { PlatformClient } from "@/components/platform/PlatformClient";
+import { redirect } from "next/navigation";
 
 export default async function ViewerPage({
   params,
@@ -6,5 +6,5 @@ export default async function ViewerPage({
   params: Promise<{ file_id: string }>;
 }) {
   const { file_id } = await params;
-  return <PlatformClient view="viewer" fileId={file_id} />;
+  redirect(`/view/${encodeURIComponent(file_id)}`);
 }

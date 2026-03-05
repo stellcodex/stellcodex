@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 
 function normalizeTheme(value: string | undefined) {
   if (value === "system" || value === "light" || value === "dark") return value;
-  return "dark";
+  return "light";
 }
 
 function normalizeAccent(value: string | undefined) {
@@ -38,10 +38,11 @@ export default async function RootLayout({
   const cookieStore = await cookies();
   const theme = normalizeTheme(cookieStore.get("scx_theme")?.value);
   const accent = normalizeAccent(cookieStore.get("scx_accent")?.value);
-  const initScript = `(function(){try{var d=document.documentElement;var t=localStorage.getItem('scx_theme')||'${theme}';var a=localStorage.getItem('scx_accent')||'${accent}';if(!t){t='dark';}if(!a){a='cyan';}d.dataset.theme=t;d.dataset.accent=a;var r=t==='system'?(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):t;d.dataset.themeResolved=r;}catch(e){}})();`;
+  const resolvedTheme = theme === "system" ? "light" : theme;
+  const initScript = `(function(){try{var d=document.documentElement;var t=localStorage.getItem('scx_theme')||'${theme}';var a=localStorage.getItem('scx_accent')||'${accent}';if(!t){t='light';}if(!a){a='cyan';}d.dataset.theme=t;d.dataset.accent=a;var r=t==='system'?(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):t;d.dataset.themeResolved=r;}catch(e){}})();`;
 
   return (
-    <html lang="tr" data-theme={theme} data-theme-resolved={theme === "system" ? "dark" : theme} data-accent={accent} suppressHydrationWarning>
+    <html lang="tr" data-theme={theme} data-theme-resolved={resolvedTheme} data-accent={accent} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: initScript }} />
       </head>

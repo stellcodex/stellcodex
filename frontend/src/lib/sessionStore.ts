@@ -29,12 +29,12 @@ function defaultAssistantMessage(): WorkspaceMessage {
   return {
     id: createId("msg"),
     role: "assistant",
-    text: "STELLCODEX workspace hazir. Explore Applications ile uygulama acabilir, dosya yukleyebilir veya proje akisini baslatabilirsiniz.",
+    text: "STELLCODEX workspace hazir. Dosya yukleyebilir, projeleri acabilir ve calismaya dogrudan devam edebilirsiniz.",
     createdAt: nowIso(),
   };
 }
 
-export function newSession(title = "New session"): WorkspaceSession {
+export function newSession(title = "Workspace"): WorkspaceSession {
   return {
     id: createId("session"),
     title,
@@ -71,6 +71,44 @@ export function saveActiveSessionId(sessionId: string) {
   window.localStorage.setItem(ACTIVE_KEY, sessionId);
 }
 
+export function getSessionById(sessionId: string | null | undefined, sessions = loadSessions()) {
+  if (!sessionId) return null;
+  return sessions.find((item) => item.id === sessionId) || null;
+}
+
+export function ensureSession(sessionId?: string | null, title = "Workspace"): WorkspaceSession {
+  const sessions = loadSessions();
+
+  if (sessionId) {
+    const existing = getSessionById(sessionId, sessions);
+    if (existing) {
+      saveActiveSessionId(existing.id);
+      return existing;
+    }
+
+    const created = {
+      ...newSession(title),
+      id: sessionId,
+      title,
+    };
+    saveSessions([created, ...sessions]);
+    saveActiveSessionId(created.id);
+    return created;
+  }
+
+  const activeId = loadActiveSessionId();
+  const active = getSessionById(activeId, sessions) || sessions[0] || null;
+  if (active) {
+    saveActiveSessionId(active.id);
+    return active;
+  }
+
+  const created = newSession(title);
+  saveSessions([created]);
+  saveActiveSessionId(created.id);
+  return created;
+}
+
 export function upsertSession(session: WorkspaceSession) {
   const sessions = loadSessions().filter((item) => item.id !== session.id);
   const next = [session, ...sessions].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -94,7 +132,7 @@ export function appendSessionMessage(
     },
   ];
   const title =
-    session.title === "New session" && role === "user"
+    (session.title === "New session" || session.title === "Workspace") && role === "user"
       ? text.trim().slice(0, 42) || session.title
       : session.title;
   return {

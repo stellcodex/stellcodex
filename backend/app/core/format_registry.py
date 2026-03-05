@@ -43,6 +43,7 @@ _RULES: tuple[FormatRule, ...] = (
     FormatRule("glb", "3d", "visual_only", "pipeline_3d_visual", True, "GLB"),
     # 2D
     FormatRule("dxf", "2d", "2d_only", "pipeline_2d", True, "DXF"),
+    FormatRule("dwg", "2d", "2d_only", "pipeline_2d", True, "DWG (preview conversion)"),
     FormatRule("svg", "2d", "2d_only", "pipeline_2d", True, "SVG"),
     # Documents
     FormatRule("pdf", "doc", "doc", "pipeline_doc", True, "PDF"),
@@ -54,9 +55,14 @@ _RULES: tuple[FormatRule, ...] = (
     FormatRule("odp", "doc", "doc", "pipeline_doc", True, "ODP"),
     FormatRule("rtf", "doc", "doc", "pipeline_doc", True, "RTF"),
     FormatRule("txt", "doc", "doc", "pipeline_doc", True, "TXT"),
+    FormatRule("md", "doc", "doc", "pipeline_doc", True, "Markdown"),
     FormatRule("csv", "doc", "doc", "pipeline_doc", True, "CSV"),
     FormatRule("html", "doc", "doc", "pipeline_doc", True, "HTML"),
     FormatRule("htm", "doc", "doc", "pipeline_doc", True, "HTML"),
+    # Archives
+    FormatRule("zip", "archive", "archive_bundle", "pipeline_archive", True, "ZIP"),
+    FormatRule("rar", "archive", "archive_bundle", "pipeline_archive", True, "RAR"),
+    FormatRule("7z", "archive", "archive_bundle", "pipeline_archive", True, "7Z"),
     # Images
     FormatRule("png", "image", "image", "pipeline_image", True, "PNG"),
     FormatRule("jpg", "image", "image", "pipeline_image", True, "JPG"),
@@ -67,7 +73,6 @@ _RULES: tuple[FormatRule, ...] = (
     FormatRule("tif", "image", "image", "pipeline_image", True, "TIF"),
     FormatRule("tiff", "image", "image", "pipeline_image", True, "TIFF"),
     # deterministic rejects
-    FormatRule("dwg", "2d", "rejected", "reject", False, "DWG", "STEP export required"),
     FormatRule("fcstd", "3d", "rejected", "reject", False, "FreeCAD FCStd", "STEP export required"),
 )
 
@@ -116,6 +121,7 @@ def grouped_payload() -> dict[str, list[dict[str, str]]]:
         "3d_visual_only": [],
         "2d_only": [],
         "doc": [],
+        "archive": [],
         "image": [],
         "rejected": [],
     }
@@ -135,6 +141,8 @@ def grouped_payload() -> dict[str, list[dict[str, str]]]:
             groups["2d_only"].append(row)
         elif rule.kind == "doc":
             groups["doc"].append(row)
+        elif rule.kind == "archive":
+            groups["archive"].append(row)
         elif rule.kind == "image":
             groups["image"].append(row)
     return groups
@@ -165,17 +173,29 @@ def match_content_type(content_type: str, ext: str) -> bool:
 
     mapping: dict[str, set[str]] = {
         "application/pdf": {"pdf"},
+        "text/markdown": {"md"},
         "image/png": {"png"},
         "image/jpeg": {"jpg", "jpeg"},
         "image/webp": {"webp"},
         "image/bmp": {"bmp"},
         "image/gif": {"gif"},
         "image/tiff": {"tif", "tiff"},
-        "text/plain": {"txt", "csv"},
+        "text/plain": {"txt", "csv", "md"},
         "text/csv": {"csv"},
         "text/html": {"html", "htm"},
         "model/gltf+json": {"gltf"},
         "model/gltf-binary": {"glb"},
+        "application/zip": {"zip", "docx", "xlsx", "pptx", "odt", "ods", "odp", "3mf"},
+        "application/x-zip-compressed": {"zip"},
+        "application/vnd.rar": {"rar"},
+        "application/x-rar-compressed": {"rar"},
+        "application/x-7z-compressed": {"7z"},
+        "application/acad": {"dwg"},
+        "application/x-acad": {"dwg"},
+        "application/autocad_dwg": {"dwg"},
+        "image/vnd.dwg": {"dwg"},
+        "application/dwg": {"dwg"},
+        "application/x-dwg": {"dwg"},
         "application/octet-stream": set(allowed_extensions()),
         "image/vnd.dxf": {"dxf"},
         "application/dxf": {"dxf"},
@@ -215,6 +235,12 @@ def infer_mime_from_bytes(head: bytes, filename: str) -> str:
             return "application/vnd.openxmlformats-officedocument.presentationml.presentation"
         if ext in {"3mf", "odt", "ods", "odp"}:
             return "application/zip"
+        if ext == "zip":
+            return "application/zip"
+    if data.startswith(b"Rar!\x1a\x07\x00") or data.startswith(b"Rar!\x1a\x07\x01\x00"):
+        return "application/x-rar-compressed"
+    if data.startswith(b"7z\xbc\xaf\x27\x1c"):
+        return "application/x-7z-compressed"
     if b"ISO-10303-21" in data[:4096]:
         return "model/step"
     if data[:5].lower() == b"solid":
@@ -253,6 +279,7 @@ def to_legacy_groups() -> dict[str, list[str]]:
         "brep": set(),
         "mesh": set(),
         "dxf": set(),
+        "archive": set(),
         "images": set(),
         "rejected": set(),
     }
@@ -266,6 +293,8 @@ def to_legacy_groups() -> dict[str, list[str]]:
             groups["mesh"].add(rule.ext)
         elif rule.mode == "2d_only":
             groups["dxf"].add(rule.ext)
+        elif rule.kind == "archive":
+            groups["archive"].add(rule.ext)
         elif rule.kind in {"image", "doc"}:
             groups["images"].add(rule.ext)
     return {k: sorted(v) for k, v in groups.items()}

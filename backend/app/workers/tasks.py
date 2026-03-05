@@ -8,6 +8,7 @@ import shutil
 import struct
 import subprocess
 import tempfile
+import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -421,12 +422,99 @@ def _pipeline_2d(f: UploadFile, input_path: Path, s3) -> dict:
     result: dict[str, str] = {"thumbnail_key": thumb_key}
     if ext == "pdf":
         result["pdf_key"] = f.object_key
+    elif ext == "dwg":
+        preview_pdf = _simple_pdf_bytes(
+            "STELLCODEX DWG Preview",
+            [
+                f"source: {f.original_filename}",
+                "DWG direct render unavailable on this node.",
+                "A deterministic preview PDF was generated so the file remains accessible.",
+            ],
+        )
+        pdf_key = f"documents/{f.file_id}/dwg-preview.pdf"
+        _upload_bytes(s3, f.bucket, pdf_key, preview_pdf, "application/pdf")
+        result["pdf_key"] = pdf_key
     return result
 
 
 def _pipeline_image(f: UploadFile, input_path: Path, s3) -> dict:
     thumb_key = _generate_thumbnail_png(f.file_id, f.bucket, s3)
     return {"thumbnail_key": thumb_key}
+
+
+def _archive_manifest(input_path: Path, ext: str) -> dict:
+    payload: dict = {
+        "format": ext,
+        "entry_count": 0,
+        "total_uncompressed_bytes": 0,
+        "entries": [],
+        "preview_note": None,
+    }
+
+    if ext != "zip":
+        payload["preview_note"] = "Entry listing is limited for this archive format on current node."
+        return payload
+
+    try:
+        with zipfile.ZipFile(input_path, "r") as zf:
+            entries = []
+            total_uncompressed = 0
+            for info in zf.infolist():
+                if info.is_dir():
+                    continue
+                total_uncompressed += max(0, int(info.file_size or 0))
+                entries.append(
+                    {
+                        "path": info.filename,
+                        "size_bytes": int(info.file_size or 0),
+                        "compressed_size_bytes": int(info.compress_size or 0),
+                    }
+                )
+            payload["entries"] = entries[:5000]
+            payload["entry_count"] = len(entries)
+            payload["total_uncompressed_bytes"] = total_uncompressed
+            if len(entries) > 5000:
+                payload["preview_note"] = "Manifest truncated to first 5000 entries."
+    except Exception as exc:
+        payload["preview_note"] = f"Archive listing failed: {exc}"
+    return payload
+
+
+def _pipeline_archive(f: UploadFile, input_path: Path, s3) -> dict:
+    ext = _ext(f.original_filename)
+    manifest = _archive_manifest(input_path, ext)
+    manifest_key = f"archives/{f.file_id}/manifest.json"
+    _upload_bytes(
+        s3,
+        f.bucket,
+        manifest_key,
+        json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8"),
+        "application/json",
+    )
+
+    summary_lines = [
+        f"source: {f.original_filename}",
+        f"format: {ext}",
+        f"entries: {manifest.get('entry_count', 0)}",
+        f"total_uncompressed_bytes: {manifest.get('total_uncompressed_bytes', 0)}",
+    ]
+    preview_note = manifest.get("preview_note")
+    if isinstance(preview_note, str) and preview_note.strip():
+        summary_lines.append(preview_note.strip())
+    pdf_payload = _simple_pdf_bytes("STELLCODEX Archive Preview", summary_lines)
+    pdf_key = f"documents/{f.file_id}/archive-preview.pdf"
+    _upload_bytes(s3, f.bucket, pdf_key, pdf_payload, "application/pdf")
+
+    thumb_key = _generate_thumbnail_png(f.file_id, f.bucket, s3)
+    return {
+        "thumbnail_key": thumb_key,
+        "pdf_key": pdf_key,
+        "archive_manifest_key": manifest_key,
+        "archive_manifest_summary": {
+            "entry_count": int(manifest.get("entry_count") or 0),
+            "total_uncompressed_bytes": int(manifest.get("total_uncompressed_bytes") or 0),
+        },
+    }
 
 
 def _pipeline_3d(f: UploadFile, input_path: Path, mode: str, s3) -> dict:
@@ -498,6 +586,8 @@ def _is_ready_contract(kind: str, payload: dict, gltf_key: str | None, thumb_key
         )
     if kind == "doc":
         return bool(payload.get("pdf_key") and thumb_key)
+    if kind == "archive":
+        return bool(payload.get("pdf_key") and thumb_key and payload.get("archive_manifest_key"))
     if kind in {"2d", "image"}:
         return bool(thumb_key)
     return False
@@ -553,6 +643,8 @@ def convert_file(file_id: str):
                 result_payload = _pipeline_2d(f, local_path, s3)
             elif kind == "doc":
                 result_payload = _pipeline_doc(f, local_path, s3)
+            elif kind == "archive":
+                result_payload = _pipeline_archive(f, local_path, s3)
             elif kind == "image":
                 result_payload = _pipeline_image(f, local_path, s3)
             else:
@@ -581,6 +673,12 @@ def convert_file(file_id: str):
             "assembly_meta_key": result_payload.get("assembly_meta_key"),
             "preview_jpg_keys": result_payload.get("preview_jpg_keys"),
             "pdf_key": result_payload.get("pdf_key"),
+            "archive_manifest_key": result_payload.get("archive_manifest_key"),
+            "archive_manifest_summary": (
+                result_payload.get("archive_manifest_summary")
+                if isinstance(result_payload.get("archive_manifest_summary"), dict)
+                else meta.get("archive_manifest_summary")
+            ),
             "geometry_meta_json": geometry if isinstance(geometry, dict) else meta.get("geometry_meta_json"),
             "part_count": part_count if part_count is not None else meta.get("part_count"),
             "geometry_report": result_payload.get("geometry_report") if isinstance(result_payload.get("geometry_report"), dict) else meta.get("geometry_report"),

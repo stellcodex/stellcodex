@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { getVisiblePlatformApps, platformCategories } from "@/data/platformCatalog";
-import { WorkspaceSession, loadSessions, newSession, saveActiveSessionId, saveSessions } from "@/lib/sessionStore";
+import { WorkspaceSession, ensureSession, loadSessions, newSession, saveActiveSessionId, saveSessions } from "@/lib/sessionStore";
+import { buildWorkspacePath, extractWorkspaceId, resolveWorkspaceHref } from "@/lib/workspace-routing";
 import { useUser } from "@/context/UserContext";
 
 type PlatformLayoutProps = {
@@ -43,16 +44,24 @@ export function PlatformLayout({ title, subtitle, children, sessionState }: Plat
   const [collapsed, setCollapsed] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [fallbackSessions, setFallbackSessions] = useState<WorkspaceSession[]>([]);
+  const workspaceId = extractWorkspaceId(pathname);
 
   useEffect(() => {
+    ensureSession(workspaceId || undefined);
     setFallbackSessions(loadSessions());
     setShowMenu(false);
-  }, [pathname]);
+  }, [pathname, workspaceId]);
 
   const sessions = sessionState?.sessions || fallbackSessions;
-  const activeSessionId = sessionState?.activeSessionId || sessions[0]?.id || null;
+  const activeSessionId = sessionState?.activeSessionId || workspaceId || sessions[0]?.id || null;
   const apps = getVisiblePlatformApps(user.role);
   const navItems = user.role === "admin" ? [...baseNavItems, { href: "/admin", label: "Admin" }] : baseNavItems;
+
+  function isActiveRoute(target: string, exactOnly = false) {
+    if (pathname === target) return true;
+    if (exactOnly) return false;
+    return pathname.startsWith(`${target}/`);
+  }
 
   function onCreateSession() {
     if (sessionState) {
@@ -64,7 +73,7 @@ export function PlatformLayout({ title, subtitle, children, sessionState }: Plat
     saveSessions(next);
     saveActiveSessionId(created.id);
     setFallbackSessions(next);
-    router.push("/");
+    router.push(buildWorkspacePath(created.id));
   }
 
   function onSelectSession(sessionId: string) {
@@ -73,7 +82,7 @@ export function PlatformLayout({ title, subtitle, children, sessionState }: Plat
       return;
     }
     saveActiveSessionId(sessionId);
-    router.push("/");
+    router.push(buildWorkspacePath(sessionId));
   }
 
   return (
@@ -106,11 +115,12 @@ export function PlatformLayout({ title, subtitle, children, sessionState }: Plat
 
         <nav className="space-y-1 px-2">
           {navItems.map((item) => {
-            const active = pathname === item.href;
+            const href = resolveWorkspaceHref(workspaceId, item.href);
+            const active = isActiveRoute(href, item.href === "/");
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={href}
                 className={`flex items-center rounded-xl px-3 py-2 text-sm ${
                   active ? "bg-white/12 text-white" : "text-white/65 hover:bg-white/6 hover:text-white"
                 }`}
@@ -127,7 +137,7 @@ export function PlatformLayout({ title, subtitle, children, sessionState }: Plat
           </div>
           <div className="space-y-1">
             {sessions.slice(0, collapsed ? 6 : 10).map((session) => {
-              const active = session.id === activeSessionId && pathname === "/";
+              const active = session.id === activeSessionId;
               return (
                 <button
                   key={session.id}
@@ -156,17 +166,20 @@ export function PlatformLayout({ title, subtitle, children, sessionState }: Plat
                 <div key={category}>
                   {!collapsed ? <div className="mb-1 text-xs text-white/35">{category}</div> : null}
                   <div className="space-y-1">
-                    {items.map((app) => (
-                      <Link
-                        key={app.id}
-                        href={app.route}
-                        className={`flex rounded-xl px-3 py-2 text-sm ${
-                          pathname === app.route ? "bg-white/12 text-white" : "text-white/58 hover:bg-white/6 hover:text-white"
-                        }`}
-                      >
-                        {collapsed ? app.shortName : app.name}
-                      </Link>
-                    ))}
+                    {items.map((app) => {
+                      const href = resolveWorkspaceHref(workspaceId, app.route);
+                      return (
+                        <Link
+                          key={app.id}
+                          href={href}
+                          className={`flex rounded-xl px-3 py-2 text-sm ${
+                            pathname === href ? "bg-white/12 text-white" : "text-white/58 hover:bg-white/6 hover:text-white"
+                          }`}
+                        >
+                          {collapsed ? app.shortName : app.name}
+                        </Link>
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -200,13 +213,13 @@ export function PlatformLayout({ title, subtitle, children, sessionState }: Plat
                   <div>{user.name}</div>
                   <div className="text-xs text-white/45">{isAuthenticated ? "Signed in" : "Guest workspace"}</div>
                 </div>
-                <Link href="/settings" className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/8">
+                <Link href={resolveWorkspaceHref(workspaceId, "/settings")} className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/8">
                   Plan
                 </Link>
-                <Link href="/settings" className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/8">
+                <Link href={resolveWorkspaceHref(workspaceId, "/settings")} className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/8">
                   Settings
                 </Link>
-                <Link href="/" className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/8">
+                <Link href={resolveWorkspaceHref(workspaceId, "/")} className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/8">
                   Explore Applications
                 </Link>
                 <button
@@ -214,7 +227,7 @@ export function PlatformLayout({ title, subtitle, children, sessionState }: Plat
                   onClick={() => {
                     setShowMenu(false);
                     logout();
-                    router.push("/");
+                    router.push(resolveWorkspaceHref(workspaceId, "/"));
                   }}
                   className="mt-1 block w-full rounded-xl px-3 py-2 text-left text-sm text-red-200 hover:bg-red-500/10"
                 >

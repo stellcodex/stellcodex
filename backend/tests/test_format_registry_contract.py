@@ -17,13 +17,20 @@ class FormatRegistryContractTests(unittest.TestCase):
         self.assertEqual(get_rule_by_ext("stl").mode, "mesh_approx")
         self.assertEqual(get_rule_by_ext("glb").mode, "visual_only")
         self.assertEqual(get_rule_by_ext("dxf").mode, "2d_only")
+        self.assertEqual(get_rule_by_ext("dwg").mode, "2d_only")
         self.assertEqual(get_rule_by_ext("docx").kind, "doc")
+        self.assertEqual(get_rule_by_ext("md").kind, "doc")
         self.assertEqual(get_rule_by_ext("html").kind, "doc")
+        self.assertEqual(get_rule_by_ext("zip").kind, "archive")
+        self.assertEqual(get_rule_by_ext("rar").kind, "archive")
+        self.assertEqual(get_rule_by_ext("7z").kind, "archive")
 
     def test_rejected_formats_include_reason(self) -> None:
         groups = grouped_payload()
         rejected = groups.get("rejected") or []
-        self.assertTrue(any(item.get("ext") == "dwg" and item.get("reason") for item in rejected))
+        self.assertTrue(any(item.get("ext") == "fcstd" and item.get("reason") for item in rejected))
+        self.assertFalse(any(item.get("ext") == "dwg" for item in rejected))
+        self.assertTrue(any(item.get("ext") == "zip" for item in (groups.get("archive") or [])))
 
     def test_public_rows_have_no_missing_contract_fields(self) -> None:
         rows = as_public_rows()
