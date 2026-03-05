@@ -13,6 +13,10 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "127.0.0.1:5432:5432"
+    networks:
+      stellcodex-net:
+        aliases:
+          - postgres
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U stellcodex -d stellcodex"]
       interval: 5s
@@ -25,6 +29,10 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:6379:6379"
+    networks:
+      stellcodex-net:
+        aliases:
+          - redis
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -44,6 +52,11 @@ services:
     ports:
       - "127.0.0.1:9000:9000"
       - "127.0.0.1:9001:9001"
+    networks:
+      stellcodex-net:
+        aliases:
+          - minio
+          - stellcodex-minio
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live || exit 1"]
       interval: 5s
@@ -58,6 +71,8 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:8000:8000"
+    networks:
+      - stellcodex-net
     volumes:
       - /var/stellcodex/work:/var/stellcodex/work
     depends_on:
@@ -102,6 +117,8 @@ services:
       dockerfile: Dockerfile.worker
     container_name: stellcodex-worker
     restart: unless-stopped
+    networks:
+      - stellcodex-net
     volumes:
       - /var/stellcodex/work:/var/stellcodex/work
     depends_on:
@@ -133,3 +150,8 @@ services:
 volumes:
   postgres_data: {}
   minio_data: {}
+
+networks:
+  stellcodex-net:
+    external:
+      name: stellcodex-net
