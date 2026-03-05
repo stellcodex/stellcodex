@@ -57,8 +57,9 @@ def main() -> int:
 
     while not STOP_REQUESTED:
         try:
-            item = redis_command(redis_url, redis_token, ["LPOP", queue_key])
-            if item is None:
+            depth = redis_command(redis_url, redis_token, ["LLEN", queue_key])
+            depth_value = 0 if depth is None else int(depth)
+            if depth_value <= 0:
                 idle_counter += 1
                 if idle_counter == 1 or idle_counter % 30 == 0:
                     print(f"No item in queue '{queue_key}' (idle poll #{idle_counter}).")
@@ -66,8 +67,8 @@ def main() -> int:
                 continue
 
             idle_counter = 0
-            print(f"Dequeued message from '{queue_key}': {str(item)[:200]}")
-            # Placeholder for message processing logic.
+            print(f"Queue '{queue_key}' depth={depth_value}.")
+            time.sleep(poll_sleep_seconds)
         except Exception as exc:
             print(f"Worker error: {exc}")
             traceback.print_exc()
