@@ -6,13 +6,12 @@ on:
 jobs:
   worker:
     runs-on: ubuntu-latest
-
     steps:
       - name: checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: setup python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
@@ -23,16 +22,21 @@ jobs:
 
       - name: debug workspace
         run: |
-          echo "CURRENT DIRECTORY:"
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          echo "PWD:"
           pwd
-          echo "LIST FILES:"
+          echo "TOP LEVEL LIST:"
           ls -la
-          echo "CHECK worker.py:"
-          test -f worker.py && echo "worker.py exists" || echo "worker.py missing"
+          echo "FIND worker.py:"
+          find . -maxdepth 3 -name "worker.py" -print -exec ls -la {} \;
+          echo "CHECK ./worker.py:"
+          test -f ./worker.py && echo "OK: ./worker.py exists" || (echo "ERROR: ./worker.py missing" && exit 2)
 
       - name: run worker
         env:
           UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
           STELLCODEX_QUEUE_KEY: stellcodex:queue
-        run: python ./worker.py
+        run: |
+          python -V
+          python ./worker.py
