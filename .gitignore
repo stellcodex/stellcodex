@@ -1,0 +1,17 @@
+_archive/
+_backups/
+_knowledge/
+_packages/
+_runs/
+_stage_patch_backend/
+_stage_patch_frontend/
+_truth/
+handoff/
+live_services/
+AI/.venv/
+**/__pycache__/
+**/*.pyc
+ops/orchestra/.env
+_jobs/backups/
+_jobs/output/
+_jobs/logs/events.jsonl

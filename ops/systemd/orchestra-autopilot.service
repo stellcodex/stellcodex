@@ -1,0 +1,16 @@
+[Unit]
+Description=Stellcodex Orchestra Autopilot Stack
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/workspace/ops/orchestra
+ExecStart=/root/workspace/ops/orchestra/autopilot.sh start /root/workspace/_jobs
+ExecStop=/root/workspace/ops/orchestra/autopilot.sh stop /root/workspace/_jobs
+Restart=always
+RestartSec=10
+Environment=TZ=Europe/Istanbul
+
+[Install]
+WantedBy=multi-user.target

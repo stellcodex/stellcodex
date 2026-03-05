@@ -1,0 +1,11 @@
+[Unit]
+Description=Run orchestra watchdog check every minute
+
+[Timer]
+OnBootSec=30
+OnUnitActiveSec=60
+AccuracySec=1s
+Unit=orchestra-watchdog.service
+
+[Install]
+WantedBy=timers.target

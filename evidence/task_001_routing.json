@@ -1,0 +1,60 @@
+[
+  {
+    "role": "gemini",
+    "task_type": "plan",
+    "preferred": "gemini_conductor",
+    "selected": "gemini_conductor",
+    "pinned": false,
+    "decision": "defer_and_degrade",
+    "reason": "primary_model_in_cooldown"
+  },
+  {
+    "role": "codex",
+    "task_type": "code",
+    "preferred": "local_reason",
+    "selected": "local_reason",
+    "pinned": false,
+    "decision": "defer_and_degrade",
+    "reason": "primary_model_in_cooldown"
+  },
+  {
+    "role": "abacus",
+    "task_type": "analysis",
+    "preferred": "abacus_analyst",
+    "selected": "abacus_analyst",
+    "pinned": false,
+    "decision": "defer_and_degrade",
+    "reason": "primary_model_in_cooldown"
+  },
+  {
+    "role": "claude",
+    "task_type": "review",
+    "preferred": "local_reason",
+    "selected": "local_reason",
+    "pinned": false,
+    "decision": "defer_and_degrade",
+    "reason": "primary_model_in_cooldown"
+  },
+  {
+    "role": "local_ops_check",
+    "task_type": "ops_check",
+    "preferred": null,
+    "selected": null,
+    "shadow": null,
+    "pinned": false,
+    "decision": "defer_and_degrade",
+    "reason": "no_available_model",
+    "ranked": []
+  },
+  {
+    "role": "local_doc",
+    "task_type": "doc",
+    "preferred": null,
+    "selected": null,
+    "shadow": null,
+    "pinned": false,
+    "decision": "defer_and_degrade",
+    "reason": "no_available_model",
+    "ranked": []
+  }
+]

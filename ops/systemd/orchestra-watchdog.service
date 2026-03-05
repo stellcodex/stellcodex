@@ -1,0 +1,8 @@
+[Unit]
+Description=Stellcodex Orchestra Watchdog Check
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/root/workspace/ops/orchestra
+ExecStart=/root/workspace/ops/orchestra/watchdog_check.sh
