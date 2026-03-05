@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+export PATH="${ROOT_DIR}:${PATH}"
 BASE_URL="${BASE_URL:-http://localhost:7010}"
 COMPOSE_FILE="${COMPOSE_FILE:-/root/workspace/ops/orchestra/docker-compose.yml}"
 

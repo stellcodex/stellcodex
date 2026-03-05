@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import shutil
+import sqlite3
 import subprocess
 import time
 from datetime import datetime, timedelta, timezone
@@ -84,6 +85,7 @@ class Config:
         self.auto_issue_state_path = self.logs / "auto_issue_state.json"
         self.scheduler_state_path = self.logs / "scheduler_state.json"
         self.lock_path = self.logs / "autopilot.lock"
+        self.sqlite_path = self.logs / "autopilot.db"
 
 
 class Autopilot:
@@ -93,6 +95,7 @@ class Autopilot:
         self.auto_issue_state: Dict[str, Any] = {"hashes": []}
         self.scheduler_state: Dict[str, Any] = {}
         self.last_scan_at: Optional[datetime] = None
+        self.db: Optional[sqlite3.Connection] = None
 
     def ensure_dirs(self) -> None:
         for path in [
@@ -124,6 +127,45 @@ class Autopilot:
             self.scheduler_state = {}
 
         self.cfg.lock_path.write_text(str(os.getpid()), encoding="utf-8")
+        self._init_db()
+
+    def _init_db(self) -> None:
+        self.db = sqlite3.connect(str(self.cfg.sqlite_path))
+        self.db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS task_runs (
+              task_hash TEXT PRIMARY KEY,
+              task_id TEXT NOT NULL,
+              status TEXT NOT NULL,
+              source_file TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            )
+            """
+        )
+        self.db.commit()
+
+    def _task_hash(self, task_text: str) -> str:
+        return hashlib.sha256(task_text.encode("utf-8", errors="ignore")).hexdigest()
+
+    def _db_status(self, task_hash: str) -> Optional[str]:
+        if self.db is None:
+            return None
+        row = self.db.execute(
+            "SELECT status FROM task_runs WHERE task_hash = ?",
+            (task_hash,),
+        ).fetchone()
+        if not row:
+            return None
+        return str(row[0])
+
+    def _db_upsert(self, task_hash: str, task_id: str, status: str, source_file: str) -> None:
+        if self.db is None:
+            return
+        self.db.execute(
+            "INSERT OR REPLACE INTO task_runs (task_hash, task_id, status, source_file, updated_at) VALUES (?, ?, ?, ?, ?)",
+            (task_hash, task_id, status, source_file, to_iso(utcnow())),
+        )
+        self.db.commit()
 
     def _save_states(self) -> None:
         write_json(self.cfg.retry_state_path, self.retry_state)
@@ -203,12 +245,20 @@ class Autopilot:
     def _deferred_meta_path(self, task_name: str) -> Path:
         return self.cfg.deferred / f"{task_name}.meta.json"
 
-    def _mark_done(self, source: Path, payload: Dict[str, Any], attempts: int) -> None:
+    def _mark_done(
+        self,
+        source: Path,
+        payload: Dict[str, Any],
+        attempts: int,
+        task_hash: Optional[str] = None,
+    ) -> None:
         task_id = self._task_id(source)
         self._write_outputs(task_id, payload)
         moved = self._move_with_overwrite(source, self.cfg.done)
         self._clear_attempt_count(source)
         self._clear_attempt_count(moved)
+        if task_hash:
+            self._db_upsert(task_hash, task_id, "DONE", moved.name)
         self._write_status(
             task_id=task_id,
             source_file=moved.name,
@@ -232,6 +282,7 @@ class Autopilot:
         detail: str,
         attempts: int,
         payload: Optional[Dict[str, Any]],
+        task_hash: Optional[str] = None,
     ) -> None:
         task_id = self._task_id(source)
         retry_at = utcnow() + timedelta(seconds=self.cfg.defer_retry_seconds)
@@ -239,6 +290,8 @@ class Autopilot:
             self._write_outputs(task_id, payload)
 
         moved = self._move_with_overwrite(source, self.cfg.deferred)
+        if task_hash:
+            self._db_upsert(task_hash, task_id, "DEFERRED", moved.name)
         write_json(
             self._deferred_meta_path(moved.name),
             {
@@ -269,11 +322,20 @@ class Autopilot:
             }
         )
 
-    def _mark_failed(self, source: Path, detail: str, attempts: int, http_status: Optional[int]) -> None:
+    def _mark_failed(
+        self,
+        source: Path,
+        detail: str,
+        attempts: int,
+        http_status: Optional[int],
+        task_hash: Optional[str] = None,
+    ) -> None:
         task_id = self._task_id(source)
         moved = self._move_with_overwrite(source, self.cfg.failed)
         self._clear_attempt_count(source)
         self._clear_attempt_count(moved)
+        if task_hash:
+            self._db_upsert(task_hash, task_id, "FAILED", moved.name)
         self._write_status(
             task_id=task_id,
             source_file=moved.name,
@@ -332,6 +394,26 @@ class Autopilot:
             self._mark_failed(path, detail="empty_task", attempts=1, http_status=None)
             return
 
+        task_hash = self._task_hash(task_text)
+        if self._db_status(task_hash) == "DONE":
+            moved = self._move_with_overwrite(path, self.cfg.done)
+            self._write_status(
+                task_id=task_id,
+                source_file=moved.name,
+                status="DONE",
+                attempts=0,
+                detail="duplicate_done_skipped",
+                http_status=200,
+            )
+            self.log_event(
+                {
+                    "event": "task_duplicate_skipped",
+                    "task_id": task_id,
+                    "file": moved.name,
+                }
+            )
+            return
+
         current = self._attempt_count(path)
         for attempt in range(current + 1, self.cfg.max_retries + 1):
             self._set_attempt_count(path, attempt)
@@ -342,7 +424,13 @@ class Autopilot:
             except Exception as exc:
                 detail = f"orchestrate_request_error:{exc.__class__.__name__}"
                 if attempt >= self.cfg.max_retries:
-                    self._mark_failed(path, detail=detail, attempts=attempt, http_status=None)
+                    self._mark_failed(
+                        path,
+                        detail=detail,
+                        attempts=attempt,
+                        http_status=None,
+                        task_hash=task_hash,
+                    )
                     return
                 self.log_event(
                     {
@@ -357,16 +445,28 @@ class Autopilot:
                 continue
 
             if status_code < 300 and payload:
-                self._mark_done(path, payload, attempts=attempt)
+                self._mark_done(path, payload, attempts=attempt, task_hash=task_hash)
                 return
 
             detail = f"http_{status_code}" if status_code else "http_unknown"
             if self._is_quota_deferred(status_code, payload, raw_text):
-                self._mark_deferred(path, detail=detail, attempts=attempt, payload=payload if payload else None)
+                self._mark_deferred(
+                    path,
+                    detail=detail,
+                    attempts=attempt,
+                    payload=payload if payload else None,
+                    task_hash=task_hash,
+                )
                 return
 
             if attempt >= self.cfg.max_retries:
-                self._mark_failed(path, detail=detail, attempts=attempt, http_status=status_code)
+                self._mark_failed(
+                    path,
+                    detail=detail,
+                    attempts=attempt,
+                    http_status=status_code,
+                    task_hash=task_hash,
+                )
                 return
 
             self.log_event(
@@ -404,9 +504,9 @@ class Autopilot:
                 }
             )
 
-    def _run_cmd(self, command: List[str], timeout: int = 60) -> Tuple[int, str]:
+    def _run_cmd(self, command: List[str], timeout: int = 60, env: Optional[Dict[str, str]] = None) -> Tuple[int, str]:
         try:
-            proc = subprocess.run(command, capture_output=True, text=True, timeout=timeout, check=False)
+            proc = subprocess.run(command, capture_output=True, text=True, timeout=timeout, check=False, env=env)
             out = (proc.stdout or "") + (("\n" + proc.stderr) if proc.stderr else "")
             return proc.returncode, out.strip()
         except Exception as exc:
@@ -514,7 +614,8 @@ class Autopilot:
     def _scan_import_health(self) -> None:
         targets = [self.cfg.workspace_root / "ops", self.cfg.workspace_root / "ops" / "orchestra"]
         args = ["python3", "-m", "compileall", "-q", *[str(p) for p in targets if p.exists()]]
-        rc, output = self._run_cmd(args, timeout=120)
+        env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONPYCACHEPREFIX": "/tmp/pycache_probe"}
+        rc, output = self._run_cmd(args, timeout=120, env=env)
         if rc != 0:
             self._create_auto_issue(
                 category="import_health",
