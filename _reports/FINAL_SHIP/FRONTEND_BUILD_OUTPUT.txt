@@ -1,0 +1,121 @@
+
+> web@0.1.0 prebuild
+> npm run gen:access && npm run write:build-id && npm run rbac:validate && (npm run rbac:validate-routes || echo '[warn] route permission validation skipped for new STELLCODEX routes')
+
+
+> web@0.1.0 gen:access
+> TS_NODE_COMPILER_OPTIONS='{ "module": "CommonJS" }' ts-node scripts/generate-access-control.ts
+
+Access control generation complete.
+
+> web@0.1.0 write:build-id
+> node scripts/write-build-id.cjs
+
+Wrote /var/www/stellcodex/frontend/public/build_id.txt
+
+> web@0.1.0 rbac:validate
+> python3 ../infrastructure/scripts/validate_rbac_policy.py
+
+RBAC validation ok
+
+> web@0.1.0 rbac:validate-routes
+> python3 ../infrastructure/scripts/validate_route_permissions.py
+
+RBAC route permissions ok
+
+> web@0.1.0 build
+> node scripts/prisma-safe.cjs && next build
+
+warn The configuration property `package.json#prisma` is deprecated and will be removed in Prisma 7. Please migrate to a Prisma config file (e.g., `prisma.config.ts`).
+For more information, see: https://pris.ly/prisma-config
+
+Environment variables loaded from .env
+Prisma schema loaded from prisma/schema.prisma
+
+✔ Generated Prisma Client (v6.19.2) to ./node_modules/@prisma/client in 897ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Want to turn off tips and other hints? https://pris.ly/tip-4-nohints
+
+▲ Next.js 16.1.6 (Turbopack)
+- Environments: .env
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 102s
+  Running TypeScript ...
+  Collecting page data using 1 worker ...
+  Generating static pages using 1 worker (0/46) ...
+  Generating static pages using 1 worker (11/46) 
+  Generating static pages using 1 worker (22/46) 
+  Generating static pages using 1 worker (34/46) 
+✓ Generating static pages using 1 worker (46/46) in 3.3s
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ƒ /_not-found
+├ ƒ /admin
+├ ƒ /admin/ai
+├ ƒ /admin/approvals
+├ ƒ /admin/audit
+├ ƒ /admin/files
+├ ƒ /admin/forbidden
+├ ƒ /admin/job/[id]
+├ ƒ /admin/queue
+├ ƒ /admin/rbac
+├ ƒ /admin/shares
+├ ƒ /admin/stell
+├ ƒ /admin/system
+├ ƒ /admin/users
+├ ƒ /api/archive/[fileId]/extract
+├ ƒ /api/archive/[fileId]/list
+├ ƒ /api/auth/[...nextauth]
+├ ƒ /api/file/[id]
+├ ƒ /api/job/[id]
+├ ƒ /api/project/[id]/tree
+├ ƒ /api/projects/default
+├ ƒ /api/share
+├ ƒ /api/share/[token]
+├ ƒ /api/upload
+├ ƒ /api/view/resolve
+├ ƒ /app/[appId]
+├ ƒ /community
+├ ƒ /console
+├ ƒ /dashboard
+├ ƒ /dashboard/files
+├ ƒ /dashboard/settings
+├ ƒ /dashboard/shares
+├ ƒ /docs
+├ ƒ /features
+├ ƒ /files
+├ ƒ /forgot
+├ ƒ /formats
+├ ƒ /home
+├ ƒ /library
+├ ƒ /login
+├ ƒ /pricing
+├ ƒ /privacy
+├ ƒ /project/[id]
+├ ƒ /projects
+├ ƒ /register
+├ ƒ /reset
+├ ƒ /s/[token]
+├ ƒ /settings
+├ ƒ /share
+├ ƒ /share/[token]
+├ ƒ /shares
+├ ƒ /status
+├ ƒ /terms
+├ ƒ /upload
+├ ƒ /view
+├ ƒ /view/[scx_id]
+├ ƒ /viewer/[file_id]
+├ ƒ /workspace
+└ ƒ /workspace/[workspaceId]/[[...slug]]
+
+
+ƒ Proxy (Middleware)
+
+ƒ  (Dynamic)  server-rendered on demand
+

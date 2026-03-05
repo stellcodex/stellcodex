@@ -98,7 +98,7 @@ export function ViewWorkspace({ initialFileId }: { initialFileId?: string }) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-lg font-semibold text-slate-900">StellView</h1>
-            <p className="text-sm text-slate-600">Motor backend/mock tarafından belirlenir. Paylaşım bu ekranda yok.</p>
+            <p className="text-sm text-slate-600">Motor backend tarafından belirlenir. Paylaşım bu ekranda yok.</p>
           </div>
           <Button href="/dashboard">Panel&apos;e dön</Button>
         </div>
@@ -152,4 +152,3 @@ export function ViewWorkspace({ initialFileId }: { initialFileId?: string }) {
     </div>
   );
 }
-

@@ -114,6 +114,7 @@ export function resolveWorkspaceHref(workspaceId: string | null | undefined, hre
 
   const { path, search, hash } = splitHref(href);
 
+  if (path === "/workspace") return href;
   if (path === "/" || path === "") return joinHref(buildWorkspacePath(workspaceId), search, hash);
   if (path.startsWith("/workspace/")) return href;
   if (path.startsWith("/view/") || path.startsWith("/s/")) return href;

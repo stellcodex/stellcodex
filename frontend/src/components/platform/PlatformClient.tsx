@@ -342,10 +342,10 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
+    <section className="rounded-[28px] border border-[#e5e7eb] bg-white p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
       <div className="mb-4">
-        <div className="text-lg font-semibold text-white">{title}</div>
-        {description ? <div className="mt-1 text-sm text-white/45">{description}</div> : null}
+        <div className="text-lg font-semibold text-[#111827]">{title}</div>
+        {description ? <div className="mt-1 text-sm text-[#6b7280]">{description}</div> : null}
       </div>
       {children}
     </section>
@@ -355,17 +355,17 @@ function SectionCard({
 function StatusBadge({ label }: { label: string }) {
   const tone =
     label === "ready" || label === "finished" || label === "ok"
-      ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
       : label === "failed"
-      ? "border-red-500/25 bg-red-500/10 text-red-200"
-      : "border-amber-500/25 bg-amber-500/10 text-amber-200";
+      ? "border-red-200 bg-red-50 text-red-700"
+      : "border-amber-200 bg-amber-50 text-amber-700";
   return <span className={`rounded-full border px-2.5 py-1 text-xs ${tone}`}>{titleCase(label)}</span>;
 }
 
 function EmptyPanel({ title, description }: { title: string; description: string }) {
   return (
-    <div className="rounded-[24px] border border-dashed border-white/12 bg-black/10 p-6 text-sm text-white/55">
-      <div className="font-medium text-white/80">{title}</div>
+    <div className="rounded-[24px] border border-dashed border-[#e5e7eb] bg-white p-6 text-sm text-[#6b7280]">
+      <div className="font-medium text-[#1f2937]">{title}</div>
       <div className="mt-1">{description}</div>
     </div>
   );
@@ -381,12 +381,12 @@ function BlockerPanel({
   blockerKeys: readonly string[];
 }) {
   return (
-    <div className="rounded-[24px] border border-amber-500/20 bg-amber-500/8 p-5 text-sm text-amber-50">
-      <div className="font-semibold text-amber-100">{title}</div>
-      <div className="mt-2 text-amber-50/80">{description}</div>
+    <div className="rounded-[24px] border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">
+      <div className="font-semibold text-amber-900">{title}</div>
+      <div className="mt-2 text-amber-800">{description}</div>
       <div className="mt-4 flex flex-wrap gap-2">
         {blockerKeys.map((key) => (
-          <span key={key} className="rounded-full border border-amber-400/20 bg-black/20 px-3 py-1 text-xs tracking-[0.14em] text-amber-100/90">
+          <span key={key} className="rounded-full border border-amber-300 bg-white px-3 py-1 text-xs tracking-[0.14em] text-amber-900">
             {key}
           </span>
         ))}
@@ -402,6 +402,7 @@ function HomeScreen() {
   const [sessions, setSessions] = useState<WorkspaceSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [showBeta, setShowBeta] = useState(false);
   const workspaceId = extractWorkspaceId(pathname);
 
   useEffect(() => {
@@ -412,7 +413,7 @@ function HomeScreen() {
   }, [workspaceId]);
 
   const activeSession = sessions.find((item) => item.id === activeSessionId) || sessions[0] || null;
-  const visibleApps = getVisiblePlatformApps(user.role);
+  const visibleApps = getVisiblePlatformApps(user.role, { showBeta }).filter((app) => app.id !== "workspace");
 
   function onSelectSession(sessionId: string) {
     setActiveSessionId(sessionId);
@@ -451,11 +452,11 @@ function HomeScreen() {
       sessionState={{ sessions, activeSessionId, onSelectSession, onNewSession }}
     >
       <div className="mx-auto flex h-full w-full max-w-[1600px] flex-col px-4 py-6 lg:px-8">
-        <div className="flex-1 rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))]">
+        <div className="flex-1 rounded-[32px] border border-[#e5e7eb] bg-white">
           <div className="mx-auto flex h-full max-w-[960px] flex-col gap-6 px-4 py-8 lg:px-8">
             <div className="pt-8 text-center">
-              <div className="text-3xl font-semibold tracking-tight text-white">What can STELLCODEX help build today?</div>
-              <div className="mt-2 text-sm text-white/45">
+              <div className="text-3xl font-semibold tracking-tight text-[#111827]">What can STELLCODEX help build today?</div>
+              <div className="mt-2 text-sm text-[#6b7280]">
                 Upload files, open projects, run mesh jobs and manage platform applications from one workspace.
               </div>
             </div>
@@ -466,8 +467,8 @@ function HomeScreen() {
                   key={message.id}
                   className={`max-w-[760px] rounded-[24px] px-5 py-4 text-sm leading-6 ${
                     message.role === "assistant"
-                      ? "bg-white/[0.04] text-white/85"
-                      : "ml-auto bg-[#303030] text-white"
+                      ? "bg-[#f9fafb] text-[#111827]"
+                      : "ml-auto bg-[#f3f4f6] text-[#111827]"
                   }`}
                 >
                   {message.text}
@@ -475,38 +476,53 @@ function HomeScreen() {
               ))}
             </div>
 
-            <SectionCard title="Explore Applications" description="Only live, wired modules are exposed.">
+            <SectionCard title="Explore Applications" description="Only active apps are visible by default.">
+              <div className="mb-3 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowBeta((value) => !value)}
+                  className={`rounded-full border px-3 py-1 text-xs ${
+                    showBeta
+                      ? "border-[#111827] bg-[#111827] text-white"
+                      : "border-[#d1d5db] bg-white text-[#4b5563] hover:bg-[#f9fafb]"
+                  }`}
+                >
+                  Show beta
+                </button>
+              </div>
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {visibleApps.map((app) => (
                   <button
                     key={app.id}
                     type="button"
-                    onClick={() => router.push(resolveAppHref(workspaceId, app.id))}
-                    className="rounded-[24px] border border-white/10 bg-black/10 p-4 text-left transition hover:border-white/20 hover:bg-white/[0.05]"
+                    onClick={() => router.push(resolveWorkspaceHref(workspaceId, app.route))}
+                    className="rounded-[24px] border border-[#e5e7eb] bg-white p-4 text-left transition hover:border-[#d1d5db] hover:bg-[#f9fafb]"
                   >
                     <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold text-white">{app.name}</div>
-                      <div className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-white/45">{app.category}</div>
+                      <div className="text-sm font-semibold text-[#111827]">{app.name}</div>
+                      <div className="rounded-full border border-[#e5e7eb] px-2 py-1 text-[11px] text-[#6b7280]">
+                        {app.status === "beta" ? "BETA" : app.category}
+                      </div>
                     </div>
-                    <div className="mt-2 text-sm text-white/55">{app.summary}</div>
+                    <div className="mt-2 text-sm text-[#6b7280]">{app.summary}</div>
                   </button>
                 ))}
               </div>
             </SectionCard>
 
-            <div className="sticky bottom-0 rounded-[28px] border border-white/10 bg-[#2a2a2a] p-3 shadow-[0_30px_80px_rgba(0,0,0,0.35)]">
+            <div className="sticky bottom-0 rounded-[28px] border border-[#e5e7eb] bg-white p-3 shadow-[0_30px_80px_rgba(0,0,0,0.35)]">
               <textarea
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 rows={3}
                 placeholder="Describe the task, then switch into the right application..."
-                className="w-full resize-none bg-transparent px-3 py-2 text-sm text-white outline-none placeholder:text-white/30"
+                className="w-full resize-none bg-transparent px-3 py-2 text-sm text-[#111827] outline-none placeholder:text-[#94a3b8]"
               />
-              <div className="flex items-center justify-between border-t border-white/8 pt-3">
-                <div className="flex flex-wrap gap-2 text-xs text-white/35">
-                  <span className="rounded-full border border-white/10 px-3 py-1">Files upload</span>
-                  <span className="rounded-full border border-white/10 px-3 py-1">Mesh jobs</span>
-                  <span className="rounded-full border border-white/10 px-3 py-1">Mold export</span>
+              <div className="flex items-center justify-between border-t border-[#e5e7eb] pt-3">
+                <div className="flex flex-wrap gap-2 text-xs text-[#94a3b8]">
+                  <span className="rounded-full border border-[#e5e7eb] px-3 py-1">Files upload</span>
+                  <span className="rounded-full border border-[#e5e7eb] px-3 py-1">Mesh jobs</span>
+                  <span className="rounded-full border border-[#e5e7eb] px-3 py-1">Mold export</span>
                 </div>
                 <button
                   type="button"
@@ -569,7 +585,7 @@ function ProjectsScreen() {
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="Injection tooling package"
-              className="h-12 flex-1 rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none placeholder:text-white/30"
+              className="h-12 flex-1 rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none placeholder:text-[#94a3b8]"
             />
             <button
               type="button"
@@ -589,13 +605,13 @@ function ProjectsScreen() {
               <Link
                 key={project.id}
                 href={resolveProjectHref(workspaceId, project.id)}
-                className="rounded-[24px] border border-white/10 bg-black/10 p-5 transition hover:border-white/20 hover:bg-white/[0.04]"
+                className="rounded-[24px] border border-[#e5e7eb] bg-white p-5 transition hover:border-[#d1d5db] hover:bg-[#f9fafb]"
               >
                 <div className="flex items-center justify-between">
-                  <div className="text-base font-semibold text-white">{project.name}</div>
-                  <div className="text-xs text-white/40">{project.file_count} files</div>
+                  <div className="text-base font-semibold text-[#111827]">{project.name}</div>
+                  <div className="text-xs text-[#94a3b8]">{project.file_count} files</div>
                 </div>
-                <div className="mt-3 text-sm text-white/45">Updated {formatDate(project.updated_at)}</div>
+                <div className="mt-3 text-sm text-[#6b7280]">Updated {formatDate(project.updated_at)}</div>
               </Link>
             ))}
             {projects.length === 0 ? (
@@ -646,9 +662,9 @@ function ProjectScreen({ projectId }: { projectId: string }) {
     <PlatformLayout title={project?.name || "Project"} subtitle={projectId}>
       <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-6 px-4 py-6 lg:px-8">
         <SectionCard title="Project Upload" description="Files uploaded here stay attached to this project id.">
-          <label className="flex cursor-pointer flex-col items-center justify-center rounded-[28px] border border-dashed border-white/12 bg-black/10 px-6 py-12 text-center">
-            <div className="text-sm font-medium text-white">{uploading ? "Uploading..." : "Upload file to project"}</div>
-            <div className="mt-2 text-sm text-white/45">STEP, STL, DXF, PDF, images or JSON records</div>
+          <label className="flex cursor-pointer flex-col items-center justify-center rounded-[28px] border border-dashed border-[#e5e7eb] bg-white px-6 py-12 text-center">
+            <div className="text-sm font-medium text-[#111827]">{uploading ? "Uploading..." : "Upload file to project"}</div>
+            <div className="mt-2 text-sm text-[#6b7280]">STEP, STL, DXF, PDF, images or JSON records</div>
             <input type="file" className="hidden" onChange={(event) => void onUpload(event.target.files)} />
           </label>
           {error ? <div className="mt-3 text-sm text-red-200">{error}</div> : null}
@@ -657,19 +673,19 @@ function ProjectScreen({ projectId }: { projectId: string }) {
         <SectionCard title="Project Files" description="Outputs, uploads and generated artifacts are listed together.">
           <div className="grid gap-4 lg:grid-cols-2">
             {(project?.files || []).map((file) => (
-              <div key={file.file_id} className="rounded-[24px] border border-white/10 bg-black/10 p-4">
+              <div key={file.file_id} className="rounded-[24px] border border-[#e5e7eb] bg-white p-4">
                 <div className="flex items-center justify-between gap-4">
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold text-white">{file.original_filename}</div>
-                    <div className="mt-1 text-xs text-white/40">{file.kind || "file"} / {file.mode || "default"}</div>
+                    <div className="truncate text-sm font-semibold text-[#111827]">{file.original_filename}</div>
+                    <div className="mt-1 text-xs text-[#94a3b8]">{file.kind || "file"} / {file.mode || "default"}</div>
                   </div>
                   <StatusBadge label={file.status} />
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Link href={resolveFileOpenHref(workspaceId, file.file_id)} className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/70 hover:bg-white/8">
+                  <Link href={resolveFileOpenHref(workspaceId, file.file_id)} className="rounded-full border border-[#e5e7eb] px-3 py-1 text-xs text-[#334155] hover:bg-[#f3f4f6]">
                     Open viewer
                   </Link>
-                  <Link href={resolveAppHref(workspaceId, appForFile(file), file.file_id)} className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/70 hover:bg-white/8">
+                  <Link href={resolveAppHref(workspaceId, appForFile(file), file.file_id)} className="rounded-full border border-[#e5e7eb] px-3 py-1 text-xs text-[#334155] hover:bg-[#f3f4f6]">
                     Open runner
                   </Link>
                 </div>
@@ -730,7 +746,7 @@ function FilesScreen() {
             <select
               value={selectedProjectId}
               onChange={(event) => setSelectedProjectId(event.target.value)}
-              className="h-12 rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none"
+              className="h-12 rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none"
             >
               <option value="all">All projects</option>
               {workspace.projects.map((project) => (
@@ -752,34 +768,34 @@ function FilesScreen() {
         </SectionCard>
 
         <SectionCard title="File Ledger" description="Only live actions are shown: open viewer, open runner and create share.">
-          {workspace.loading ? <div className="text-sm text-white/45">Loading files...</div> : null}
+          {workspace.loading ? <div className="text-sm text-[#6b7280]">Loading files...</div> : null}
           {!workspace.loading ? (
             <div className="grid gap-4 lg:grid-cols-2">
               {filteredFiles.map((file) => (
-                <div key={file.file_id} className="rounded-[24px] border border-white/10 bg-black/10 p-4">
+                <div key={file.file_id} className="rounded-[24px] border border-[#e5e7eb] bg-white p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-white">{file.original_filename}</div>
-                      <div className="mt-1 text-xs text-white/40">
+                      <div className="truncate text-sm font-semibold text-[#111827]">{file.original_filename}</div>
+                      <div className="mt-1 text-xs text-[#94a3b8]">
                         {file.kind} / {file.mode || "default"} / {formatBytes(file.size_bytes)}
                       </div>
                     </div>
                     <StatusBadge label={file.status} />
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <Link href={resolveFileOpenHref(workspaceId, file.file_id)} className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/70 hover:bg-white/8">
+                    <Link href={resolveFileOpenHref(workspaceId, file.file_id)} className="rounded-full border border-[#e5e7eb] px-3 py-1 text-xs text-[#334155] hover:bg-[#f3f4f6]">
                       View
                     </Link>
                     <Link
                       href={resolveAppHref(workspaceId, appForFile(file), file.file_id)}
-                      className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/70 hover:bg-white/8"
+                      className="rounded-full border border-[#e5e7eb] px-3 py-1 text-xs text-[#334155] hover:bg-[#f3f4f6]"
                     >
                       Open in app
                     </Link>
                     <button
                       type="button"
                       onClick={() => void onShare(file.file_id)}
-                      className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/70 hover:bg-white/8"
+                      className="rounded-full border border-[#e5e7eb] px-3 py-1 text-xs text-[#334155] hover:bg-[#f3f4f6]"
                     >
                       Create share
                     </button>
@@ -845,7 +861,7 @@ function LibraryScreen() {
             <select
               value={publishFileId}
               onChange={(event) => setPublishFileId(event.target.value)}
-              className="h-12 rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none"
+              className="h-12 rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none"
             >
               <option value="">Select ready file</option>
               {workspace.files
@@ -860,7 +876,7 @@ function LibraryScreen() {
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               placeholder="Public library title"
-              className="h-12 rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none placeholder:text-white/30"
+              className="h-12 rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none placeholder:text-[#94a3b8]"
             />
             <button type="button" onClick={() => void onPublish()} className="h-12 rounded-2xl bg-white px-5 text-sm font-medium text-black hover:bg-white/90">
               Publish
@@ -872,10 +888,10 @@ function LibraryScreen() {
         <SectionCard title="Feed" description="Public catalog items returned from the backend feed endpoint.">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {feed.map((item) => (
-              <div key={item.id} className="rounded-[24px] border border-white/10 bg-black/10 p-5">
-                <div className="text-sm font-semibold text-white">{item.title}</div>
-                <div className="mt-2 text-sm text-white/50">{item.description || "No description"}</div>
-                <div className="mt-4 text-xs text-white/35">{item.slug}</div>
+              <div key={item.id} className="rounded-[24px] border border-[#e5e7eb] bg-white p-5">
+                <div className="text-sm font-semibold text-[#111827]">{item.title}</div>
+                <div className="mt-2 text-sm text-[#6b7280]">{item.description || "No description"}</div>
+                <div className="mt-4 text-xs text-[#94a3b8]">{item.slug}</div>
               </div>
             ))}
             {feed.length === 0 ? <EmptyPanel title="Library is empty" description="Publish a ready file to make the first catalog item visible." /> : null}
@@ -899,7 +915,7 @@ function SettingsScreen() {
     <PlatformLayout title="Settings" subtitle="Plan tiers and workspace identity">
       <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-6 px-4 py-6 lg:px-8">
         <SectionCard title="Workspace Identity" description="Guest and authenticated sessions use the same platform shell.">
-          <div className="rounded-[24px] border border-white/10 bg-black/10 p-5 text-sm text-white/75">
+          <div className="rounded-[24px] border border-[#e5e7eb] bg-white p-5 text-sm text-[#334155]">
             <div>User: {user.name}</div>
             <div className="mt-2">Mode: {isAuthenticated ? "Authenticated" : "Guest"}</div>
             <div className="mt-2">Role: {user.role}</div>
@@ -909,10 +925,10 @@ function SettingsScreen() {
         <SectionCard title="Plans" description="Business model is locked to Free / Plus / Pro / Enterprise.">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {plans.map((plan) => (
-              <div key={plan.name} className="rounded-[24px] border border-white/10 bg-black/10 p-5">
-                <div className="text-lg font-semibold text-white">{plan.name}</div>
-                <div className="mt-2 text-3xl font-semibold text-white">{plan.price}</div>
-                <div className="mt-3 text-sm text-white/50">{plan.description}</div>
+              <div key={plan.name} className="rounded-[24px] border border-[#e5e7eb] bg-white p-5">
+                <div className="text-lg font-semibold text-[#111827]">{plan.name}</div>
+                <div className="mt-2 text-3xl font-semibold text-[#111827]">{plan.price}</div>
+                <div className="mt-3 text-sm text-[#6b7280]">{plan.description}</div>
               </div>
             ))}
           </div>
@@ -947,17 +963,17 @@ function AdminScreen() {
       <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-6 px-4 py-6 lg:px-8">
         <SectionCard title="Release Gate" description="Deploy proof and health endpoints visible from the admin route.">
           <div className="grid gap-4 lg:grid-cols-3">
-            <div className="rounded-[24px] border border-white/10 bg-black/10 p-5">
-              <div className="text-sm font-semibold text-white">build_id.txt</div>
-              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-white/60">{buildId}</pre>
+            <div className="rounded-[24px] border border-[#e5e7eb] bg-white p-5">
+              <div className="text-sm font-semibold text-[#111827]">build_id.txt</div>
+              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-[#4b5563]">{buildId}</pre>
             </div>
-            <div className="rounded-[24px] border border-white/10 bg-black/10 p-5">
-              <div className="text-sm font-semibold text-white">/api/v1/health</div>
-              <pre className="mt-3 whitespace-pre-wrap text-xs text-white/60">{apiHealth}</pre>
+            <div className="rounded-[24px] border border-[#e5e7eb] bg-white p-5">
+              <div className="text-sm font-semibold text-[#111827]">/api/v1/health</div>
+              <pre className="mt-3 whitespace-pre-wrap text-xs text-[#4b5563]">{apiHealth}</pre>
             </div>
-            <div className="rounded-[24px] border border-white/10 bg-black/10 p-5">
-              <div className="text-sm font-semibold text-white">/stell/health</div>
-              <pre className="mt-3 whitespace-pre-wrap text-xs text-white/60">{stellHealth}</pre>
+            <div className="rounded-[24px] border border-[#e5e7eb] bg-white p-5">
+              <div className="text-sm font-semibold text-[#111827]">/stell/health</div>
+              <pre className="mt-3 whitespace-pre-wrap text-xs text-[#4b5563]">{stellHealth}</pre>
             </div>
           </div>
         </SectionCard>
@@ -1013,16 +1029,16 @@ function ViewerScreen({ fileId }: { fileId: string }) {
         {error ? <EmptyPanel title="Viewer unavailable" description={error} /> : null}
         {!error && !ready ? (
           <SectionCard title="Processing" description="Viewer opens as soon as the backend marks the file ready.">
-            <div className="text-sm text-white/60">Current state: {status}</div>
+            <div className="text-sm text-[#4b5563]">Current state: {status}</div>
           </SectionCard>
         ) : null}
         {ready ? (
           <SectionCard title="Embedded Viewer" description="Deep-linked into the workspace viewer context.">
-            <div className="overflow-hidden rounded-[28px] border border-white/10 bg-black/20">
-              <iframe src={`/view/${fileId}`} className="h-[760px] w-full bg-[#111]" title="STELLCODEX viewer" />
+            <div className="overflow-hidden rounded-[28px] border border-[#e5e7eb] bg-white">
+              <iframe src={`/view/${fileId}`} className="h-[760px] w-full bg-white" title="STELLCODEX viewer" />
             </div>
             <div className="mt-4">
-              <Link href={resolveAppHref(workspaceId, appId, fileId)} className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/70 hover:bg-white/8">
+              <Link href={resolveAppHref(workspaceId, appId, fileId)} className="rounded-full border border-[#e5e7eb] px-4 py-2 text-sm text-[#334155] hover:bg-[#f3f4f6]">
                 Open same file in application runner
               </Link>
             </div>
@@ -1177,20 +1193,20 @@ function RecordWorkspace({
         <div className="space-y-3">
           {fields.map((field) => (
             <label key={field.key} className="block">
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/35">{field.label}</div>
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">{field.label}</div>
               {field.type === "textarea" ? (
                 <textarea
                   value={String(payload[field.key] || "")}
                   onChange={(event) => setPayload((prev) => ({ ...prev, [field.key]: event.target.value }))}
                   rows={5}
                   placeholder={field.placeholder}
-                  className="w-full rounded-2xl border border-white/10 bg-black/10 px-4 py-3 text-sm text-white outline-none placeholder:text-white/30"
+                  className="w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm text-[#111827] outline-none placeholder:text-[#94a3b8]"
                 />
               ) : field.type === "select" ? (
                 <select
                   value={String(payload[field.key] || "")}
                   onChange={(event) => setPayload((prev) => ({ ...prev, [field.key]: event.target.value }))}
-                  className="h-12 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none"
+                  className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none"
                 >
                   {field.options?.map((option) => (
                     <option key={option} value={option}>
@@ -1209,7 +1225,7 @@ function RecordWorkspace({
                     }))
                   }
                   placeholder={field.placeholder}
-                  className="h-12 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none placeholder:text-white/30"
+                  className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none placeholder:text-[#94a3b8]"
                 />
               )}
             </label>
@@ -1223,7 +1239,7 @@ function RecordWorkspace({
                 {publishing ? "Publishing..." : "Publish live page"}
               </button>
             ) : null}
-            <button type="button" onClick={onReset} disabled={busy} className="rounded-2xl border border-white/10 px-5 py-3 text-sm font-medium text-white/80 hover:bg-white/8 disabled:cursor-not-allowed disabled:opacity-60">
+            <button type="button" onClick={onReset} disabled={busy} className="rounded-2xl border border-[#e5e7eb] px-5 py-3 text-sm font-medium text-[#1f2937] hover:bg-[#f3f4f6] disabled:cursor-not-allowed disabled:opacity-60">
               New record
             </button>
             {editingRecordId ? (
@@ -1232,7 +1248,7 @@ function RecordWorkspace({
               </button>
             ) : null}
           </div>
-          {publishDescription ? <div className="text-xs text-white/40">{publishDescription}</div> : null}
+          {publishDescription ? <div className="text-xs text-[#94a3b8]">{publishDescription}</div> : null}
           {error ? <div className="text-sm text-red-200">{error}</div> : null}
           {publishedUrl ? (
             <div className="rounded-[20px] border border-emerald-500/20 bg-emerald-500/8 p-4 text-sm text-emerald-100">
@@ -1246,17 +1262,17 @@ function RecordWorkspace({
         </div>
         <div className="space-y-3">
           {records.map((record) => (
-            <div key={record.record_id} className="rounded-[20px] border border-white/10 bg-black/10 p-4">
+            <div key={record.record_id} className="rounded-[20px] border border-[#e5e7eb] bg-white p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold text-white">{record.title}</div>
-                  <div className="mt-1 text-xs text-white/35">{formatDate(record.saved_at)}</div>
+                  <div className="text-sm font-semibold text-[#111827]">{record.title}</div>
+                  <div className="mt-1 text-xs text-[#94a3b8]">{formatDate(record.saved_at)}</div>
                 </div>
-                <button type="button" onClick={() => onEdit(record)} className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/70 hover:bg-white/8">
+                <button type="button" onClick={() => onEdit(record)} className="rounded-full border border-[#e5e7eb] px-3 py-1 text-xs text-[#334155] hover:bg-[#f3f4f6]">
                   Edit
                 </button>
               </div>
-              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-white/55">{JSON.stringify(record.payload, null, 2)}</pre>
+              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-[#6b7280]">{JSON.stringify(record.payload, null, 2)}</pre>
             </div>
           ))}
           {records.length === 0 ? <EmptyPanel title="No saved records" description="Saving creates a real backend file artifact tied to the selected project." /> : null}
@@ -1607,14 +1623,14 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
     return (
       <SectionCard title={app.name} description={app.description}>
         <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-[24px] border border-white/10 bg-black/10 p-5">
-            <div className="text-xs uppercase tracking-[0.2em] text-white/35">Application Summary</div>
-            <div className="mt-3 text-sm text-white/65">{app.summary}</div>
+          <div className="rounded-[24px] border border-[#e5e7eb] bg-white p-5">
+            <div className="text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Application Summary</div>
+            <div className="mt-3 text-sm text-[#4b5563]">{app.summary}</div>
           </div>
-          <div className="rounded-[24px] border border-white/10 bg-black/10 p-5">
-            <div className="text-xs uppercase tracking-[0.2em] text-white/35">Project Context</div>
-            <div className="mt-3 text-sm text-white/65">{selectedProject.name}</div>
-            <div className="mt-1 text-xs text-white/35">{selectedProject.id}</div>
+          <div className="rounded-[24px] border border-[#e5e7eb] bg-white p-5">
+            <div className="text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Project Context</div>
+            <div className="mt-3 text-sm text-[#4b5563]">{selectedProject.name}</div>
+            <div className="mt-1 text-xs text-[#94a3b8]">{selectedProject.id}</div>
           </div>
         </div>
       </SectionCard>
@@ -1627,8 +1643,8 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
         <SectionCard title="Inputs" description="Category, family and validated dimensions feed the export job.">
           <div className="grid gap-4 lg:grid-cols-2">
             <label className="block">
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/35">Project</div>
-              <select value={selectedProject.id} onChange={(event) => setSelectedProjectId(event.target.value)} className="h-12 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none">
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Project</div>
+              <select value={selectedProject.id} onChange={(event) => setSelectedProjectId(event.target.value)} className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none">
                 {projectOptions.map((project) => (
                   <option key={project.id} value={project.id}>
                     {project.name}
@@ -1637,13 +1653,13 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
               </select>
             </label>
             <label className="block">
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/35">Category</div>
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Category</div>
               <select value={moldCategory} onChange={(event) => {
                 const nextCategory = event.target.value as keyof typeof MOLD_CATALOG;
                 const nextFamily = Object.keys(MOLD_CATALOG[nextCategory].families)[0];
                 setMoldCategory(nextCategory);
                 setMoldFamily(nextFamily);
-              }} className="h-12 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none">
+              }} className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none">
                 {Object.entries(MOLD_CATALOG).map(([key, value]) => (
                   <option key={key} value={key}>
                     {value.label}
@@ -1652,8 +1668,8 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
               </select>
             </label>
             <label className="block">
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/35">Family</div>
-              <select value={moldFamily} onChange={(event) => setMoldFamily(event.target.value)} className="h-12 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none">
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Family</div>
+              <select value={moldFamily} onChange={(event) => setMoldFamily(event.target.value)} className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none">
                 {Object.entries(MOLD_CATALOG[moldCategory].families).map(([key, value]) => (
                   <option key={key} value={key}>
                     {value.label}
@@ -1661,27 +1677,27 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
                 ))}
               </select>
             </label>
-            <div className="rounded-[24px] border border-white/10 bg-black/10 p-4 text-sm text-white/60">
-              configId: <span className="text-white">{moldConfigId}</span>
+            <div className="rounded-[24px] border border-[#e5e7eb] bg-white p-4 text-sm text-[#4b5563]">
+              configId: <span className="text-[#111827]">{moldConfigId}</span>
             </div>
             <label className="block">
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/35">Width (mm)</div>
-              <input type="number" value={moldWidth} onChange={(event) => setMoldWidth(Number(event.target.value || 0))} className="h-12 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none" />
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Width (mm)</div>
+              <input type="number" value={moldWidth} onChange={(event) => setMoldWidth(Number(event.target.value || 0))} className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none" />
             </label>
             <label className="block">
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/35">Height (mm)</div>
-              <input type="number" value={moldHeight} onChange={(event) => setMoldHeight(Number(event.target.value || 0))} className="h-12 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none" />
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Height (mm)</div>
+              <input type="number" value={moldHeight} onChange={(event) => setMoldHeight(Number(event.target.value || 0))} className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none" />
             </label>
             <label className="block">
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/35">Thickness (mm)</div>
-              <input type="number" value={moldThickness} onChange={(event) => setMoldThickness(Number(event.target.value || 0))} className="h-12 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none" />
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Thickness (mm)</div>
+              <input type="number" value={moldThickness} onChange={(event) => setMoldThickness(Number(event.target.value || 0))} className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none" />
             </label>
             <label className="block">
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/35">Material</div>
-              <input value={moldMaterial} onChange={(event) => setMoldMaterial(event.target.value)} className="h-12 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none" />
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Material</div>
+              <input value={moldMaterial} onChange={(event) => setMoldMaterial(event.target.value)} className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none" />
             </label>
           </div>
-          <div className="mt-4 text-xs text-white/40">
+          <div className="mt-4 text-xs text-[#94a3b8]">
             Allowed range: {familyConfig.minWidth}-{familyConfig.maxWidth} mm width, {familyConfig.minHeight}-{familyConfig.maxHeight} mm height, {familyConfig.minThickness}-{familyConfig.maxThickness} mm thickness.
           </div>
         </SectionCard>
@@ -1693,11 +1709,11 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
         <SectionCard title="Inputs" description="Select an agent, optional source file, prompt and web-context options.">
           <div className="grid gap-4 lg:grid-cols-2">
             <label className="block">
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/35">Agent</div>
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Agent</div>
               <select
                 value={selectedAgentId}
                 onChange={(event) => setSelectedAgentId(event.target.value)}
-                className="h-12 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none"
+                className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none"
               >
                 {(agentCatalog.length > 0 ? agentCatalog : [{ agent_id: "geometry_agent", name: "Geometry Agent", description: "", capabilities: [] }]).map((agent) => (
                   <option key={agent.agent_id} value={agent.agent_id}>
@@ -1707,11 +1723,11 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
               </select>
             </label>
             <label className="block">
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/35">Source file</div>
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Source file</div>
               <select
                 value={selectedFileId}
                 onChange={(event) => setSelectedFileId(event.target.value)}
-                className="h-12 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none"
+                className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none"
               >
                 <option value="">Optional</option>
                 {workspace.files.map((file) => (
@@ -1724,16 +1740,16 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
           </div>
           <div className="mt-4 grid gap-3">
             <label className="block">
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/35">Prompt</div>
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Prompt</div>
               <textarea
                 value={agentPrompt}
                 onChange={(event) => setAgentPrompt(event.target.value)}
                 rows={4}
-                className="w-full rounded-2xl border border-white/10 bg-black/10 px-4 py-3 text-sm text-white outline-none"
+                className="w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm text-[#111827] outline-none"
                 placeholder="Agent execution context..."
               />
             </label>
-            <label className="flex items-center gap-3 text-sm text-white/70">
+            <label className="flex items-center gap-3 text-sm text-[#334155]">
               <input
                 type="checkbox"
                 checked={agentIncludeWeb}
@@ -1745,7 +1761,7 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
               <input
                 value={agentWebQuery}
                 onChange={(event) => setAgentWebQuery(event.target.value)}
-                className="h-11 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none"
+                className="h-11 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none"
                 placeholder="Web query (optional)"
               />
             ) : null}
@@ -1759,8 +1775,8 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
         <SectionCard title="Inputs" description="Select a file and optional web context for engineering analysis.">
           <div className="grid gap-4 lg:grid-cols-2">
             <label className="block">
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/35">Project</div>
-              <select value={selectedProject.id} onChange={(event) => setSelectedProjectId(event.target.value)} className="h-12 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none">
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Project</div>
+              <select value={selectedProject.id} onChange={(event) => setSelectedProjectId(event.target.value)} className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none">
                 {projectOptions.map((project) => (
                   <option key={project.id} value={project.id}>
                     {project.name}
@@ -1769,8 +1785,8 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
               </select>
             </label>
             <label className="block">
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/35">Source file</div>
-              <select value={selectedFileId} onChange={(event) => setSelectedFileId(event.target.value)} className="h-12 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none">
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Source file</div>
+              <select value={selectedFileId} onChange={(event) => setSelectedFileId(event.target.value)} className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none">
                 <option value="">Select file</option>
                 {workspace.files.map((file) => (
                   <option key={file.file_id} value={file.file_id}>
@@ -1781,7 +1797,7 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
             </label>
           </div>
           <div className="mt-4 grid gap-3">
-            <label className="flex items-center gap-3 text-sm text-white/70">
+            <label className="flex items-center gap-3 text-sm text-[#334155]">
               <input
                 type="checkbox"
                 checked={analysisIncludeWeb}
@@ -1793,7 +1809,7 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
               <input
                 value={analysisWebQuery}
                 onChange={(event) => setAnalysisWebQuery(event.target.value)}
-                className="h-11 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none"
+                className="h-11 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none"
                 placeholder="Web query (optional)"
               />
             ) : null}
@@ -1831,8 +1847,8 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
       <SectionCard title="Inputs" description="Select the project and source file when the app operates on file-backed workflows.">
         <div className="grid gap-4 lg:grid-cols-2">
           <label className="block">
-            <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/35">Project</div>
-            <select value={selectedProject.id} onChange={(event) => setSelectedProjectId(event.target.value)} className="h-12 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none">
+            <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Project</div>
+            <select value={selectedProject.id} onChange={(event) => setSelectedProjectId(event.target.value)} className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none">
               {projectOptions.map((project) => (
                 <option key={project.id} value={project.id}>
                   {project.name}
@@ -1841,8 +1857,8 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
             </select>
           </label>
           <label className="block">
-            <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/35">Source file</div>
-            <select value={selectedFileId} onChange={(event) => setSelectedFileId(event.target.value)} className="h-12 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none">
+            <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Source file</div>
+            <select value={selectedFileId} onChange={(event) => setSelectedFileId(event.target.value)} className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none">
               <option value="">Select file</option>
               {relevantFiles.map((file) => (
                 <option key={file.file_id} value={file.file_id}>
@@ -1853,9 +1869,9 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
           </label>
         </div>
         {selectedFile ? (
-          <div className="mt-4 rounded-[24px] border border-white/10 bg-black/10 p-4">
-            <div className="text-sm font-semibold text-white">{selectedFile.original_filename}</div>
-            <div className="mt-1 text-xs text-white/40">
+          <div className="mt-4 rounded-[24px] border border-[#e5e7eb] bg-white p-4">
+            <div className="text-sm font-semibold text-[#111827]">{selectedFile.original_filename}</div>
+            <div className="mt-1 text-xs text-[#94a3b8]">
               {selectedFile.kind} / {selectedFile.mode || "default"} / {selectedFile.status}
             </div>
           </div>
@@ -1885,12 +1901,12 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
             <button type="button" onClick={() => void onRun()} className="rounded-2xl bg-white px-5 py-3 text-sm font-medium text-black hover:bg-white/90">
               {agentBusy ? "Running..." : "Run Agent"}
             </button>
-            <button type="button" onClick={() => void onRunAgentOrchestration()} className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-white/75 hover:bg-white/8">
+            <button type="button" onClick={() => void onRunAgentOrchestration()} className="rounded-2xl border border-[#e5e7eb] px-5 py-3 text-sm text-[#334155] hover:bg-[#f3f4f6]">
               {agentBusy ? "Orchestrating..." : "Run Orchestration"}
             </button>
           </div>
           {agentOrchestrationSummary ? (
-            <div className="mt-4 rounded-[20px] border border-white/10 bg-black/10 px-4 py-3 text-sm text-white/75">{agentOrchestrationSummary}</div>
+            <div className="mt-4 rounded-[20px] border border-[#e5e7eb] bg-white px-4 py-3 text-sm text-[#334155]">{agentOrchestrationSummary}</div>
           ) : null}
           {error ? <div className="mt-4 text-sm text-red-200">{error}</div> : null}
         </SectionCard>
@@ -1912,7 +1928,7 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
     if (["accounting", "webbuilder", "cms"].includes(app.id)) {
       return (
         <SectionCard title="Run" description="These MVP apps persist records directly; no worker execution is required.">
-          <div className="text-sm text-white/55">
+          <div className="text-sm text-[#6b7280]">
             Use the Output tab to create or update persisted records.
             {["webbuilder", "cms"].includes(app.id) ? " Web apps can also publish a real /s token link from the current draft." : ""}
           </div>
@@ -1926,7 +1942,7 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
             {["viewer3d", "viewer2d", "docviewer"].includes(app.id) ? "Open output" : "Run"}
           </button>
           {selectedFileId ? (
-            <button type="button" onClick={() => void onCreateShare()} className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-white/75 hover:bg-white/8">
+            <button type="button" onClick={() => void onCreateShare()} className="rounded-2xl border border-[#e5e7eb] px-5 py-3 text-sm text-[#334155] hover:bg-[#f3f4f6]">
               Create share
             </button>
           ) : null}
@@ -1944,17 +1960,17 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
     return (
       <SectionCard title="Progress" description="Worker status returned from /api/v1/jobs/:job_id">
         <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-[24px] border border-white/10 bg-black/10 p-5">
-            <div className="text-xs uppercase tracking-[0.2em] text-white/35">Job</div>
-            <div className="mt-3 text-sm text-white">{job.job_id}</div>
+          <div className="rounded-[24px] border border-[#e5e7eb] bg-white p-5">
+            <div className="text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Job</div>
+            <div className="mt-3 text-sm text-[#111827]">{job.job_id}</div>
             <div className="mt-2"><StatusBadge label={job.status} /></div>
-            <div className="mt-3 text-xs text-white/40">Queued: {formatDate(job.enqueued_at)}</div>
-            <div className="mt-1 text-xs text-white/40">Started: {formatDate(job.started_at)}</div>
-            <div className="mt-1 text-xs text-white/40">Ended: {formatDate(job.ended_at)}</div>
+            <div className="mt-3 text-xs text-[#94a3b8]">Queued: {formatDate(job.enqueued_at)}</div>
+            <div className="mt-1 text-xs text-[#94a3b8]">Started: {formatDate(job.started_at)}</div>
+            <div className="mt-1 text-xs text-[#94a3b8]">Ended: {formatDate(job.ended_at)}</div>
           </div>
-          <div className="rounded-[24px] border border-white/10 bg-black/10 p-5">
-            <div className="text-xs uppercase tracking-[0.2em] text-white/35">Meta</div>
-            <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-white/55">{JSON.stringify(job.meta || {}, null, 2)}</pre>
+          <div className="rounded-[24px] border border-[#e5e7eb] bg-white p-5">
+            <div className="text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Meta</div>
+            <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-[#6b7280]">{JSON.stringify(job.meta || {}, null, 2)}</pre>
           </div>
         </div>
         {job.error ? <div className="mt-4 rounded-[24px] border border-red-500/20 bg-red-500/8 px-4 py-3 text-sm text-red-100">{job.error}</div> : null}
@@ -1970,21 +1986,21 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
       return (
         <SectionCard title="Analysis Output" description="STELL-AI engineering analysis result">
           <div className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-[20px] border border-white/10 bg-black/10 p-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-white/35">Geometry</div>
-              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-white/65">{JSON.stringify(analysisResult.geometry || {}, null, 2)}</pre>
+            <div className="rounded-[20px] border border-[#e5e7eb] bg-white p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Geometry</div>
+              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-[#4b5563]">{JSON.stringify(analysisResult.geometry || {}, null, 2)}</pre>
             </div>
-            <div className="rounded-[20px] border border-white/10 bg-black/10 p-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-white/35">Manufacturing</div>
-              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-white/65">{JSON.stringify(analysisResult.manufacturing || {}, null, 2)}</pre>
+            <div className="rounded-[20px] border border-[#e5e7eb] bg-white p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Manufacturing</div>
+              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-[#4b5563]">{JSON.stringify(analysisResult.manufacturing || {}, null, 2)}</pre>
             </div>
-            <div className="rounded-[20px] border border-white/10 bg-black/10 p-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-white/35">Assembly</div>
-              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-white/65">{JSON.stringify(analysisResult.assembly || {}, null, 2)}</pre>
+            <div className="rounded-[20px] border border-[#e5e7eb] bg-white p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Assembly</div>
+              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-[#4b5563]">{JSON.stringify(analysisResult.assembly || {}, null, 2)}</pre>
             </div>
-            <div className="rounded-[20px] border border-white/10 bg-black/10 p-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-white/35">Recommendations</div>
-              <ul className="mt-3 space-y-2 text-sm text-white/75">
+            <div className="rounded-[20px] border border-[#e5e7eb] bg-white p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Recommendations</div>
+              <ul className="mt-3 space-y-2 text-sm text-[#334155]">
                 {(analysisResult.recommendations || []).map((item) => (
                   <li key={item}>• {item}</li>
                 ))}
@@ -1992,13 +2008,13 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
             </div>
           </div>
           {(analysisResult.web_context || []).length > 0 ? (
-            <div className="mt-4 rounded-[20px] border border-white/10 bg-black/10 p-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-white/35">Web Context</div>
+            <div className="mt-4 rounded-[20px] border border-[#e5e7eb] bg-white p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Web Context</div>
               <div className="mt-3 grid gap-3">
                 {analysisResult.web_context.map((item) => (
-                  <a key={`${item.url}-${item.title}`} href={item.url} target="_blank" rel="noreferrer" className="rounded-lg border border-white/10 px-3 py-2 text-sm text-white/75 hover:bg-white/8">
-                    <div className="font-semibold text-white/90">{item.title}</div>
-                    <div className="mt-1 text-xs text-white/45">{item.snippet}</div>
+                  <a key={`${item.url}-${item.title}`} href={item.url} target="_blank" rel="noreferrer" className="rounded-lg border border-[#e5e7eb] px-3 py-2 text-sm text-[#334155] hover:bg-[#f3f4f6]">
+                    <div className="font-semibold text-[#111827]">{item.title}</div>
+                    <div className="mt-1 text-xs text-[#6b7280]">{item.snippet}</div>
                   </a>
                 ))}
               </div>
@@ -2015,27 +2031,27 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
       return (
         <SectionCard title="Agent Output" description={agentResult.summary || "Agent run result"}>
           <div className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-[20px] border border-white/10 bg-black/10 p-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-white/35">Findings</div>
-              <ul className="mt-3 space-y-2 text-sm text-white/75">
+            <div className="rounded-[20px] border border-[#e5e7eb] bg-white p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Findings</div>
+              <ul className="mt-3 space-y-2 text-sm text-[#334155]">
                 {(agentResult.findings || []).map((item) => (
                   <li key={item}>• {item}</li>
                 ))}
               </ul>
             </div>
-            <div className="rounded-[20px] border border-white/10 bg-black/10 p-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-white/35">Payload</div>
-              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-white/65">{JSON.stringify(agentResult.data || {}, null, 2)}</pre>
+            <div className="rounded-[20px] border border-[#e5e7eb] bg-white p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Payload</div>
+              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-[#4b5563]">{JSON.stringify(agentResult.data || {}, null, 2)}</pre>
             </div>
           </div>
           {knowledgeResults.length > 0 ? (
-            <div className="mt-4 rounded-[20px] border border-white/10 bg-black/10 p-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-white/35">Knowledge Results</div>
+            <div className="mt-4 rounded-[20px] border border-[#e5e7eb] bg-white p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Knowledge Results</div>
               <div className="mt-3 grid gap-3">
                 {knowledgeResults.map((item) => (
-                  <a key={`${item.url}-${item.title}`} href={item.url} target="_blank" rel="noreferrer" className="rounded-lg border border-white/10 px-3 py-2 text-sm text-white/75 hover:bg-white/8">
-                    <div className="font-semibold text-white/90">{item.title}</div>
-                    <div className="mt-1 text-xs text-white/45">{item.snippet}</div>
+                  <a key={`${item.url}-${item.title}`} href={item.url} target="_blank" rel="noreferrer" className="rounded-lg border border-[#e5e7eb] px-3 py-2 text-sm text-[#334155] hover:bg-[#f3f4f6]">
+                    <div className="font-semibold text-[#111827]">{item.title}</div>
+                    <div className="mt-1 text-xs text-[#6b7280]">{item.snippet}</div>
                   </a>
                 ))}
               </div>
@@ -2167,9 +2183,9 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
         <SectionCard title="Drive Output" description="Inline drive view with the latest workspace files.">
           <div className="grid gap-3 md:grid-cols-2">
             {workspace.files.slice(0, 8).map((file) => (
-              <div key={file.file_id} className="rounded-[20px] border border-white/10 bg-black/10 p-4">
-                <div className="truncate text-sm font-semibold text-white">{file.original_filename}</div>
-                <div className="mt-2 text-xs text-white/40">{file.kind} / {file.status}</div>
+              <div key={file.file_id} className="rounded-[20px] border border-[#e5e7eb] bg-white p-4">
+                <div className="truncate text-sm font-semibold text-[#111827]">{file.original_filename}</div>
+                <div className="mt-2 text-xs text-[#94a3b8]">{file.kind} / {file.status}</div>
               </div>
             ))}
           </div>
@@ -2180,7 +2196,7 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
     if (app.id === "library") {
       return (
         <SectionCard title="Library Output" description="Open the full library route for publish and feed management.">
-          <Link href={resolveWorkspaceHref(workspaceId, "/library")} className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-white/75 hover:bg-white/8">
+          <Link href={resolveWorkspaceHref(workspaceId, "/library")} className="rounded-2xl border border-[#e5e7eb] px-5 py-3 text-sm text-[#334155] hover:bg-[#f3f4f6]">
             Open library route
           </Link>
         </SectionCard>
@@ -2190,7 +2206,7 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
     if (app.id === "projects") {
       return (
         <SectionCard title="Projects Output" description="Open the full projects route for project CRUD.">
-          <Link href={resolveWorkspaceHref(workspaceId, "/projects")} className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-white/75 hover:bg-white/8">
+          <Link href={resolveWorkspaceHref(workspaceId, "/projects")} className="rounded-2xl border border-[#e5e7eb] px-5 py-3 text-sm text-[#334155] hover:bg-[#f3f4f6]">
             Open projects route
           </Link>
         </SectionCard>
@@ -2200,7 +2216,7 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
     if (app.id === "status" || app.id === "admin") {
       return (
         <SectionCard title="System Output" description="Use the admin route for release proof and health status.">
-          <Link href={resolveWorkspaceHref(workspaceId, "/admin")} className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-white/75 hover:bg-white/8">
+          <Link href={resolveWorkspaceHref(workspaceId, "/admin")} className="rounded-2xl border border-[#e5e7eb] px-5 py-3 text-sm text-[#334155] hover:bg-[#f3f4f6]">
             Open admin route
           </Link>
         </SectionCard>
@@ -2211,14 +2227,14 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
       const embeddedFileId = outputFileId || selectedFileId;
       return (
         <SectionCard title="Output" description="Embedded viewer plus download and deep-link actions.">
-          <div className="overflow-hidden rounded-[28px] border border-white/10 bg-black/20">
-            <iframe src={`/view/${embeddedFileId}`} className="h-[760px] w-full bg-[#111]" title="Embedded STELLCODEX output" />
+          <div className="overflow-hidden rounded-[28px] border border-[#e5e7eb] bg-white">
+            <iframe src={`/view/${embeddedFileId}`} className="h-[760px] w-full bg-white" title="Embedded STELLCODEX output" />
           </div>
           <div className="mt-4 flex flex-wrap gap-3">
-            <Link href={buildStandaloneViewerPath(embeddedFileId)} className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-white/75 hover:bg-white/8">
+            <Link href={buildStandaloneViewerPath(embeddedFileId)} className="rounded-2xl border border-[#e5e7eb] px-5 py-3 text-sm text-[#334155] hover:bg-[#f3f4f6]">
               Open deep link
             </Link>
-            <button type="button" onClick={() => void onDownloadOutput(embeddedFileId)} className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-white/75 hover:bg-white/8">
+            <button type="button" onClick={() => void onDownloadOutput(embeddedFileId)} className="rounded-2xl border border-[#e5e7eb] px-5 py-3 text-sm text-[#334155] hover:bg-[#f3f4f6]">
               Download output
             </button>
           </div>
@@ -2239,7 +2255,7 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
               type="button"
               onClick={() => setActiveTab(tab)}
               className={`rounded-full px-4 py-2 text-sm ${
-                activeTab === tab ? "bg-white text-black" : "border border-white/10 text-white/65 hover:bg-white/8"
+                activeTab === tab ? "bg-white text-black" : "border border-[#e5e7eb] text-[#4b5563] hover:bg-[#f3f4f6]"
               }`}
             >
               {tab}

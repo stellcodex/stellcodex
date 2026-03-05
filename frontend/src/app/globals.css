@@ -2,15 +2,15 @@
 
 :root {
   color-scheme: light;
-  --bg: #f4f6f8;
+  --bg: #ffffff;
   --surface: #ffffff;
-  --border: rgba(15, 23, 42, 0.1);
+  --border: #e5e7eb;
   --text: #111827;
   --primary: #111827;
-  --platform-bg: #f4f6f8;
+  --platform-bg: #ffffff;
   --platform-sidebar: #ffffff;
   --platform-text: #111827;
-  --platform-muted: rgba(17, 24, 39, 0.58);
+  --platform-muted: #4b5563;
   --platform-font: "Soehne", "Avenir Next", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 
@@ -32,10 +32,7 @@
 }
 
 html {
-  background:
-    radial-gradient(circle at top, rgba(15, 23, 42, 0.04), transparent 28%),
-    linear-gradient(180deg, rgba(148, 163, 184, 0.12), transparent 24%),
-    var(--platform-bg);
+  background: var(--platform-bg);
 }
 
 body {
@@ -43,6 +40,7 @@ body {
   color: var(--text);
   margin: 0;
   padding: 0;
+  line-height: 1.5;
   font-family: var(--platform-font);
 }
 

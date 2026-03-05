@@ -1,0 +1,17 @@
+== host python ==
+Python 3.8.10
+== host import quick check ==
+jose=NO
+cryptography=YES
+fastapi=YES
+uvicorn=YES
+
+== isolated venv import check ==
+venv_jose_import=PASS
+jose_version 3.4.0
+cryptography_version 46.0.5
+
+== backend container import check ==
+container_jose_import=PASS
+container_jose_version=3.3.0
+container_cryptography_version=46.0.5

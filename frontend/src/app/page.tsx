@@ -1,5 +1,5 @@
-import { WorkspaceRedirect } from "@/components/workspace/WorkspaceRedirect";
+import { LandingDashboard } from "@/components/landing/LandingDashboard";
 
 export default function LandingPage() {
-  return <WorkspaceRedirect />;
+  return <LandingDashboard />;
 }

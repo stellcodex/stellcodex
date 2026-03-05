@@ -1,4 +1,5 @@
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.api.v1.router import api_router
@@ -30,3 +31,11 @@ def resolve_share_short(token: str, db: Session = Depends(get_db)):
 @app.get("/share/{token}")
 def resolve_share_alias(token: str, db: Session = Depends(get_db)):
     return resolve_share_token(token=token, db=db)
+
+
+@app.api_route("/stell-ai/agents/run", methods=["POST", "OPTIONS"], include_in_schema=False)
+def compat_stell_ai_agents_run(request: Request):
+    target = "/api/v1/stell-ai/agents/run"
+    if request.url.query:
+        target = f"{target}?{request.url.query}"
+    return RedirectResponse(url=target, status_code=307)

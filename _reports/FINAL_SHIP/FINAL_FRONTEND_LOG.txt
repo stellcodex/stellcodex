@@ -1,0 +1,167 @@
+[TAILING] Tailing last 200 lines for [stellcodex-next] process (change the value with --lines option)
+/root/.pm2/logs/stellcodex-next-error.log last 200 lines:
+2|stellcod | ⨯ Error [InvariantError]: Invariant: The client reference manifest for route "/view" does not exist. This is a bug in Next.js.
+2|stellcod |     at async m (.next/server/chunks/ssr/_ed50ead6._.js:1:6902)
+2|stellcod | ⨯ Error [InvariantError]: Invariant: The client reference manifest for route "/view" does not exist. This is a bug in Next.js.
+2|stellcod |     at async m (.next/server/chunks/ssr/_ed50ead6._.js:1:6902)
+2|stellcod | ⨯ Error: Failed to load static file for page: /500 ENOENT: no such file or directory, open '/var/www/stellcodex/frontend/.next/server/pages/500.html'
+2|stellcod |     at ignore-listed frames
+2|stellcod | ⨯ Error [InvariantError]: Invariant: The client reference manifest for route "/share" does not exist. This is a bug in Next.js.
+2|stellcod |     at async m (.next/server/chunks/ssr/_25d84500._.js:1:6907)
+2|stellcod | ⨯ Error [InvariantError]: Invariant: The client reference manifest for route "/share" does not exist. This is a bug in Next.js.
+2|stellcod |     at async m (.next/server/chunks/ssr/_25d84500._.js:1:6907)
+2|stellcod | ⨯ Error: Failed to load static file for page: /500 ENOENT: no such file or directory, open '/var/www/stellcodex/frontend/.next/server/pages/500.html'
+2|stellcod |     at ignore-listed frames
+2|stellcod | ⨯ Error [InvariantError]: Invariant: The client reference manifest for route "/admin" does not exist. This is a bug in Next.js.
+2|stellcod |     at async m (.next/server/chunks/ssr/_052af891._.js:1:7492)
+2|stellcod | ⨯ Error [InvariantError]: Invariant: The client reference manifest for route "/admin" does not exist. This is a bug in Next.js.
+2|stellcod |     at async m (.next/server/chunks/ssr/_052af891._.js:1:7492)
+2|stellcod | ⨯ Error: Failed to load static file for page: /500 ENOENT: no such file or directory, open '/var/www/stellcodex/frontend/.next/server/pages/500.html'
+2|stellcod |     at ignore-listed frames
+2|stellcod | ⨯ Error [InvariantError]: Invariant: The client reference manifest for route "/view" does not exist. This is a bug in Next.js.
+2|stellcod |     at async m (.next/server/chunks/ssr/_ed50ead6._.js:1:6902)
+2|stellcod | ⨯ Error [InvariantError]: Invariant: The client reference manifest for route "/view" does not exist. This is a bug in Next.js.
+2|stellcod |     at async m (.next/server/chunks/ssr/_ed50ead6._.js:1:6902)
+2|stellcod | ⨯ Error: Failed to load static file for page: /500 ENOENT: no such file or directory, open '/var/www/stellcodex/frontend/.next/server/pages/500.html'
+2|stellcod |     at ignore-listed frames
+2|stellcod | ⨯ Error [InvariantError]: Invariant: The client reference manifest for route "/share" does not exist. This is a bug in Next.js.
+2|stellcod |     at async m (.next/server/chunks/ssr/_25d84500._.js:1:6907)
+2|stellcod | ⨯ Error [InvariantError]: Invariant: The client reference manifest for route "/share" does not exist. This is a bug in Next.js.
+2|stellcod |     at async m (.next/server/chunks/ssr/_25d84500._.js:1:6907)
+2|stellcod | ⨯ Error: Failed to load static file for page: /500 ENOENT: no such file or directory, open '/var/www/stellcodex/frontend/.next/server/pages/500.html'
+2|stellcod |     at ignore-listed frames
+
+/root/.pm2/logs/stellcodex-next-out.log last 200 lines:
+2|stellcod | ▲ Next.js 16.1.6
+2|stellcod | - Local:         http://127.0.0.1:3000
+2|stellcod | - Network:       http://127.0.0.1:3000
+2|stellcod | 
+2|stellcod | ✓ Starting...
+2|stellcod | ✓ Ready in 8.5s
+2|stellcod | ▲ Next.js 16.1.6
+2|stellcod | - Local:         http://127.0.0.1:3000
+2|stellcod | - Network:       http://127.0.0.1:3000
+2|stellcod | 
+2|stellcod | ✓ Starting...
+2|stellcod | ✓ Ready in 11.7s
+2|stellcod | ▲ Next.js 16.1.6
+2|stellcod | - Local:         http://127.0.0.1:3000
+2|stellcod | - Network:       http://127.0.0.1:3000
+2|stellcod | 
+2|stellcod | ✓ Starting...
+2|stellcod | ✓ Ready in 10.1s
+2|stellcod | ▲ Next.js 16.1.6
+2|stellcod | - Local:         http://127.0.0.1:3000
+2|stellcod | - Network:       http://127.0.0.1:3000
+2|stellcod | 
+2|stellcod | ✓ Starting...
+2|stellcod | ✓ Ready in 11.3s
+2|stellcod | ▲ Next.js 16.1.6
+2|stellcod | - Local:         http://127.0.0.1:3000
+2|stellcod | - Network:       http://127.0.0.1:3000
+2|stellcod | 
+2|stellcod | ✓ Starting...
+2|stellcod | ✓ Ready in 10.8s
+2|stellcod | ▲ Next.js 16.1.6
+2|stellcod | - Local:         http://127.0.0.1:3000
+2|stellcod | - Network:       http://127.0.0.1:3000
+2|stellcod | 
+2|stellcod | ✓ Starting...
+2|stellcod | ✓ Ready in 11.7s
+2|stellcod | ▲ Next.js 16.1.6
+2|stellcod | - Local:         http://127.0.0.1:3000
+2|stellcod | - Network:       http://127.0.0.1:3000
+2|stellcod | 
+2|stellcod | ✓ Starting...
+2|stellcod | ✓ Ready in 13.1s
+2|stellcod | ▲ Next.js 16.1.6
+2|stellcod | - Local:         http://127.0.0.1:3000
+2|stellcod | - Network:       http://127.0.0.1:3000
+2|stellcod | 
+2|stellcod | ✓ Starting...
+2|stellcod | ✓ Ready in 13.4s
+2|stellcod | ▲ Next.js 16.1.6
+2|stellcod | - Local:         http://127.0.0.1:3000
+2|stellcod | - Network:       http://127.0.0.1:3000
+2|stellcod | 
+2|stellcod | ✓ Starting...
+2|stellcod | ✓ Ready in 14.1s
+2|stellcod | ▲ Next.js 16.1.6
+2|stellcod | - Local:         http://127.0.0.1:3000
+2|stellcod | - Network:       http://127.0.0.1:3000
+2|stellcod | 
+2|stellcod | ✓ Starting...
+2|stellcod | ✓ Ready in 5.1s
+2|stellcod | ▲ Next.js 16.1.6
+2|stellcod | - Local:         http://127.0.0.1:3000
+2|stellcod | - Network:       http://127.0.0.1:3000
+2|stellcod | 
+2|stellcod | ✓ Starting...
+2|stellcod | ✓ Ready in 4.7s
+2|stellcod | ▲ Next.js 16.1.6
+2|stellcod | - Local:         http://127.0.0.1:3000
+2|stellcod | - Network:       http://127.0.0.1:3000
+2|stellcod | 
+2|stellcod | ✓ Starting...
+2|stellcod | ✓ Ready in 4s
+2|stellcod | ▲ Next.js 16.1.6
+2|stellcod | - Local:         http://127.0.0.1:3000
+2|stellcod | - Network:       http://127.0.0.1:3000
+2|stellcod | 
+2|stellcod | ✓ Starting...
+2|stellcod | ✓ Ready in 6.7s
+2|stellcod | ▲ Next.js 16.1.6
+2|stellcod | - Local:         http://127.0.0.1:3000
+2|stellcod | - Network:       http://127.0.0.1:3000
+2|stellcod | 
+2|stellcod | ✓ Starting...
+2|stellcod | ✓ Ready in 4.4s
+2|stellcod | ▲ Next.js 16.1.6
+2|stellcod | - Local:         http://127.0.0.1:3000
+2|stellcod | - Network:       http://127.0.0.1:3000
+2|stellcod | 
+2|stellcod | ✓ Starting...
+2|stellcod | ✓ Ready in 4.5s
+2|stellcod | ▲ Next.js 16.1.6
+2|stellcod | - Local:         http://127.0.0.1:3000
+2|stellcod | - Network:       http://127.0.0.1:3000
+2|stellcod | 
+2|stellcod | ✓ Starting...
+2|stellcod | ✓ Ready in 9.1s
+2|stellcod | ▲ Next.js 16.1.6
+2|stellcod | - Local:         http://127.0.0.1:3000
+2|stellcod | - Network:       http://127.0.0.1:3000
+2|stellcod | 
+2|stellcod | ✓ Starting...
+2|stellcod | ✓ Ready in 4.4s
+2|stellcod | ▲ Next.js 16.1.6
+2|stellcod | - Local:         http://127.0.0.1:3000
+2|stellcod | - Network:       http://127.0.0.1:3000
+2|stellcod | 
+2|stellcod | ✓ Starting...
+2|stellcod | ✓ Ready in 14.2s
+2|stellcod | ▲ Next.js 16.1.6
+2|stellcod | - Local:         http://127.0.0.1:3000
+2|stellcod | - Network:       http://127.0.0.1:3000
+2|stellcod | 
+2|stellcod | ✓ Starting...
+2|stellcod | ✓ Ready in 7s
+2|stellcod | ▲ Next.js 16.1.6
+2|stellcod | - Local:         http://127.0.0.1:3000
+2|stellcod | - Network:       http://127.0.0.1:3000
+2|stellcod | 
+2|stellcod | ✓ Starting...
+2|stellcod | ✓ Ready in 4.8s
+2|stellcod | ▲ Next.js 16.1.6
+2|stellcod | - Local:         http://127.0.0.1:3000
+2|stellcod | - Network:       http://127.0.0.1:3000
+2|stellcod | 
+2|stellcod | ✓ Starting...
+2|stellcod | ✓ Ready in 4s
+2|stellcod | ▲ Next.js 16.1.6
+2|stellcod | - Local:         http://127.0.0.1:3000
+2|stellcod | - Network:       http://127.0.0.1:3000
+2|stellcod | 
+2|stellcod | ✓ Starting...
+2|stellcod | ✓ Ready in 4.9s
+

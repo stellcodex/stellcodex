@@ -1,0 +1,13 @@
+Use --update-env to update environment variables
+[PM2] Applying action restartProcessId on app [stellcodex-next](ids: [ 2 ])
+[PM2] [stellcodex-next](2) ✓
+┌────┬─────────────────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name                    │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼─────────────────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 5  │ stell-ai-memory         │ default     │ N/A     │ fork    │ 2368640  │ 108m   │ 10   │ online    │ 0%       │ 508.2mb  │ root     │ disabled │
+│ 3  │ stell-event-listener    │ default     │ N/A     │ fork    │ 2275049  │ 28h    │ 106  │ online    │ 0%       │ 10.1mb   │ root     │ disabled │
+│ 4  │ stell-heartbeat         │ default     │ N/A     │ fork    │ 2328841  │ 14h    │ 225… │ online    │ 0%       │ 10.2mb   │ root     │ disabled │
+│ 1  │ stell-rpc-bridge        │ default     │ N/A     │ fork    │ 2222219  │ 31h    │ 9    │ online    │ 0%       │ 9.1mb    │ root     │ disabled │
+│ 0  │ stell-webhook           │ default     │ N/A     │ fork    │ 2278352  │ 28h    │ 16   │ online    │ 0%       │ 15.0mb   │ root     │ disabled │
+│ 2  │ stellcodex-next         │ default     │ 0.1.0   │ fork    │ 2460513  │ 0s     │ 22   │ online    │ 0%       │ 21.7mb   │ root     │ disabled │
+└────┴─────────────────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
