@@ -156,8 +156,12 @@ services:
       WORKDIR: /var/stellcodex/work
 
 volumes:
-  postgres_data: {}
-  minio_data: {}
+  postgres_data:
+    external:
+      name: postgres_data
+  minio_data:
+    external:
+      name: minio_data
 
 networks:
   stellcodex-net:
