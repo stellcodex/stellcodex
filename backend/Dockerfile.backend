@@ -26,11 +26,14 @@ COPY alembic.ini .
 COPY alembic ./alembic
 COPY app /app/app
 
-# DB ve MinIO ayağa kalkmadan backend'in "erken" ölmesini engeller
+# DB/Redis/MinIO startup waits are configurable to avoid hardcoded DNS coupling.
 CMD ["sh", "-lc", "\
-  echo 'Waiting for postgres:5432...' && until nc -z postgres 5432; do sleep 1; done; \
-  echo 'Waiting for minio:9000...' && until nc -z stellcodex-minio 9000; do sleep 1; done; \
-  echo 'Waiting for redis:6379...' && until nc -z redis 6379; do sleep 1; done; \
+  DB_HOST=${DB_HOST:-stellcodex-postgres}; DB_PORT=${DB_PORT:-5432}; \
+  MINIO_HOST=${MINIO_HOST:-stellcodex-minio}; MINIO_PORT=${MINIO_PORT:-9000}; \
+  REDIS_HOST=${REDIS_HOST:-stellcodex-redis}; REDIS_PORT=${REDIS_PORT:-6379}; \
+  echo \"Waiting for ${DB_HOST}:${DB_PORT}...\" && until nc -z ${DB_HOST} ${DB_PORT}; do sleep 1; done; \
+  echo \"Waiting for ${MINIO_HOST}:${MINIO_PORT}...\" && until nc -z ${MINIO_HOST} ${MINIO_PORT}; do sleep 1; done; \
+  echo \"Waiting for ${REDIS_HOST}:${REDIS_PORT}...\" && until nc -z ${REDIS_HOST} ${REDIS_PORT}; do sleep 1; done; \
   echo 'Starting backend...' && \
   uvicorn app.main:app --host 0.0.0.0 --port 8000 \
 "]

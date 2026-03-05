@@ -80,8 +80,14 @@ services:
       - redis
       - minio
     environment:
-      DATABASE_URL: postgresql+psycopg2://stellcodex:stellcodex@postgres:5432/stellcodex
-      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+psycopg2://stellcodex:stellcodex@stellcodex-postgres:5432/stellcodex
+      REDIS_URL: redis://stellcodex-redis:6379/0
+      DB_HOST: stellcodex-postgres
+      DB_PORT: "5432"
+      REDIS_HOST: stellcodex-redis
+      REDIS_PORT: "6379"
+      MINIO_HOST: stellcodex-minio
+      MINIO_PORT: "9000"
       JWT_ALG: HS256
       JWT_SECRET: 1b6246485366c0222c4e50597030697f95b83be8d09fbbcdcc84ffac23a99f56
       REFRESH_TOKEN_DAYS: "14"
@@ -126,8 +132,10 @@ services:
       - postgres
       - minio
     environment:
-      DATABASE_URL: postgresql+psycopg2://stellcodex:stellcodex@postgres:5432/stellcodex
-      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+psycopg2://stellcodex:stellcodex@stellcodex-postgres:5432/stellcodex
+      REDIS_URL: redis://stellcodex-redis:6379/0
+      REDIS_HOST: stellcodex-redis
+      REDIS_PORT: "6379"
       JWT_ALG: HS256
       JWT_SECRET: 1b6246485366c0222c4e50597030697f95b83be8d09fbbcdcc84ffac23a99f56
       REFRESH_TOKEN_DAYS: "14"
