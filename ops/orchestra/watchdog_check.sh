@@ -14,6 +14,7 @@ compose_cmd() {
   fi
 }
 
-if ! curl -fsS "${BASE_URL}/state" >/dev/null 2>&1; then
-  compose_cmd -f "${COMPOSE_FILE}" restart orchestrator litellm autopilot stellai >/dev/null 2>&1 || true
+running="$(docker ps --filter name=orchestra_orchestrator --filter status=running --format '{{.Names}}' 2>/dev/null | head -1)"
+if [[ -z "${running}" ]]; then
+  compose_cmd -f "${COMPOSE_FILE}" up -d orchestrator litellm autopilot stellai >/dev/null 2>&1 || true
 fi
