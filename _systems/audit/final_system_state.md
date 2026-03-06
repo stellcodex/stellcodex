@@ -1,6 +1,6 @@
 # Final System State
 
-Generated: 2026-03-06T23:19:39Z
+Generated: 2026-03-06T23:25:34Z
 
 ## System Separation Validation
 - STELL manifest present: true
@@ -8,6 +8,7 @@ Generated: 2026-03-06T23:19:39Z
 - STELLCODEX manifest present: true
 - Integration manifest present: true
 - Boundary enforcement file present: true
+- Allowed flow contract enforced: STELL->ORCHESTRA, ORCHESTRA->STELL, STELLCODEX->ORCHESTRA
 
 ## Manifest Status
 - ACTIVE_STELL_MANIFEST.json: active
@@ -18,7 +19,7 @@ Generated: 2026-03-06T23:19:39Z
 
 ## External Connector Health
 - GitHub origin: https://github.com/stellcodex/stellcodex.git
-- Google Drive remotes: stellstorage: gdrive: e: 
+- Google Drive remotes: stellstorage: gdrive: e:
 - Cloudflare token status: missing
 - Vercel token status: missing
 - Redis queue ping: PONG
