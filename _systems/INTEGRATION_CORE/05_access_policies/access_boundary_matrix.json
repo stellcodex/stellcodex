@@ -1,0 +1,22 @@
+{
+  "STELL": {
+    "read": ["SSOT", "audit_logs", "telemetry"],
+    "write": ["STELL_CORE", "INTEGRATION_CORE/handoffs"],
+    "deny": ["STELLCODEX runtime code mutation", "ORCHESTRA runtime authority"]
+  },
+  "ORCHESTRA": {
+    "read": ["queue", "job_specs", "integration_handoffs"],
+    "write": ["artifacts", "execution_logs", "queue_ack"],
+    "deny": ["product architecture rewrite", "identity authority"]
+  },
+  "STELLCODEX": {
+    "read": ["product_data", "rule_configs", "orchestrator_outputs"],
+    "write": ["product_runtime", "audit_events"],
+    "deny": ["cross-organ authority override"]
+  },
+  "INFRA": {
+    "read": ["service_health", "connector_state", "backup_metadata"],
+    "write": ["infra_reports", "backup_artifacts"],
+    "deny": ["business-logic override"]
+  }
+}

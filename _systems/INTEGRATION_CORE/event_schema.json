@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "STELL Canonical Event Schema",
+  "type": "object",
+  "required": ["event_id", "event_type", "source", "target", "timestamp", "trace_id", "payload", "audit_reference"],
+  "properties": {
+    "event_id": {"type": "string", "minLength": 1},
+    "event_type": {"type": "string", "minLength": 1},
+    "source": {"type": "string", "enum": ["STELL", "ORCHESTRA", "STELLCODEX", "INFRA"]},
+    "target": {"type": "string", "enum": ["STELL", "ORCHESTRA", "STELLCODEX", "INFRA"]},
+    "timestamp": {"type": "string", "format": "date-time"},
+    "trace_id": {"type": "string", "minLength": 8},
+    "payload": {"type": "object"},
+    "audit_reference": {"type": "string", "minLength": 1}
+  },
+  "additionalProperties": false
+}

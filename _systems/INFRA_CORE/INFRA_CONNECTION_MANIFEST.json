@@ -1,0 +1,12 @@
+{
+  "manifest_id": "INFRA_CONNECTION_MANIFEST",
+  "generated_at": "2026-03-06T23:19:39Z",
+  "services": {
+    "github": {"status": "configured", "origin": "https://github.com/stellcodex/stellcodex.git"},
+    "google_drive": {"status": "configured", "remotes": "stellstorage: gdrive: e: "},
+    "cloudflare": {"token_status": "missing"},
+    "vercel": {"token_status": "missing"},
+    "object_storage": {"status": "running", "service": "deploy_minio_1"},
+    "queue": {"status": "PONG", "service": "deploy_redis_1"}
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "manifest_id": "ACTIVE_STELLCODEX_MANIFEST",
+  "generated_at": "2026-03-06T23:19:39Z",
+  "active": true,
+  "organ": "STELLCODEX",
+  "role": "product_platform",
+  "responsibilities": [
+    "cad_pipeline",
+    "orchestrator_state_machine",
+    "dfm_engine",
+    "viewer_and_share_contracts",
+    "audit_and_admin"
+  ],
+  "runtime": {
+    "backend": "deploy_backend_1",
+    "worker": "deploy_worker_1",
+    "postgres": "deploy_postgres_1",
+    "redis": "deploy_redis_1",
+    "minio": "deploy_minio_1"
+  },
+  "forbidden": [
+    "microservice_fragmentation",
+    "standalone_product_split"
+  ]
+}

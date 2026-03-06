@@ -1,0 +1,23 @@
+{
+  "manifest_id": "ACTIVE_ORCHESTRA_MANIFEST",
+  "generated_at": "2026-03-06T23:19:39Z",
+  "active": true,
+  "organ": "ORCHESTRA",
+  "role": "distributed_compute_engine",
+  "responsibilities": [
+    "job_execution",
+    "training_pipeline_execution",
+    "artifact_generation",
+    "queue_processing",
+    "watchdog_enforcement"
+  ],
+  "queue": {
+    "provider": "redis",
+    "health": "PONG",
+    "event_stream": "stell:events:stream"
+  },
+  "forbidden": [
+    "act_as_ai_identity",
+    "change_stellcodex_product_architecture"
+  ]
+}

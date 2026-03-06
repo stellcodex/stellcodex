@@ -1,0 +1,16 @@
+{
+  "manifest_id": "ACTIVE_INTEGRATION_MANIFEST",
+  "generated_at": "2026-03-06T23:19:39Z",
+  "active": true,
+  "allowed_flows": [
+    "STELL->ORCHESTRA",
+    "ORCHESTRA->STELL",
+    "STELLCODEX->ORCHESTRA"
+  ],
+  "forbidden_flows": [
+    "STELL->STELLCODEX_RUNTIME_MUTATION",
+    "ORCHESTRA->STELLCODEX_ARCHITECTURE_MUTATION",
+    "CROSS_ORGAN_RUNTIME_AUTHORITY_OVERRIDE"
+  ],
+  "audit_trigger_on_violation": true
+}

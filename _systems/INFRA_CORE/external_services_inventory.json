@@ -1,0 +1,35 @@
+{
+  "generated_at": "2026-03-06T23:19:39Z",
+  "services": {
+    "google_drive": {
+      "configured": true,
+      "remotes": "stellstorage: gdrive: e: ",
+      "status": "ok"
+    },
+    "github": {
+      "configured": true,
+      "origin": "https://github.com/stellcodex/stellcodex.git",
+      "status": "ok"
+    },
+    "cloudflare": {
+      "configured": false,
+      "token_status": "missing",
+      "status": "not_verified"
+    },
+    "vercel": {
+      "configured": false,
+      "token_status": "missing",
+      "status": "not_verified"
+    },
+    "object_storage": {
+      "configured": true,
+      "service": "deploy_minio_1",
+      "status": "ok"
+    },
+    "queue": {
+      "configured": true,
+      "service": "deploy_redis_1",
+      "status": "PONG"
+    }
+  }
+}

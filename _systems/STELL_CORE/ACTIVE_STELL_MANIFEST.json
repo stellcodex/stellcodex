@@ -1,0 +1,21 @@
+{
+  "manifest_id": "ACTIVE_STELL_MANIFEST",
+  "generated_at": "2026-03-06T23:19:39Z",
+  "active": true,
+  "organ": "STELL",
+  "role": "personal_ai_brain",
+  "workspace_root": "/root/workspace/AI",
+  "responsibilities": [
+    "memory_management",
+    "retrieval",
+    "planning",
+    "tool_orchestration",
+    "founder_interaction"
+  ],
+  "forbidden": [
+    "modify_production_platform_code",
+    "take_runtime_authority_over_orchestra",
+    "take_runtime_authority_over_stellcodex"
+  ],
+  "authority_boundary": "read_telemetry_write_only_stell_scoped_outputs"
+}

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "STELL Memory Record",
+  "type": "object",
+  "required": ["record_id", "type", "timestamp", "source", "content", "tags", "hash", "confidence"],
+  "properties": {
+    "record_id": {"type": "string"},
+    "type": {"type": "string"},
+    "timestamp": {"type": "string", "format": "date-time"},
+    "source": {"type": "string"},
+    "content": {"type": "string"},
+    "tags": {"type": "array", "items": {"type": "string"}},
+    "hash": {"type": "string"},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+  },
+  "additionalProperties": false
+}

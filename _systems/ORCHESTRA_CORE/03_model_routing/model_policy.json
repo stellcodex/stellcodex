@@ -1,0 +1,9 @@
+{
+  "planning": ["gemini_conductor", "local_reason"],
+  "code_generation": ["codex_executor", "local_reason"],
+  "analysis": ["abacus_analyst", "local_fast", "local_reason"],
+  "fast_tasks": ["local_fast"],
+  "review": ["claude_reviewer", "local_reason"],
+  "fallback_policy": "degrade_to_local_without_breaking_contracts",
+  "limit_policy": "switch_when_remaining_ratio_lt_0.10"
+}
