@@ -1,6 +1,6 @@
 # Final System State
 
-Generated: 2026-03-06T23:25:34Z
+Generated: 2026-03-06T23:28:39Z
 
 ## System Separation Validation
 - STELL manifest present: true
@@ -44,9 +44,16 @@ Generated: 2026-03-06T23:25:34Z
 - ORCHESTRA queue healthy: true
 - External connectors verified: false
 - Backup chain valid: true
+- Readiness evidence: /root/workspace/_systems/audit/training_readiness_2026-03-06T23_28_39Z.md
 
 SYSTEM_STATUS = TRAINING_NOT_READY
 
 ## Governance Trigger
 Any boundary violation must trigger governance audit and be recorded under:
 - /root/workspace/_systems/audit
+
+Latest governance audit:
+- /root/workspace/_systems/audit/governance_audit_2026-03-06T23_27_54Z.md
+
+Detected guardrail violation:
+- duplicate_prompt_detection: FAIL (duplicate filename `STELLCODEX_MASTER_PROMPT_v8.0.md` in active truth/manual trees)
