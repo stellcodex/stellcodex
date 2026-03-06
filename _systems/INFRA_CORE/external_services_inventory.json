@@ -1,35 +1,41 @@
 {
-  "generated_at": "2026-03-06T23:25:34Z",
+  "generated_at": "2026-03-06T23:46:44Z",
   "services": {
     "google_drive": {
       "configured": true,
       "remotes": "stellstorage: gdrive: e:",
-      "status": "ok"
+      "status": "ok",
+      "required_for_training_readiness": true
     },
     "github": {
       "configured": true,
       "origin": "https://github.com/stellcodex/stellcodex.git",
-      "status": "ok"
+      "status": "ok",
+      "required_for_training_readiness": true
     },
     "cloudflare": {
       "configured": false,
       "token_status": "missing",
-      "status": "not_verified"
+      "status": "optional_not_configured",
+      "required_for_training_readiness": false
     },
     "vercel": {
       "configured": false,
       "token_status": "missing",
-      "status": "not_verified"
+      "status": "optional_not_configured",
+      "required_for_training_readiness": false
     },
     "object_storage": {
       "configured": true,
       "service": "deploy_minio_1",
-      "status": "ok"
+      "status": "ok",
+      "required_for_training_readiness": true
     },
     "queue": {
       "configured": true,
       "service": "deploy_redis_1",
-      "status": "PONG"
+      "status": "PONG",
+      "required_for_training_readiness": true
     }
   }
 }

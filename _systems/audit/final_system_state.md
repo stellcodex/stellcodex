@@ -1,6 +1,6 @@
 # Final System State
 
-Generated: 2026-03-06T23:33:24Z
+Generated: 2026-03-06T23:58:22Z
 
 ## System Separation Validation
 - STELL manifest present: true
@@ -20,8 +20,9 @@ Generated: 2026-03-06T23:33:24Z
 ## External Connector Health
 - GitHub origin: https://github.com/stellcodex/stellcodex.git
 - Google Drive remotes: stellstorage: gdrive: e:
-- Cloudflare token status: missing
-- Vercel token status: missing
+- Required connectors verified (github/drive/object_storage/queue): true/true/true/true
+- Cloudflare token status (optional connector): missing
+- Vercel token status (optional connector): missing
 - Redis queue ping: PONG
 
 ## Legacy Archive List
@@ -33,28 +34,24 @@ Generated: 2026-03-06T23:33:24Z
 - Findings count: 98
 
 ## Backup Verification
-- Backup count: 20
-- Latest backup: /root/stellcodex_output/backups/backup_20260306_223229.zip
+- Backup count: 21
+- Latest backup: /root/stellcodex_output/backups/backup_20260306_234640.zip
 - Backup status: valid
 
 ## Training Readiness Evaluation
 - STELL manifest active: true
-- RAG stack installed: false
+- RAG stack installed: true
 - Dataset directories prepared: true
 - ORCHESTRA queue healthy: true
-- External connectors verified: false
+- External connectors verified: true
 - Backup chain valid: true
-- Readiness evidence: /root/workspace/_systems/audit/training_readiness_2026-03-06T23_32_09Z.md
-- RAG missing modules (runtime check): langgraph, chromadb
+- Readiness evidence: /root/workspace/_systems/audit/training_readiness_2026-03-06T23_57_49Z.md
 
-SYSTEM_STATUS = TRAINING_NOT_READY
+SYSTEM_STATUS = TRAINING_READY
 
 ## Governance Trigger
 Any boundary violation must trigger governance audit and be recorded under:
 - /root/workspace/_systems/audit
 
 Latest governance audit:
-- /root/workspace/_systems/audit/governance_audit_2026-03-06T23_33_24Z.md
-
-Detected guardrail violation:
-- duplicate_prompt_detection: FAIL (duplicate filename `STELLCODEX_MASTER_PROMPT_v8.0.md` in active truth/manual trees)
+- /root/workspace/_systems/audit/governance_audit_2026-03-06T23_58_22Z.md
