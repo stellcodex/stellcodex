@@ -1,0 +1,8 @@
+{
+  "draft_min_deg": 1.0,
+  "wall_mm_min": 1.0,
+  "wall_mm_max": 3.0,
+  "block_on_unknown_critical": true,
+  "force_approval_on_visual_only": true,
+  "allow_hot_runner": false
+}
