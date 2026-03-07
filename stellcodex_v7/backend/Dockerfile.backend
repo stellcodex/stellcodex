@@ -1,0 +1,36 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    curl procps netcat-openbsd assimp-utils \
+    g++ cmake make \
+    libocct-data-exchange-7.8 libocct-modeling-data-7.8 libocct-modeling-algorithms-7.8 \
+    libocct-foundation-7.8 libocct-ocaf-7.8 libocct-visualization-7.8 occt-misc \
+    libocct-data-exchange-dev libocct-modeling-data-dev libocct-modeling-algorithms-dev \
+    libocct-foundation-dev libocct-ocaf-dev libocct-visualization-dev libocct-draw-dev \
+    libfontconfig1-dev libtbb-dev \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY tools/occt-convert /tmp/occt-convert
+RUN cmake -S /tmp/occt-convert -B /tmp/occt-convert/build -DCMAKE_BUILD_TYPE=Release \
+  && cmake --build /tmp/occt-convert/build --config Release \
+  && cp /tmp/occt-convert/build/occt-convert /usr/local/bin/occt-convert \
+  && rm -rf /tmp/occt-convert
+
+COPY requirements.txt /app/requirements.txt
+RUN python3 -m pip install --no-cache-dir -r /app/requirements.txt
+
+COPY alembic.ini .
+COPY alembic ./alembic
+COPY app /app/app
+
+# DB ve MinIO ayağa kalkmadan backend'in "erken" ölmesini engeller
+CMD ["sh", "-lc", "\
+  echo 'Waiting for postgres:5432...' && until nc -z postgres 5432; do sleep 1; done; \
+  echo 'Waiting for minio:9000...' && until nc -z stellcodex-minio 9000; do sleep 1; done; \
+  echo 'Waiting for redis:6379...' && until nc -z redis 6379; do sleep 1; done; \
+  echo 'Starting backend...' && \
+  uvicorn app.main:app --host 0.0.0.0 --port 8000 \
+"]

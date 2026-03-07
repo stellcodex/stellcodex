@@ -1,0 +1,42 @@
+{
+  "id": "APP_002",
+  "slug": "stelldraw",
+  "name": "StellDraw",
+  "version": "7.0.0",
+  "category": "design",
+  "tier": "free",
+  "enabled_by_default": true,
+  "description": "2D drawing editor for DXF, DWG, and SVG files",
+  "entry_point": "/apps/stelldraw",
+  "routes": [
+    "/apps/stelldraw"
+  ],
+  "required_capabilities": [
+    "drawing"
+  ],
+  "supported_formats": [
+    "dxf",
+    "dwg",
+    "svg"
+  ],
+  "permissions": {
+    "required_role": "any",
+    "requires_auth": true,
+    "allow_guest": true
+  },
+  "api_endpoints": [
+    "/api/v1/files/{file_id}/dxf/manifest",
+    "/api/v1/files/{file_id}/dxf/render"
+  ],
+  "feature_flags": {
+    "enabled": true,
+    "env_override": "APP_STELLDRAW"
+  },
+  "dependencies": {
+    "backend": true,
+    "redis": false,
+    "minio": false,
+    "worker": false
+  },
+  "schema_version": "stellcodex.v7.app_manifest.1.0"
+}

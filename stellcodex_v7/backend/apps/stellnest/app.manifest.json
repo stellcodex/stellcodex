@@ -1,0 +1,42 @@
+{
+  "id": "APP_019",
+  "slug": "stellnest",
+  "name": "StellNest",
+  "version": "7.0.0",
+  "category": "manufacturing",
+  "tier": "free",
+  "enabled_by_default": true,
+  "description": "Part nesting optimizer for DXF/SVG sheet layouts",
+  "entry_point": "/apps/stellnest",
+  "routes": [
+    "/apps/stellnest"
+  ],
+  "required_capabilities": [
+    "nesting"
+  ],
+  "supported_formats": [
+    "dxf",
+    "svg"
+  ],
+  "permissions": {
+    "required_role": "any",
+    "requires_auth": true,
+    "allow_guest": true
+  },
+  "api_endpoints": [
+    "/api/v1/dfm/run",
+    "/api/v1/dfm/report",
+    "/api/v1/quotes/generate"
+  ],
+  "feature_flags": {
+    "enabled": true,
+    "env_override": "APP_STELLNEST"
+  },
+  "dependencies": {
+    "backend": true,
+    "redis": false,
+    "minio": false,
+    "worker": true
+  },
+  "schema_version": "stellcodex.v7.app_manifest.1.0"
+}

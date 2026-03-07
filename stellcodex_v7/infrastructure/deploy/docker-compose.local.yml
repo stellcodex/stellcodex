@@ -1,0 +1,136 @@
+version: "3.3"
+
+services:
+  postgres:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_DB: stellcodex
+      POSTGRES_USER: stellcodex
+      POSTGRES_PASSWORD: stellcodex
+    ports:
+      - "15432:5432"
+    volumes:
+      - v7_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stellcodex -d stellcodex"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7
+    restart: always
+    ports:
+      - "16379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  minio:
+    image: minio/minio:RELEASE.2022-10-24T18-35-07Z
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "19000:9000"
+      - "19001:9001"
+    volumes:
+      - v7_minio_data:/data
+    networks:
+      default:
+        aliases:
+          - stellcodex-minio
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  backend:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile.backend
+    restart: always
+    ports:
+      - "18000:8000"
+    depends_on:
+      - postgres
+      - redis
+      - minio
+    environment:
+      DATABASE_URL: postgresql+psycopg2://stellcodex:stellcodex@postgres:5432/stellcodex
+      REDIS_URL: redis://redis:6379/0
+      JWT_ALG: HS256
+      JWT_SECRET: 9d9f63a2f29f46025b3da7cb7c33f0431981fba0a7f113f96eeea69f6fd7932c
+      REFRESH_TOKEN_DAYS: "14"
+      ACCESS_TOKEN_MINUTES: "30"
+      RATE_LIMIT_PER_HOUR: "2000"
+      UPLOAD_RATE_LIMIT_PER_HOUR: "120"
+      MAX_UPLOAD_BYTES: "209715200"
+      FEATURE_FILES: "true"
+      ALLOWED_CONTENT_TYPES: model/stl,model/step,model/iges,application/step,application/iges,application/pdf,image/png,image/jpeg,model/gltf-binary,model/gltf+json,application/octet-stream,text/plain
+      CONVERSION_TIMEOUT_SECONDS: "1800"
+      BLENDER_TIMEOUT_SECONDS: "600"
+      STELLCODEX_S3_ENDPOINT_URL: http://stellcodex-minio:9000
+      STELLCODEX_S3_REGION: us-east-1
+      STELLCODEX_S3_BUCKET: stellcodex
+      STELLCODEX_S3_ACCESS_KEY_ID: minioadmin
+      STELLCODEX_S3_SECRET_ACCESS_KEY: minioadmin
+      PUBLIC_S3_BASE_URL: http://localhost:18000
+      WORKDIR: /tmp/stellcodex/work
+      ADMIN_TOKEN: 4f51b97a16af6e89a1bdf6e76f4f4534f2b773dc98cc8ff4f7ea958ce8d4fb6e
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ../../backend:/app
+      - v7_work:/tmp/stellcodex/work
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/api/v1/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  worker:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile.backend
+    restart: always
+    command: ["sh", "-lc", "python -m app.workers.worker_main"]
+    depends_on:
+      - postgres
+      - redis
+      - minio
+    environment:
+      DATABASE_URL: postgresql+psycopg2://stellcodex:stellcodex@postgres:5432/stellcodex
+      REDIS_URL: redis://redis:6379/0
+      JWT_ALG: HS256
+      JWT_SECRET: 9d9f63a2f29f46025b3da7cb7c33f0431981fba0a7f113f96eeea69f6fd7932c
+      REFRESH_TOKEN_DAYS: "14"
+      ACCESS_TOKEN_MINUTES: "30"
+      RATE_LIMIT_PER_HOUR: "2000"
+      UPLOAD_RATE_LIMIT_PER_HOUR: "120"
+      MAX_UPLOAD_BYTES: "209715200"
+      FEATURE_FILES: "true"
+      ALLOWED_CONTENT_TYPES: model/stl,model/step,model/iges,application/step,application/iges,application/pdf,image/png,image/jpeg,model/gltf-binary,model/gltf+json,application/octet-stream,text/plain
+      CONVERSION_TIMEOUT_SECONDS: "1800"
+      BLENDER_TIMEOUT_SECONDS: "600"
+      STELLCODEX_S3_ENDPOINT_URL: http://stellcodex-minio:9000
+      STELLCODEX_S3_REGION: us-east-1
+      STELLCODEX_S3_BUCKET: stellcodex
+      STELLCODEX_S3_ACCESS_KEY_ID: minioadmin
+      STELLCODEX_S3_SECRET_ACCESS_KEY: minioadmin
+      PUBLIC_S3_BASE_URL: http://localhost:18000
+      WORKDIR: /tmp/stellcodex/work
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ../../backend:/app
+      - v7_work:/tmp/stellcodex/work
+
+volumes:
+  v7_postgres_data:
+  v7_minio_data:
+  v7_work:

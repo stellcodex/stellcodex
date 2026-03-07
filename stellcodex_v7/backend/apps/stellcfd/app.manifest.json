@@ -1,0 +1,42 @@
+{
+  "id": "APP_037",
+  "slug": "stellcfd",
+  "name": "StellCFD",
+  "version": "7.0.0",
+  "category": "simulation",
+  "tier": "paid",
+  "enabled_by_default": false,
+  "description": "Computational Fluid Dynamics simulation (paid)",
+  "entry_point": "/apps/stellcfd",
+  "routes": [
+    "/apps/stellcfd"
+  ],
+  "required_capabilities": [
+    "cfd"
+  ],
+  "supported_formats": [
+    "msh",
+    "cas",
+    "json"
+  ],
+  "permissions": {
+    "required_role": "user",
+    "requires_auth": true,
+    "allow_guest": false
+  },
+  "api_endpoints": [
+    "/api/v1/files/{file_id}/manifest",
+    "/api/v1/jobs/convert"
+  ],
+  "feature_flags": {
+    "enabled": false,
+    "env_override": "APP_STELLCFD"
+  },
+  "dependencies": {
+    "backend": true,
+    "redis": false,
+    "minio": false,
+    "worker": true
+  },
+  "schema_version": "stellcodex.v7.app_manifest.1.0"
+}

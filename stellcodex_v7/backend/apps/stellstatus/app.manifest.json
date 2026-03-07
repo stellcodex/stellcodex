@@ -1,0 +1,41 @@
+{
+  "id": "APP_025",
+  "slug": "stellstatus",
+  "name": "StellStatus",
+  "version": "7.0.0",
+  "category": "system",
+  "tier": "free",
+  "enabled_by_default": true,
+  "description": "Real-time system and pipeline status dashboard",
+  "entry_point": "/apps/stellstatus",
+  "routes": [
+    "/apps/stellstatus"
+  ],
+  "required_capabilities": [
+    "status"
+  ],
+  "supported_formats": [
+    "json"
+  ],
+  "permissions": {
+    "required_role": "any",
+    "requires_auth": true,
+    "allow_guest": true
+  },
+  "api_endpoints": [
+    "/api/v1/health",
+    "/api/v1/admin/health",
+    "/api/v1/admin/users"
+  ],
+  "feature_flags": {
+    "enabled": true,
+    "env_override": "APP_STELLSTATUS"
+  },
+  "dependencies": {
+    "backend": true,
+    "redis": true,
+    "minio": false,
+    "worker": false
+  },
+  "schema_version": "stellcodex.v7.app_manifest.1.0"
+}

@@ -1,0 +1,42 @@
+{
+  "id": "APP_029",
+  "slug": "stellarchive",
+  "name": "StellArchive",
+  "version": "7.0.0",
+  "category": "workspace",
+  "tier": "free",
+  "enabled_by_default": true,
+  "description": "ZIP archive creator and workspace backup tool",
+  "entry_point": "/apps/stellarchive",
+  "routes": [
+    "/apps/stellarchive"
+  ],
+  "required_capabilities": [
+    "archive"
+  ],
+  "supported_formats": [
+    "zip",
+    "json"
+  ],
+  "permissions": {
+    "required_role": "any",
+    "requires_auth": true,
+    "allow_guest": true
+  },
+  "api_endpoints": [
+    "/api/v1/explorer/list",
+    "/api/v1/library/feed",
+    "/api/v1/projects"
+  ],
+  "feature_flags": {
+    "enabled": true,
+    "env_override": "APP_STELLARCHIVE"
+  },
+  "dependencies": {
+    "backend": true,
+    "redis": false,
+    "minio": true,
+    "worker": false
+  },
+  "schema_version": "stellcodex.v7.app_manifest.1.0"
+}

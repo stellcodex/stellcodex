@@ -1,0 +1,44 @@
+{
+  "id": "APP_014",
+  "slug": "stellconvert",
+  "name": "StellConvert",
+  "version": "7.0.0",
+  "category": "pipeline",
+  "tier": "free",
+  "enabled_by_default": true,
+  "description": "CAD/drawing format conversion pipeline",
+  "entry_point": "/apps/stellconvert",
+  "routes": [
+    "/apps/stellconvert"
+  ],
+  "required_capabilities": [
+    "convert"
+  ],
+  "supported_formats": [
+    "step",
+    "stl",
+    "obj",
+    "dxf",
+    "pdf"
+  ],
+  "permissions": {
+    "required_role": "any",
+    "requires_auth": true,
+    "allow_guest": true
+  },
+  "api_endpoints": [
+    "/api/v1/files/upload",
+    "/api/v1/jobs/convert"
+  ],
+  "feature_flags": {
+    "enabled": true,
+    "env_override": "APP_STELLCONVERT"
+  },
+  "dependencies": {
+    "backend": true,
+    "redis": true,
+    "minio": true,
+    "worker": true
+  },
+  "schema_version": "stellcodex.v7.app_manifest.1.0"
+}

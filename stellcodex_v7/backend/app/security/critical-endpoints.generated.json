@@ -1,0 +1,177 @@
+[
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/users/{user_id}:suspend",
+    "perm": "admin.users.suspend"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/users/{user_id}:unsuspend",
+    "perm": "admin.users.unsuspend"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/admin/users/{user_id}",
+    "perm": "admin.users.delete"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/admin/files/{scx_id}",
+    "perm": "admin.files.delete"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/files/{scx_id}:purge-versions",
+    "perm": "admin.files.purge_versions"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/files/{scx_id}:storage-purge",
+    "perm": "admin.files.storage_purge"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/shares/{share_id}:remove-expiry",
+    "perm": "admin.shares.remove_expiry"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/shares/{share_id}:make-public",
+    "perm": "admin.shares.make_public"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/shares/{share_id}:set-no-expiry",
+    "perm": "admin.shares.set_no_expiry"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/shares/{share_id}:org-wide",
+    "perm": "admin.shares.org_wide"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/admin/presentations/{presentation_id}",
+    "perm": "admin.presentations.delete"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/system/queues/{queue}:pause",
+    "perm": "system.queues.pause"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/system/queues/{queue}:resume",
+    "perm": "system.queues.resume"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/system/queues/{queue}:set-concurrency",
+    "perm": "system.queues.set_concurrency"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/system/workers:restart",
+    "perm": "system.workers.restart"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/system/workers:scale",
+    "perm": "system.workers.scale"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/system/deploy:rollback",
+    "perm": "system.deploy.rollback"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/system/backups:restore-test",
+    "perm": "system.backups.restore_test"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/system/secrets:rotate",
+    "perm": "system.secrets.rotate"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/admin/security/policies",
+    "perm": "security.policies.update"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/security/emergency:readonly-enable",
+    "perm": "security.emergency.readonly_enable"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/security/emergency:readonly-disable",
+    "perm": "security.emergency.readonly_disable"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/security/emergency:disable-uploads",
+    "perm": "security.emergency.disable_uploads"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/security/emergency:enable-uploads",
+    "perm": "security.emergency.enable_uploads"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/security/emergency:disable-public-shares",
+    "perm": "security.emergency.disable_public_shares"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/security/emergency:enable-public-shares",
+    "perm": "security.emergency.enable_public_shares"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/logs:export-redacted",
+    "perm": "logs.export_redacted"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/logs:export-full",
+    "perm": "logs.export_full"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/rbac/roles",
+    "perm": "rbac.roles.create"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/admin/rbac/roles/{role_id}",
+    "perm": "rbac.roles.update"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/admin/rbac/roles/{role_id}",
+    "perm": "rbac.roles.delete"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v1/admin/rbac/assignments",
+    "perm": "rbac.assignments.update"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/approvals/{approval_id}:approve",
+    "perm": "approvals.approve"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/approvals/{approval_id}:reject",
+    "perm": "approvals.reject"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/approvals/{approval_id}:execute",
+    "perm": "approvals.execute"
+  }
+]

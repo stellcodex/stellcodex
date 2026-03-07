@@ -1,0 +1,14 @@
+{
+  "/dashboard": "system.status.read",
+  "/dashboard/files": "system.status.read",
+  "/dashboard/activity": "system.status.read",
+  "/dashboard/settings": "system.status.read",
+  "/admin": "system.status.read",
+  "/admin/users": "admin.users.read",
+  "/admin/files": "admin.files.read",
+  "/admin/approvals": "approvals.read",
+  "/admin/ai": "ai.suggestions.read",
+  "/admin/audit": "logs.audit.read",
+  "/admin/rbac": "rbac.roles.read",
+  "/admin/system": "system.status.read"
+}

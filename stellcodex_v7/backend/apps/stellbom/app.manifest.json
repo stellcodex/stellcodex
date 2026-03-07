@@ -1,0 +1,43 @@
+{
+  "id": "APP_018",
+  "slug": "stellbom",
+  "name": "StellBOM",
+  "version": "7.0.0",
+  "category": "manufacturing",
+  "tier": "free",
+  "enabled_by_default": true,
+  "description": "Bill of Materials generator for CSV, XLSX, and JSON",
+  "entry_point": "/apps/stellbom",
+  "routes": [
+    "/apps/stellbom"
+  ],
+  "required_capabilities": [
+    "bom"
+  ],
+  "supported_formats": [
+    "csv",
+    "xlsx",
+    "json"
+  ],
+  "permissions": {
+    "required_role": "any",
+    "requires_auth": true,
+    "allow_guest": true
+  },
+  "api_endpoints": [
+    "/api/v1/dfm/run",
+    "/api/v1/dfm/report",
+    "/api/v1/quotes/generate"
+  ],
+  "feature_flags": {
+    "enabled": true,
+    "env_override": "APP_STELLBOM"
+  },
+  "dependencies": {
+    "backend": true,
+    "redis": false,
+    "minio": false,
+    "worker": true
+  },
+  "schema_version": "stellcodex.v7.app_manifest.1.0"
+}

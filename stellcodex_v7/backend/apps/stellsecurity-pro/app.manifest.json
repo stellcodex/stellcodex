@@ -1,0 +1,40 @@
+{
+  "id": "APP_044",
+  "slug": "stellsecurity-pro",
+  "name": "StellSecurity Pro",
+  "version": "7.0.0",
+  "category": "governance",
+  "tier": "paid",
+  "enabled_by_default": false,
+  "description": "Advanced security controls and access management (paid)",
+  "entry_point": "/apps/stellsecurity-pro",
+  "routes": [
+    "/apps/stellsecurity-pro"
+  ],
+  "required_capabilities": [
+    "security"
+  ],
+  "supported_formats": [
+    "json"
+  ],
+  "permissions": {
+    "required_role": "user",
+    "requires_auth": true,
+    "allow_guest": false
+  },
+  "api_endpoints": [
+    "/api/v1/admin/audit",
+    "/api/v1/admin/users"
+  ],
+  "feature_flags": {
+    "enabled": false,
+    "env_override": "APP_STELLSECURITY_PRO"
+  },
+  "dependencies": {
+    "backend": true,
+    "redis": false,
+    "minio": false,
+    "worker": false
+  },
+  "schema_version": "stellcodex.v7.app_manifest.1.0"
+}

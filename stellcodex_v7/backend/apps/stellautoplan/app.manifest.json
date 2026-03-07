@@ -1,0 +1,40 @@
+{
+  "id": "APP_040",
+  "slug": "stellautoplan",
+  "name": "StellAutoPlan",
+  "version": "7.0.0",
+  "category": "ai",
+  "tier": "paid",
+  "enabled_by_default": false,
+  "description": "AI-driven production planning and scheduling (paid)",
+  "entry_point": "/apps/stellautoplan",
+  "routes": [
+    "/apps/stellautoplan"
+  ],
+  "required_capabilities": [
+    "planning"
+  ],
+  "supported_formats": [
+    "json"
+  ],
+  "permissions": {
+    "required_role": "user",
+    "requires_auth": true,
+    "allow_guest": false
+  },
+  "api_endpoints": [
+    "/api/v1/stell/chat",
+    "/api/v1/stell/context"
+  ],
+  "feature_flags": {
+    "enabled": false,
+    "env_override": "APP_STELLAUTOPLAN"
+  },
+  "dependencies": {
+    "backend": true,
+    "redis": false,
+    "minio": false,
+    "worker": false
+  },
+  "schema_version": "stellcodex.v7.app_manifest.1.0"
+}

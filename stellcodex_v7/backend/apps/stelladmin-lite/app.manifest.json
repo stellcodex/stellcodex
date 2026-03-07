@@ -1,0 +1,41 @@
+{
+  "id": "APP_026",
+  "slug": "stelladmin-lite",
+  "name": "StellAdmin Lite",
+  "version": "7.0.0",
+  "category": "system",
+  "tier": "free",
+  "enabled_by_default": true,
+  "description": "Lightweight admin panel for user and file management",
+  "entry_point": "/apps/stelladmin-lite",
+  "routes": [
+    "/apps/stelladmin-lite"
+  ],
+  "required_capabilities": [
+    "admin"
+  ],
+  "supported_formats": [
+    "json"
+  ],
+  "permissions": {
+    "required_role": "any",
+    "requires_auth": true,
+    "allow_guest": true
+  },
+  "api_endpoints": [
+    "/api/v1/health",
+    "/api/v1/admin/health",
+    "/api/v1/admin/users"
+  ],
+  "feature_flags": {
+    "enabled": true,
+    "env_override": "APP_STELLADMIN_LITE"
+  },
+  "dependencies": {
+    "backend": true,
+    "redis": true,
+    "minio": false,
+    "worker": false
+  },
+  "schema_version": "stellcodex.v7.app_manifest.1.0"
+}

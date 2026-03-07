@@ -1,0 +1,41 @@
+{
+  "id": "APP_012",
+  "slug": "stellproject",
+  "name": "StellProject",
+  "version": "7.0.0",
+  "category": "workspace",
+  "tier": "free",
+  "enabled_by_default": true,
+  "description": "Project workspace organizer and file grouping",
+  "entry_point": "/apps/stellproject",
+  "routes": [
+    "/apps/stellproject"
+  ],
+  "required_capabilities": [
+    "project"
+  ],
+  "supported_formats": [
+    "json"
+  ],
+  "permissions": {
+    "required_role": "any",
+    "requires_auth": true,
+    "allow_guest": true
+  },
+  "api_endpoints": [
+    "/api/v1/explorer/list",
+    "/api/v1/library/feed",
+    "/api/v1/projects"
+  ],
+  "feature_flags": {
+    "enabled": true,
+    "env_override": "APP_STELLPROJECT"
+  },
+  "dependencies": {
+    "backend": true,
+    "redis": false,
+    "minio": true,
+    "worker": false
+  },
+  "schema_version": "stellcodex.v7.app_manifest.1.0"
+}

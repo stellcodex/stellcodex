@@ -1,0 +1,44 @@
+{
+  "id": "APP_007",
+  "slug": "stellupload",
+  "name": "StellUpload",
+  "version": "7.0.0",
+  "category": "pipeline",
+  "tier": "free",
+  "enabled_by_default": true,
+  "description": "Multi-format CAD file upload and pipeline entry point",
+  "entry_point": "/apps/stellupload",
+  "routes": [
+    "/apps/stellupload"
+  ],
+  "required_capabilities": [
+    "upload"
+  ],
+  "supported_formats": [
+    "step",
+    "stl",
+    "obj",
+    "dxf",
+    "pdf"
+  ],
+  "permissions": {
+    "required_role": "any",
+    "requires_auth": true,
+    "allow_guest": true
+  },
+  "api_endpoints": [
+    "/api/v1/files/upload",
+    "/api/v1/jobs/convert"
+  ],
+  "feature_flags": {
+    "enabled": true,
+    "env_override": "APP_STELLUPLOAD"
+  },
+  "dependencies": {
+    "backend": true,
+    "redis": true,
+    "minio": true,
+    "worker": true
+  },
+  "schema_version": "stellcodex.v7.app_manifest.1.0"
+}

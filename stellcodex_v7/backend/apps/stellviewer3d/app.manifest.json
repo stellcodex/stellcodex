@@ -1,0 +1,43 @@
+{
+  "id": "APP_009",
+  "slug": "stellviewer3d",
+  "name": "StellViewer3D",
+  "version": "7.0.0",
+  "category": "viewer",
+  "tier": "free",
+  "enabled_by_default": true,
+  "description": "Advanced 3D viewer for STEP, STL, OBJ, and GLB files",
+  "entry_point": "/apps/stellviewer3d",
+  "routes": [
+    "/apps/stellviewer3d"
+  ],
+  "required_capabilities": [
+    "viewer3d"
+  ],
+  "supported_formats": [
+    "step",
+    "stl",
+    "obj",
+    "glb"
+  ],
+  "permissions": {
+    "required_role": "any",
+    "requires_auth": true,
+    "allow_guest": true
+  },
+  "api_endpoints": [
+    "/api/v1/files/{file_id}/gltf",
+    "/api/v1/files/{file_id}/manifest"
+  ],
+  "feature_flags": {
+    "enabled": true,
+    "env_override": "APP_STELLVIEWER3D"
+  },
+  "dependencies": {
+    "backend": true,
+    "redis": false,
+    "minio": false,
+    "worker": false
+  },
+  "schema_version": "stellcodex.v7.app_manifest.1.0"
+}

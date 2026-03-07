@@ -1,0 +1,40 @@
+{
+  "id": "APP_028",
+  "slug": "stellscheduler",
+  "name": "StellScheduler",
+  "version": "7.0.0",
+  "category": "automation",
+  "tier": "free",
+  "enabled_by_default": true,
+  "description": "Job and task scheduler with cron-like triggers",
+  "entry_point": "/apps/stellscheduler",
+  "routes": [
+    "/apps/stellscheduler"
+  ],
+  "required_capabilities": [
+    "scheduler"
+  ],
+  "supported_formats": [
+    "json"
+  ],
+  "permissions": {
+    "required_role": "any",
+    "requires_auth": true,
+    "allow_guest": true
+  },
+  "api_endpoints": [
+    "/api/v1/jobs",
+    "/api/v1/jobs/{job_id}"
+  ],
+  "feature_flags": {
+    "enabled": true,
+    "env_override": "APP_STELLSCHEDULER"
+  },
+  "dependencies": {
+    "backend": true,
+    "redis": true,
+    "minio": false,
+    "worker": false
+  },
+  "schema_version": "stellcodex.v7.app_manifest.1.0"
+}

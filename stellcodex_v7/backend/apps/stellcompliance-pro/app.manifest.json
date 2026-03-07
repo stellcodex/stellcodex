@@ -1,0 +1,41 @@
+{
+  "id": "APP_043",
+  "slug": "stellcompliance-pro",
+  "name": "StellCompliance Pro",
+  "version": "7.0.0",
+  "category": "governance",
+  "tier": "paid",
+  "enabled_by_default": false,
+  "description": "Regulatory compliance checker and audit trail (paid)",
+  "entry_point": "/apps/stellcompliance-pro",
+  "routes": [
+    "/apps/stellcompliance-pro"
+  ],
+  "required_capabilities": [
+    "compliance"
+  ],
+  "supported_formats": [
+    "json",
+    "pdf"
+  ],
+  "permissions": {
+    "required_role": "user",
+    "requires_auth": true,
+    "allow_guest": false
+  },
+  "api_endpoints": [
+    "/api/v1/admin/audit",
+    "/api/v1/admin/users"
+  ],
+  "feature_flags": {
+    "enabled": false,
+    "env_override": "APP_STELLCOMPLIANCE_PRO"
+  },
+  "dependencies": {
+    "backend": true,
+    "redis": false,
+    "minio": false,
+    "worker": false
+  },
+  "schema_version": "stellcodex.v7.app_manifest.1.0"
+}

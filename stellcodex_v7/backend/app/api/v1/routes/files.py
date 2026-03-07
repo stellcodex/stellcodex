@@ -7,7 +7,7 @@ import logging
 import os
 import tempfile
 import zipfile
-from typing import Any
+from typing import Any, Union
 from uuid import UUID, uuid4
 
 from botocore.exceptions import ClientError
@@ -941,7 +941,7 @@ def complete_upload(
     return _serialize_file_out(f)
 
 
-@router.get("", response_model=PageOut | RecentPageOut)
+@router.get("", response_model=Union[PageOut, RecentPageOut])
 def list_files(
     page: int = 1,
     page_size: int = 20,

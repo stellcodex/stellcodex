@@ -1,0 +1,7 @@
+{
+  "brep": ["step", "stp", "iges", "igs", "brep", "brp"],
+  "mesh": ["stl", "obj", "ply", "off", "3mf", "amf", "dae"],
+  "dxf": ["dxf"],
+  "images": ["pdf", "png", "jpg", "jpeg"],
+  "rejected": ["dwg", "x_t", "x_b"]
+}

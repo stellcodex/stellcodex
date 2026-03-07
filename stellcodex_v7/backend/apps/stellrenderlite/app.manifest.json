@@ -1,0 +1,42 @@
+{
+  "id": "APP_015",
+  "slug": "stellrenderlite",
+  "name": "StellRenderLite",
+  "version": "7.0.0",
+  "category": "render",
+  "tier": "free",
+  "enabled_by_default": true,
+  "description": "Fast lightweight render engine for PNG/JPG/GLB",
+  "entry_point": "/apps/stellrenderlite",
+  "routes": [
+    "/apps/stellrenderlite"
+  ],
+  "required_capabilities": [
+    "render"
+  ],
+  "supported_formats": [
+    "png",
+    "jpg",
+    "glb"
+  ],
+  "permissions": {
+    "required_role": "any",
+    "requires_auth": true,
+    "allow_guest": true
+  },
+  "api_endpoints": [
+    "/api/v1/files/{file_id}/render",
+    "/api/v1/render"
+  ],
+  "feature_flags": {
+    "enabled": true,
+    "env_override": "APP_STELLRENDERLITE"
+  },
+  "dependencies": {
+    "backend": true,
+    "redis": false,
+    "minio": true,
+    "worker": false
+  },
+  "schema_version": "stellcodex.v7.app_manifest.1.0"
+}

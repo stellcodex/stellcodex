@@ -1,0 +1,41 @@
+{
+  "id": "APP_013",
+  "slug": "stelldrive",
+  "name": "StellDrive",
+  "version": "7.0.0",
+  "category": "workspace",
+  "tier": "free",
+  "enabled_by_default": true,
+  "description": "Cloud storage manager for all file types",
+  "entry_point": "/apps/stelldrive",
+  "routes": [
+    "/apps/stelldrive"
+  ],
+  "required_capabilities": [
+    "storage"
+  ],
+  "supported_formats": [
+    "*/*"
+  ],
+  "permissions": {
+    "required_role": "any",
+    "requires_auth": true,
+    "allow_guest": true
+  },
+  "api_endpoints": [
+    "/api/v1/explorer/list",
+    "/api/v1/library/feed",
+    "/api/v1/projects"
+  ],
+  "feature_flags": {
+    "enabled": true,
+    "env_override": "APP_STELLDRIVE"
+  },
+  "dependencies": {
+    "backend": true,
+    "redis": false,
+    "minio": true,
+    "worker": false
+  },
+  "schema_version": "stellcodex.v7.app_manifest.1.0"
+}

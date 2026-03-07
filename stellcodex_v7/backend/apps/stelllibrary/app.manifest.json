@@ -1,0 +1,41 @@
+{
+  "id": "APP_011",
+  "slug": "stelllibrary",
+  "name": "StellLibrary",
+  "version": "7.0.0",
+  "category": "workspace",
+  "tier": "free",
+  "enabled_by_default": true,
+  "description": "Public/private model library with search and discovery",
+  "entry_point": "/apps/stelllibrary",
+  "routes": [
+    "/apps/stelllibrary"
+  ],
+  "required_capabilities": [
+    "library"
+  ],
+  "supported_formats": [
+    "*/*"
+  ],
+  "permissions": {
+    "required_role": "any",
+    "requires_auth": true,
+    "allow_guest": true
+  },
+  "api_endpoints": [
+    "/api/v1/explorer/list",
+    "/api/v1/library/feed",
+    "/api/v1/projects"
+  ],
+  "feature_flags": {
+    "enabled": true,
+    "env_override": "APP_STELLLIBRARY"
+  },
+  "dependencies": {
+    "backend": true,
+    "redis": false,
+    "minio": true,
+    "worker": false
+  },
+  "schema_version": "stellcodex.v7.app_manifest.1.0"
+}

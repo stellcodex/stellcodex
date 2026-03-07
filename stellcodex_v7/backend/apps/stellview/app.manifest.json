@@ -1,0 +1,43 @@
+{
+  "id": "APP_001",
+  "slug": "stellview",
+  "name": "StellView",
+  "version": "7.0.0",
+  "category": "viewer",
+  "tier": "free",
+  "enabled_by_default": true,
+  "description": "3D CAD file viewer for STEP, STL, OBJ, and GLB formats",
+  "entry_point": "/apps/stellview",
+  "routes": [
+    "/apps/stellview"
+  ],
+  "required_capabilities": [
+    "viewer"
+  ],
+  "supported_formats": [
+    "step",
+    "stl",
+    "obj",
+    "glb"
+  ],
+  "permissions": {
+    "required_role": "any",
+    "requires_auth": true,
+    "allow_guest": true
+  },
+  "api_endpoints": [
+    "/api/v1/files/{file_id}/gltf",
+    "/api/v1/files/{file_id}/manifest"
+  ],
+  "feature_flags": {
+    "enabled": true,
+    "env_override": "APP_STELLVIEW"
+  },
+  "dependencies": {
+    "backend": true,
+    "redis": false,
+    "minio": false,
+    "worker": false
+  },
+  "schema_version": "stellcodex.v7.app_manifest.1.0"
+}

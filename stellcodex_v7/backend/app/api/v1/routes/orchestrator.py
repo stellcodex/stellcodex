@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -111,7 +112,7 @@ def _ensure_session_row(db: Session, file_row: UploadFileModel) -> OrchestratorS
     return row
 
 
-@router.get("/rules", response_model=list[RuleConfigOut])
+@router.get("/rules", response_model=List[RuleConfigOut])
 def list_rule_configs(
     db: Session = Depends(get_db),
     _principal: Principal = Depends(get_current_principal),

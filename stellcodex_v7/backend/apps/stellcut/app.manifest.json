@@ -1,0 +1,42 @@
+{
+  "id": "APP_020",
+  "slug": "stellcut",
+  "name": "StellCut",
+  "version": "7.0.0",
+  "category": "manufacturing",
+  "tier": "free",
+  "enabled_by_default": true,
+  "description": "CNC cutting path generator for NC/G-code output",
+  "entry_point": "/apps/stellcut",
+  "routes": [
+    "/apps/stellcut"
+  ],
+  "required_capabilities": [
+    "cutting"
+  ],
+  "supported_formats": [
+    "nc",
+    "gcode"
+  ],
+  "permissions": {
+    "required_role": "any",
+    "requires_auth": true,
+    "allow_guest": true
+  },
+  "api_endpoints": [
+    "/api/v1/dfm/run",
+    "/api/v1/dfm/report",
+    "/api/v1/quotes/generate"
+  ],
+  "feature_flags": {
+    "enabled": true,
+    "env_override": "APP_STELLCUT"
+  },
+  "dependencies": {
+    "backend": true,
+    "redis": false,
+    "minio": false,
+    "worker": true
+  },
+  "schema_version": "stellcodex.v7.app_manifest.1.0"
+}

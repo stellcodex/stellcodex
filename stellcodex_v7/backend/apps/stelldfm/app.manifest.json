@@ -1,0 +1,43 @@
+{
+  "id": "APP_004",
+  "slug": "stelldfm",
+  "name": "StellDFM",
+  "version": "7.0.0",
+  "category": "manufacturing",
+  "tier": "free",
+  "enabled_by_default": true,
+  "description": "Design for Manufacturability analysis for STEP/IGES parts",
+  "entry_point": "/apps/stelldfm",
+  "routes": [
+    "/apps/stelldfm"
+  ],
+  "required_capabilities": [
+    "dfm"
+  ],
+  "supported_formats": [
+    "step",
+    "stp",
+    "iges"
+  ],
+  "permissions": {
+    "required_role": "any",
+    "requires_auth": true,
+    "allow_guest": true
+  },
+  "api_endpoints": [
+    "/api/v1/dfm/run",
+    "/api/v1/dfm/report",
+    "/api/v1/quotes/generate"
+  ],
+  "feature_flags": {
+    "enabled": true,
+    "env_override": "APP_STELLDFM"
+  },
+  "dependencies": {
+    "backend": true,
+    "redis": false,
+    "minio": false,
+    "worker": true
+  },
+  "schema_version": "stellcodex.v7.app_manifest.1.0"
+}

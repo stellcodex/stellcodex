@@ -1,0 +1,41 @@
+{
+  "id": "APP_031",
+  "slug": "stellsim",
+  "name": "StellSim",
+  "version": "7.0.0",
+  "category": "simulation",
+  "tier": "paid",
+  "enabled_by_default": false,
+  "description": "FEM structural simulation for STEP parts (paid)",
+  "entry_point": "/apps/stellsim",
+  "routes": [
+    "/apps/stellsim"
+  ],
+  "required_capabilities": [
+    "simulation"
+  ],
+  "supported_formats": [
+    "step",
+    "inp"
+  ],
+  "permissions": {
+    "required_role": "user",
+    "requires_auth": true,
+    "allow_guest": false
+  },
+  "api_endpoints": [
+    "/api/v1/files/{file_id}/manifest",
+    "/api/v1/jobs/convert"
+  ],
+  "feature_flags": {
+    "enabled": false,
+    "env_override": "APP_STELLSIM"
+  },
+  "dependencies": {
+    "backend": true,
+    "redis": false,
+    "minio": false,
+    "worker": true
+  },
+  "schema_version": "stellcodex.v7.app_manifest.1.0"
+}

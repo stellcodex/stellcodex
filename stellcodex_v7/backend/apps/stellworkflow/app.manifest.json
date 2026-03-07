@@ -1,0 +1,40 @@
+{
+  "id": "APP_027",
+  "slug": "stellworkflow",
+  "name": "StellWorkflow",
+  "version": "7.0.0",
+  "category": "automation",
+  "tier": "free",
+  "enabled_by_default": true,
+  "description": "Automation workflow builder and executor",
+  "entry_point": "/apps/stellworkflow",
+  "routes": [
+    "/apps/stellworkflow"
+  ],
+  "required_capabilities": [
+    "workflow"
+  ],
+  "supported_formats": [
+    "json"
+  ],
+  "permissions": {
+    "required_role": "any",
+    "requires_auth": true,
+    "allow_guest": true
+  },
+  "api_endpoints": [
+    "/api/v1/jobs",
+    "/api/v1/jobs/{job_id}"
+  ],
+  "feature_flags": {
+    "enabled": true,
+    "env_override": "APP_STELLWORKFLOW"
+  },
+  "dependencies": {
+    "backend": true,
+    "redis": true,
+    "minio": false,
+    "worker": false
+  },
+  "schema_version": "stellcodex.v7.app_manifest.1.0"
+}

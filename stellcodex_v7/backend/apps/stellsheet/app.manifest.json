@@ -1,0 +1,42 @@
+{
+  "id": "APP_021",
+  "slug": "stellsheet",
+  "name": "StellSheet",
+  "version": "7.0.0",
+  "category": "manufacturing",
+  "tier": "free",
+  "enabled_by_default": true,
+  "description": "Sheet metal unfold and flat pattern tool",
+  "entry_point": "/apps/stellsheet",
+  "routes": [
+    "/apps/stellsheet"
+  ],
+  "required_capabilities": [
+    "sheetmetal"
+  ],
+  "supported_formats": [
+    "step",
+    "dxf"
+  ],
+  "permissions": {
+    "required_role": "any",
+    "requires_auth": true,
+    "allow_guest": true
+  },
+  "api_endpoints": [
+    "/api/v1/dfm/run",
+    "/api/v1/dfm/report",
+    "/api/v1/quotes/generate"
+  ],
+  "feature_flags": {
+    "enabled": true,
+    "env_override": "APP_STELLSHEET"
+  },
+  "dependencies": {
+    "backend": true,
+    "redis": false,
+    "minio": false,
+    "worker": true
+  },
+  "schema_version": "stellcodex.v7.app_manifest.1.0"
+}
