@@ -8,16 +8,20 @@ wait_backend
 BACKUP_DIR="${EVIDENCE_DIR}/backups"
 mkdir -p "${BACKUP_DIR}"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+DAY_STAMP="$(date -u +%Y-%m-%d)"
 DUMP_FILE="${BACKUP_DIR}/postgres_${STAMP}.dump"
 META_FILE="${BACKUP_DIR}/backup_${STAMP}.txt"
+SHA_FILE="${BACKUP_DIR}/postgres_${STAMP}.sha256"
 
 {
   echo "[backup] started $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  echo "policy=daily_db_dump"
+  echo "day=${DAY_STAMP}"
   echo "dump_file=${DUMP_FILE}"
 } | tee "${META_FILE}"
 
 compose exec -T postgres pg_dump -U stellcodex -d stellcodex -Fc > "${DUMP_FILE}"
-md5sum "${DUMP_FILE}" | tee -a "${META_FILE}"
+sha256sum "${DUMP_FILE}" | tee "${SHA_FILE}" | tee -a "${META_FILE}"
 
 {
   echo
@@ -27,3 +31,4 @@ md5sum "${DUMP_FILE}" | tee -a "${META_FILE}"
 } >> "${META_FILE}"
 
 echo "${DUMP_FILE}" > "${EVIDENCE_DIR}/latest_backup_path.txt"
+echo "${SHA_FILE}" > "${EVIDENCE_DIR}/latest_backup_sha_path.txt"

@@ -7,6 +7,7 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 COMPOSE_FILE="${COMPOSE_FILE:-${ROOT_DIR}/infrastructure/deploy/docker-compose.local.yml}"
 API_ORIGIN="${API_ORIGIN:-http://localhost:18000}"
 API_BASE="${API_BASE:-${API_ORIGIN}/api/v1}"
+COMPOSE_ENV_FILE="${COMPOSE_ENV_FILE:-$(dirname "${COMPOSE_FILE}")/.env}"
 DEFAULT_EVIDENCE_ROOT="${ROOT_DIR}/evidence"
 if [[ -d "/root/workspace" ]]; then
   DEFAULT_EVIDENCE_ROOT="/root/workspace/evidence"
@@ -20,6 +21,13 @@ else
   EVIDENCE_DIR="${EVIDENCE_ROOT}/v7_gate_${TS}"
 fi
 mkdir -p "${EVIDENCE_DIR}"
+
+if [[ -f "${COMPOSE_ENV_FILE}" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "${COMPOSE_ENV_FILE}"
+  set +a
+fi
 
 compose() {
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
@@ -67,4 +75,4 @@ write_json_pretty() {
   cp "${src}" "${dst}"
 }
 
-export SCRIPT_DIR ROOT_DIR COMPOSE_FILE API_ORIGIN API_BASE EVIDENCE_ROOT EVIDENCE_DIR
+export SCRIPT_DIR ROOT_DIR COMPOSE_FILE COMPOSE_ENV_FILE API_ORIGIN API_BASE EVIDENCE_ROOT EVIDENCE_DIR

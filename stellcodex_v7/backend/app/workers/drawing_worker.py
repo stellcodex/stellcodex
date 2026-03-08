@@ -18,8 +18,8 @@ def process_drawing(job_id: str) -> None:
         db.commit()
 
         project_id = str(job.revision.project_id)
-        revision_id = str(job.revision_id)
-        write_drawing_artifacts(db, storage, project_id, revision_id)
+        rev_uid = str(job.rev_uid)
+        write_drawing_artifacts(db, storage, project_id, rev_uid)
         mark_job_done(db, job)
         db.commit()
     except Exception as exc:

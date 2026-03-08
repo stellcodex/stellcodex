@@ -34,8 +34,8 @@ services:
     restart: always
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${STELLCODEX_S3_ACCESS_KEY_ID:?set STELLCODEX_S3_ACCESS_KEY_ID in .env}
+      MINIO_ROOT_PASSWORD: ${STELLCODEX_S3_SECRET_ACCESS_KEY:?set STELLCODEX_S3_SECRET_ACCESS_KEY in .env}
     ports:
       - "19000:9000"
       - "19001:9001"
@@ -79,8 +79,8 @@ services:
       STELLCODEX_S3_ENDPOINT_URL: http://stellcodex-minio:9000
       STELLCODEX_S3_REGION: us-east-1
       STELLCODEX_S3_BUCKET: stellcodex
-      STELLCODEX_S3_ACCESS_KEY_ID: minioadmin
-      STELLCODEX_S3_SECRET_ACCESS_KEY: minioadmin
+      STELLCODEX_S3_ACCESS_KEY_ID: ${STELLCODEX_S3_ACCESS_KEY_ID:?set STELLCODEX_S3_ACCESS_KEY_ID in .env}
+      STELLCODEX_S3_SECRET_ACCESS_KEY: ${STELLCODEX_S3_SECRET_ACCESS_KEY:?set STELLCODEX_S3_SECRET_ACCESS_KEY in .env}
       PUBLIC_S3_BASE_URL: http://localhost:18000
       WORKDIR: /tmp/stellcodex/work
       ADMIN_TOKEN: 4f51b97a16af6e89a1bdf6e76f4f4534f2b773dc98cc8ff4f7ea958ce8d4fb6e
@@ -121,8 +121,8 @@ services:
       STELLCODEX_S3_ENDPOINT_URL: http://stellcodex-minio:9000
       STELLCODEX_S3_REGION: us-east-1
       STELLCODEX_S3_BUCKET: stellcodex
-      STELLCODEX_S3_ACCESS_KEY_ID: minioadmin
-      STELLCODEX_S3_SECRET_ACCESS_KEY: minioadmin
+      STELLCODEX_S3_ACCESS_KEY_ID: ${STELLCODEX_S3_ACCESS_KEY_ID:?set STELLCODEX_S3_ACCESS_KEY_ID in .env}
+      STELLCODEX_S3_SECRET_ACCESS_KEY: ${STELLCODEX_S3_SECRET_ACCESS_KEY:?set STELLCODEX_S3_SECRET_ACCESS_KEY in .env}
       PUBLIC_S3_BASE_URL: http://localhost:18000
       WORKDIR: /tmp/stellcodex/work
       PYTHONUNBUFFERED: "1"

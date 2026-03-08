@@ -17,7 +17,7 @@ export type WorkspaceProjectSummary = {
   fileCount: number;
 };
 
-const STORAGE_KEY = "scx_workspace_files_v1";
+const WORKSPACE_CACHE_SLOT = "scx_workspace_files_v1";
 export const DEFAULT_PROJECT_ID = "genel-proje";
 export const DEFAULT_PROJECT_NAME = "Genel Proje";
 const WORKSPACE_UPDATED_EVENT = "scx-workspace-updated";
@@ -53,7 +53,7 @@ function safeJsonParse(input: string | null): WorkspaceFileRecord[] {
 
 function persist(records: WorkspaceFileRecord[]) {
   if (!canUseStorage()) return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+  window.localStorage.setItem(WORKSPACE_CACHE_SLOT, JSON.stringify(records));
   window.dispatchEvent(new CustomEvent(WORKSPACE_UPDATED_EVENT));
 }
 
@@ -75,7 +75,7 @@ export function detectWorkspaceMode(fileName: string, contentType?: string | nul
 
 export function listWorkspaceFiles(): WorkspaceFileRecord[] {
   if (!canUseStorage()) return [];
-  const records = safeJsonParse(window.localStorage.getItem(STORAGE_KEY));
+  const records = safeJsonParse(window.localStorage.getItem(WORKSPACE_CACHE_SLOT));
   return normalized(records);
 }
 
@@ -160,7 +160,7 @@ export function formatWorkspaceDate(iso: string): string {
 export function subscribeWorkspaceUpdates(listener: () => void) {
   if (typeof window === "undefined") return () => undefined;
   const onStorage = (event: StorageEvent) => {
-    if (event.key === STORAGE_KEY) listener();
+    if (event.key === WORKSPACE_CACHE_SLOT) listener();
   };
   const onCustom = () => listener();
 

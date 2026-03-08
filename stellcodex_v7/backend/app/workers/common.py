@@ -11,7 +11,7 @@ from app.core.ids import normalize_scx_id
 from ..db import SessionLocal
 from ..models.core import Artifact, ArtifactType, Job, JobStatus
 from ..models.file import UploadFile as UploadFileModel
-from ..storage import Storage, storage_key_for_2d, storage_key_for_3d, storage_key_for_render
+from ..storage import Storage, artifact_path_for_2d, artifact_path_for_3d, artifact_path_for_render
 from app.core.config import settings
 from app.core.storage import get_s3_client
 
@@ -48,29 +48,29 @@ def minimal_pdf_bytes() -> bytes:
 
 def write_artifact(
     db: Session,
-    revision_id,
+    rev_uid,
     art_type: ArtifactType,
-    storage_key: str,
+    blob_path: str,
     content_type: str,
     size: int | None = None,
 ) -> Artifact:
     artifact = (
         db.query(Artifact)
-        .filter(Artifact.revision_id == revision_id, Artifact.type == art_type)
+        .filter(Artifact.rev_uid == rev_uid, Artifact.type == art_type)
         .one_or_none()
     )
     if artifact is None:
         artifact = Artifact(
-            revision_id=revision_id,
+            rev_uid=rev_uid,
             type=art_type,
-            storage_key=storage_key,
+            blob_path=blob_path,
             content_type=content_type,
             ready=True,
             size=str(size) if size is not None else None,
         )
         db.add(artifact)
     else:
-        artifact.storage_key = storage_key
+        artifact.blob_path = blob_path
         artifact.content_type = content_type
         artifact.ready = True
         if size is not None:
@@ -94,8 +94,8 @@ def mark_job_failed(db: Session, job: Job, error: str) -> None:
     job.finished_at = datetime.utcnow()
 
 
-def build_basic_meta(revision_id: str) -> bytes:
-    return json.dumps({"revision_id": str(revision_id), "generated_at": datetime.utcnow().isoformat()}).encode("utf-8")
+def build_basic_meta(rev_uid: str) -> bytes:
+    return json.dumps({"rev_uid": str(rev_uid), "generated_at": datetime.utcnow().isoformat()}).encode("utf-8")
 
 
 def build_basic_tree() -> bytes:
@@ -116,15 +116,15 @@ def build_basic_tree() -> bytes:
     return json.dumps(data).encode("utf-8")
 
 
-def write_drawing_artifacts(db: Session, storage: Storage, project_id: str, revision_id: str) -> None:
-    svg_key = storage_key_for_2d(project_id, revision_id, "drawing.svg")
-    pdf_key = storage_key_for_2d(project_id, revision_id, "drawing.pdf")
-    meta_key = storage_key_for_2d(project_id, revision_id, "meta.json")
-    thumb_key = storage_key_for_2d(project_id, revision_id, "thumb.webp")
+def write_drawing_artifacts(db: Session, storage: Storage, project_id: str, rev_uid: str) -> None:
+    svg_key = artifact_path_for_2d(project_id, rev_uid, "drawing.svg")
+    pdf_key = artifact_path_for_2d(project_id, rev_uid, "drawing.pdf")
+    meta_key = artifact_path_for_2d(project_id, rev_uid, "meta.json")
+    thumb_key = artifact_path_for_2d(project_id, rev_uid, "thumb.webp")
 
     svg_bytes = b"<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'></svg>"
     pdf_bytes = minimal_pdf_bytes()
-    meta_bytes = build_basic_meta(revision_id)
+    meta_bytes = build_basic_meta(rev_uid)
     thumb_bytes = WEBP_1X1
 
     storage.write_bytes(svg_key, svg_bytes)
@@ -137,28 +137,28 @@ def write_drawing_artifacts(db: Session, storage: Storage, project_id: str, revi
     _upload_if_enabled(meta_key, meta_bytes, "application/json")
     _upload_if_enabled(thumb_key, thumb_bytes, "image/webp")
 
-    write_artifact(db, revision_id, ArtifactType.DRAWING_SVG, svg_key, "image/svg+xml", len(svg_bytes))
-    write_artifact(db, revision_id, ArtifactType.DRAWING_PDF, pdf_key, "application/pdf", len(pdf_bytes))
-    write_artifact(db, revision_id, ArtifactType.DRAWING_META, meta_key, "application/json", len(meta_bytes))
-    write_artifact(db, revision_id, ArtifactType.DRAWING_THUMB, thumb_key, "image/webp", len(thumb_bytes))
+    write_artifact(db, rev_uid, ArtifactType.DRAWING_SVG, svg_key, "image/svg+xml", len(svg_bytes))
+    write_artifact(db, rev_uid, ArtifactType.DRAWING_PDF, pdf_key, "application/pdf", len(pdf_bytes))
+    write_artifact(db, rev_uid, ArtifactType.DRAWING_META, meta_key, "application/json", len(meta_bytes))
+    write_artifact(db, rev_uid, ArtifactType.DRAWING_THUMB, thumb_key, "image/webp", len(thumb_bytes))
 
 
-def write_render_artifact(db: Session, storage: Storage, project_id: str, revision_id: str) -> None:
-    render_key = storage_key_for_render(project_id, revision_id, "render.webp")
+def write_render_artifact(db: Session, storage: Storage, project_id: str, rev_uid: str) -> None:
+    render_key = artifact_path_for_render(project_id, rev_uid, "render.webp")
     storage.write_bytes(render_key, WEBP_1X1)
     _upload_if_enabled(render_key, WEBP_1X1, "image/webp")
-    write_artifact(db, revision_id, ArtifactType.RENDER_WEBP, render_key, "image/webp", len(WEBP_1X1))
+    write_artifact(db, rev_uid, ArtifactType.RENDER_WEBP, render_key, "image/webp", len(WEBP_1X1))
 
 
-def write_3d_artifacts(db: Session, storage: Storage, project_id: str, revision_id: str, source_path: Path) -> None:
-    lod0_key = storage_key_for_3d(project_id, revision_id, "lod0.glb")
-    tree_key = storage_key_for_3d(project_id, revision_id, "tree.json")
-    meta_key = storage_key_for_3d(project_id, revision_id, "meta.json")
-    thumb_key = storage_key_for_3d(project_id, revision_id, "thumb.webp")
+def write_3d_artifacts(db: Session, storage: Storage, project_id: str, rev_uid: str, source_path: Path) -> None:
+    lod0_key = artifact_path_for_3d(project_id, rev_uid, "lod0.glb")
+    tree_key = artifact_path_for_3d(project_id, rev_uid, "tree.json")
+    meta_key = artifact_path_for_3d(project_id, rev_uid, "meta.json")
+    thumb_key = artifact_path_for_3d(project_id, rev_uid, "thumb.webp")
 
     storage.copy_from(source_path, lod0_key)
     tree_bytes = build_basic_tree()
-    meta_bytes = build_basic_meta(revision_id)
+    meta_bytes = build_basic_meta(rev_uid)
     thumb_bytes = WEBP_1X1
 
     storage.write_bytes(tree_key, tree_bytes)
@@ -174,11 +174,11 @@ def write_3d_artifacts(db: Session, storage: Storage, project_id: str, revision_
     print(f"wrote meta.json key={meta_key}")
     print(f"wrote thumb.webp key={thumb_key}")
 
-    write_artifact(db, revision_id, ArtifactType.LOD0_GLB, lod0_key, "model/gltf-binary", source_path.stat().st_size)
-    write_artifact(db, revision_id, ArtifactType.TREE_JSON, tree_key, "application/json", len(tree_bytes))
-    write_artifact(db, revision_id, ArtifactType.META_JSON, meta_key, "application/json", len(meta_bytes))
-    write_artifact(db, revision_id, ArtifactType.THUMB_WEBP, thumb_key, "image/webp", len(thumb_bytes))
-    _sync_legacy_upload_ready(db, project_id, revision_id, lod0_key, thumb_key)
+    write_artifact(db, rev_uid, ArtifactType.LOD0_GLB, lod0_key, "model/gltf-binary", source_path.stat().st_size)
+    write_artifact(db, rev_uid, ArtifactType.TREE_JSON, tree_key, "application/json", len(tree_bytes))
+    write_artifact(db, rev_uid, ArtifactType.META_JSON, meta_key, "application/json", len(meta_bytes))
+    write_artifact(db, rev_uid, ArtifactType.THUMB_WEBP, thumb_key, "image/webp", len(thumb_bytes))
+    _sync_legacy_upload_ready(db, project_id, rev_uid, lod0_key, thumb_key)
 
 
 def get_session():
@@ -202,11 +202,11 @@ def _upload_file_if_enabled(storage: Storage, key: str, content_type: str) -> No
 def _sync_legacy_upload_ready(
     db: Session,
     project_id: str,
-    revision_id: str,
+    rev_uid: str,
     lod0_key: str,
     thumb_key: str,
 ) -> None:
-    file_id = normalize_scx_id(str(revision_id))
+    file_id = normalize_scx_id(str(rev_uid))
     row = db.query(UploadFileModel).filter(UploadFileModel.file_id == file_id).first()
     if row is None:
         return
@@ -222,8 +222,8 @@ def _sync_legacy_upload_ready(
         "legacy_mapping": {
             **legacy_mapping,
             "project_id": str(project_id),
-            "revision_id": str(revision_id),
-            "model_prefix": f"models/{project_id}/{revision_id}/",
+            "rev_uid": str(rev_uid),
+            "model_prefix": f"models/{project_id}/{rev_uid}/",
         },
         "defaults": {"view_mode": "shaded_edge", "quality": "Ultra", "camera": "iso_default"},
         "lods": {

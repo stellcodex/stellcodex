@@ -8,27 +8,38 @@ import shutil
 import struct
 import subprocess
 import tempfile
+import base64
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
+from zipfile import ZIP_DEFLATED, ZipFile
 
 from rq import Retry
 
 from app.core.config import settings
+from app.core.dlq import PermanentStageError, TransientStageError
+from app.core.event_bus import default_event_bus
+from app.core.event_types import EventType, StageName
 from app.core.format_registry import get_rule_for_filename
 from app.core.hybrid_v1_rules import run_hybrid_v1_step_pipeline
+from app.core.memory_foundation import write_memory_payload
+from app.core.orchestrator import ensure_session_decision
+from app.core.read_model import upsert_projection
 from app.core.storage import get_s3_client
 from app.db.session import SessionLocal
 from app.models.file import UploadFile
 from app.models.job_failure import JobFailure
 from app.queue import get_queue
 from app.services.audit import log_event
+from app.services.tenant_identity import resolve_or_create_tenant_id
 from app.services.orchestrator_engine import (
     build_decision_json,
     load_rule_config_map,
     upsert_orchestrator_session,
 )
+from app.workers.consumers import consume_with_guards
+from app.workers.consumers.common import resolve_version_no
 
 DEFAULT_RESULT_TTL_SECONDS = 3600
 DEFAULT_JOB_TTL_SECONDS = 3600
@@ -273,7 +284,8 @@ def _assembly_meta(mode: str, part_count: int, filename: str) -> dict:
                 "occurrence_id": occ_id,
                 "part_id": part_id,
                 "name": label,
-                "node_ref": label,
+                "display_name": label,
+                "selectable": True,
                 "children": [],
             }
         )
@@ -282,6 +294,7 @@ def _assembly_meta(mode: str, part_count: int, filename: str) -> dict:
         "mode": mode,
         "generated_at": _now().isoformat(),
         "occurrences": occurrences,
+        "index": {"occurrence_id_to_gltf_nodes": occurrence_index},
         "occurrence_id_to_gltf_nodes": occurrence_index,
     }
 
@@ -296,7 +309,13 @@ def _upload_bytes(s3, bucket: str, key: str, payload: bytes, content_type: str) 
     return key
 
 
-def _mark_failed(db, f: UploadFile, detail: str, stage: str = "convert") -> str:
+def _mark_failed(
+    db,
+    f: UploadFile,
+    detail: str,
+    stage: str = "convert",
+    error_code: str | None = None,
+) -> str:
     error_id = str(uuid4())
     f.status = "failed"
     rules = load_rule_config_map(db)
@@ -305,6 +324,7 @@ def _mark_failed(db, f: UploadFile, detail: str, stage: str = "convert") -> str:
     f.meta = {
         **(f.meta or {}),
         "error": detail,
+        "error_code": error_code,
         "error_id": error_id,
         "stage": stage,
         "progress_percent": 100,
@@ -323,6 +343,27 @@ def _mark_failed(db, f: UploadFile, detail: str, stage: str = "convert") -> str:
             traceback=None,
         )
     )
+    upsert_projection(db, f)
+    try:
+        memory_path = write_memory_payload(
+            record_type="failure_event",
+            title=f"Pipeline failure {error_code or 'UNKNOWN'}",
+            source_uri=f"scx://files/{f.file_id}/failure",
+            tenant_id=str(f.tenant_id),
+            project_id=str((f.meta or {}).get("project_id") or "default"),
+            tags=["phase2", "failure", stage, str(error_code or "UNKNOWN").lower()],
+            text=detail[:4000],
+            metadata={
+                "file_id": f.file_id,
+                "stage": stage,
+                "error_code": error_code,
+                "error_id": error_id,
+            },
+        )
+        f.meta = {**(f.meta or {}), "last_failure_memory_record": str(memory_path)}
+        db.add(f)
+    except Exception:
+        pass
     log_event(db, "job.failed", file_id=f.file_id, data={"stage": stage, "error": detail[:300]})
     db.commit()
     return error_id
@@ -338,6 +379,7 @@ def _set_progress(db, f: UploadFile, *, stage: str, percent: int, hint: str, sta
     if status:
         f.status = status
     db.add(f)
+    upsert_projection(db, f)
     db.commit()
     db.refresh(f)
 
@@ -478,8 +520,10 @@ def _pipeline_3d(f: UploadFile, input_path: Path, mode: str, s3) -> dict:
         "gltf_key": gltf_key,
         "thumbnail_key": thumb_key,
         "assembly_meta_key": assembly_key,
+        "assembly_meta": assembly,
         "preview_jpg_keys": preview_keys,
         "geometry_meta_json": geometry_meta,
+        "occurrence_count": len(assembly.get("occurrences") or []),
     }
 
 
@@ -502,14 +546,46 @@ def _hybrid_artifacts_if_step(
     )
 
 
+def _assembly_meta_is_valid(payload: Any) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    occurrences = payload.get("occurrences")
+    if not isinstance(occurrences, list) or not occurrences:
+        return False
+    index_map = {}
+    index = payload.get("index")
+    if isinstance(index, dict) and isinstance(index.get("occurrence_id_to_gltf_nodes"), dict):
+        index_map = index.get("occurrence_id_to_gltf_nodes") or {}
+    elif isinstance(payload.get("occurrence_id_to_gltf_nodes"), dict):
+        index_map = payload.get("occurrence_id_to_gltf_nodes") or {}
+    else:
+        return False
+    for item in occurrences:
+        if not isinstance(item, dict):
+            return False
+        occ_id = str(item.get("occurrence_id") or "").strip()
+        part_id = str(item.get("part_id") or "").strip()
+        display_name = str(item.get("display_name") or item.get("name") or "").strip()
+        selectable = item.get("selectable", True)
+        children = item.get("children")
+        if not occ_id or not part_id or not display_name or not isinstance(children, list) or not isinstance(selectable, bool):
+            return False
+        mapped = index_map.get(occ_id, [])
+        if not isinstance(mapped, list):
+            return False
+    return True
+
+
 def _is_ready_contract(kind: str, payload: dict, gltf_key: str | None, thumb_key: str | None) -> bool:
     if kind == "3d":
         previews = payload.get("preview_jpg_keys")
+        assembly_meta = payload.get("assembly_meta")
         return bool(
             gltf_key
             and isinstance(payload.get("assembly_meta_key"), str)
             and isinstance(previews, list)
             and len(previews) >= 3
+            and _assembly_meta_is_valid(assembly_meta)
         )
     if kind == "doc":
         return bool(payload.get("pdf_key") and thumb_key)
@@ -518,44 +594,42 @@ def _is_ready_contract(kind: str, payload: dict, gltf_key: str | None, thumb_key
     return False
 
 
-def convert_file(file_id: str):
-    db = SessionLocal()
+def _get_stage_file(db, file_id: str) -> UploadFile:
+    row = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
+    if row is None:
+        raise PermanentStageError(f"file not found: {file_id}", "UNKNOWN")
+    return row
+
+
+def _memory_project_id(meta: dict[str, Any]) -> str:
+    return str(meta.get("project_id") or "default")
+
+
+def _stage_convert(db, envelope, version_no: int) -> dict[str, Any]:
+    f = _get_stage_file(db, str(envelope.data.get("file_id") or ""))
+    rules = load_rule_config_map(db)
+    rule = get_rule_for_filename(f.original_filename)
+    if not rule:
+        raise PermanentStageError("Unsupported file extension. STEP export required", "CONVERT_FAIL")
+    if not rule.accept:
+        raise PermanentStageError(rule.reject_reason or "Unsupported file type", "CONVERT_FAIL")
+
+    meta = f.meta if isinstance(f.meta, dict) else {}
+    kind = rule.kind
+    mode = rule.mode
+    result_payload: dict[str, Any] = {}
+    _set_progress(db, f, stage=StageName.CONVERT.value, percent=12, hint="convert.start", status="running")
     try:
-        f: UploadFile | None = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
-        if not f:
-            return {"status": "missing"}
-        rules = load_rule_config_map(db)
-
-        rule = get_rule_for_filename(f.original_filename)
-        if not rule:
-            _mark_failed(db, f, "Unsupported file extension. STEP export required", stage="validate")
-            return {"status": "failed", "reason": "unsupported_extension"}
-        if not rule.accept:
-            _mark_failed(db, f, rule.reject_reason or "Unsupported file type", stage="validate")
-            return {"status": "failed", "reason": "rejected_format"}
-
-        if f.status == "ready":
-            return {"status": "ready", "mode": "cached"}
-
-        _set_progress(db, f, stage="queued", percent=5, hint="queued", status="running")
         s3 = get_s3_client(settings)
-
         with tempfile.TemporaryDirectory() as tmp_dir:
             local_path = Path(tmp_dir) / f"input.{_ext(f.original_filename)}"
             s3.download_file(f.bucket, f.object_key, str(local_path))
-
-            _set_progress(db, f, stage="security", percent=18, hint="virus_scan", status="running")
+            _set_progress(db, f, stage="security", percent=20, hint="virus_scan", status="running")
             virus_status = _scan_file_for_virus(local_path)
             if virus_status == "infected":
-                _mark_failed(db, f, "Virus scan failed", stage="security")
-                return {"status": "failed", "reason": "virus_scan"}
+                raise PermanentStageError("Virus scan failed", "STORAGE_FAIL")
 
-            meta = f.meta if isinstance(f.meta, dict) else {}
-            kind = rule.kind
-            mode = rule.mode
-            result_payload: dict = {}
-
-            _set_progress(db, f, stage="pipeline", percent=45, hint="processing", status="running")
+            _set_progress(db, f, stage=StageName.CONVERT.value, percent=34, hint="convert.processing", status="running")
             if kind == "3d":
                 result_payload = _pipeline_3d(f, local_path, mode, s3)
                 geometry_report, dfm_findings = _hybrid_artifacts_if_step(
@@ -567,8 +641,6 @@ def convert_file(file_id: str):
                     result_payload["geometry_report"] = geometry_report
                 if dfm_findings is not None:
                     result_payload["dfm_findings"] = dfm_findings
-                if mode == "visual_only":
-                    result_payload["decision_json"] = {"dfm": {"enabled": False, "reason": "visual_only"}}
             elif kind == "2d":
                 result_payload = _pipeline_2d(f, local_path, s3)
             elif kind == "doc":
@@ -576,67 +648,437 @@ def convert_file(file_id: str):
             elif kind == "image":
                 result_payload = _pipeline_image(f, local_path, s3)
             else:
-                raise RuntimeError(f"Unsupported kind: {kind}")
+                raise PermanentStageError(f"Unsupported kind: {kind}", "CONVERT_FAIL")
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or exc.stdout or "conversion failed").strip()
+        raise PermanentStageError(detail, "CONVERT_FAIL")
+    except PermanentStageError:
+        raise
+    except Exception as exc:
+        raise TransientStageError(str(exc), "STORAGE_FAIL")
 
-        f.gltf_key = result_payload.get("gltf_key") if isinstance(result_payload.get("gltf_key"), str) else f.gltf_key
-        f.thumbnail_key = (
-            result_payload.get("thumbnail_key")
-            if isinstance(result_payload.get("thumbnail_key"), str)
-            else f.thumbnail_key
-        )
-        geometry = result_payload.get("geometry_meta_json")
-        part_count = None
-        if isinstance(geometry, dict):
-            raw_count = geometry.get("part_count")
-            part_count = int(raw_count) if isinstance(raw_count, int) else None
-        elif isinstance(meta.get("part_count"), int):
-            part_count = int(meta.get("part_count"))
+    f.gltf_key = result_payload.get("gltf_key") if isinstance(result_payload.get("gltf_key"), str) else f.gltf_key
+    f.thumbnail_key = (
+        result_payload.get("thumbnail_key")
+        if isinstance(result_payload.get("thumbnail_key"), str)
+        else f.thumbnail_key
+    )
+    geometry = result_payload.get("geometry_meta_json")
+    occurrence_count = result_payload.get("occurrence_count")
+    if not isinstance(occurrence_count, int) or occurrence_count < 1:
+        occurrence_count = 1 if kind == "3d" else None
 
-        f.meta = {
+    f.meta = {
+        **meta,
+        "kind": kind,
+        "mode": mode,
+        "project_id": _memory_project_id(meta),
+        "virus_scan_status": "clean",
+        "assembly_meta_key": result_payload.get("assembly_meta_key"),
+        "assembly_meta": result_payload.get("assembly_meta") if isinstance(result_payload.get("assembly_meta"), dict) else meta.get("assembly_meta"),
+        "preview_jpg_keys": result_payload.get("preview_jpg_keys"),
+        "pdf_key": result_payload.get("pdf_key"),
+        "geometry_meta_json": geometry if isinstance(geometry, dict) else meta.get("geometry_meta_json"),
+        "occurrence_count": occurrence_count if occurrence_count is not None else meta.get("occurrence_count"),
+        "part_count": occurrence_count if occurrence_count is not None else meta.get("part_count"),
+        "geometry_report": result_payload.get("geometry_report") if isinstance(result_payload.get("geometry_report"), dict) else meta.get("geometry_report"),
+        "dfm_findings": result_payload.get("dfm_findings") if isinstance(result_payload.get("dfm_findings"), dict) else meta.get("dfm_findings"),
+        "stage": StageName.CONVERT.value,
+        "progress_percent": 40,
+        "progress": "convert.done",
+    }
+    f.folder_key = f.folder_key or f"project/{_memory_project_id(meta)}/{kind}/{mode}"
+    f.status = "running"
+    db.add(f)
+    upsert_projection(db, f)
+    return {
+        "file_id": f.file_id,
+        "version_no": int(version_no),
+        "kind": kind,
+        "mode": mode,
+        "artifact_uri": str(result_payload.get("gltf_key") or result_payload.get("pdf_key") or result_payload.get("thumbnail_key") or ""),
+    }
+
+
+def _stage_assembly_meta(db, envelope, version_no: int) -> dict[str, Any]:
+    f = _get_stage_file(db, str(envelope.data.get("file_id") or ""))
+    meta = f.meta if isinstance(f.meta, dict) else {}
+    kind = str(meta.get("kind") or "3d")
+    if kind != "3d":
+        f.meta = {**meta, "stage": StageName.ASSEMBLY_META.value, "progress_percent": 52, "progress": "assembly.skip"}
+        db.add(f)
+        upsert_projection(db, f)
+        return {"file_id": f.file_id, "version_no": int(version_no), "kind": kind, "artifact_uri": ""}
+
+    assembly_payload = meta.get("assembly_meta") if isinstance(meta.get("assembly_meta"), dict) else None
+    if not _assembly_meta_is_valid(assembly_payload):
+        part_count = meta.get("part_count")
+        if not isinstance(part_count, int) or part_count < 1:
+            part_count = 1
+        assembly_payload = _assembly_meta(str(meta.get("mode") or "brep"), part_count, f.original_filename)
+        assembly_key = str(meta.get("assembly_meta_key") or f"metadata/{f.file_id}/assembly_meta.json")
+        try:
+            s3 = get_s3_client(settings)
+            _upload_bytes(
+                s3,
+                f.bucket,
+                assembly_key,
+                json.dumps(assembly_payload, ensure_ascii=False, indent=2).encode("utf-8"),
+                "application/json",
+            )
+        except Exception as exc:
+            raise TransientStageError(str(exc), "STORAGE_FAIL")
+        meta = {
             **meta,
-            "kind": kind,
-            "mode": mode,
-            "project_id": str(meta.get("project_id") or "default"),
-            "virus_scan_status": "clean",
-            "assembly_meta_key": result_payload.get("assembly_meta_key"),
-            "preview_jpg_keys": result_payload.get("preview_jpg_keys"),
-            "pdf_key": result_payload.get("pdf_key"),
-            "geometry_meta_json": geometry if isinstance(geometry, dict) else meta.get("geometry_meta_json"),
-            "part_count": part_count if part_count is not None else meta.get("part_count"),
-            "geometry_report": result_payload.get("geometry_report") if isinstance(result_payload.get("geometry_report"), dict) else meta.get("geometry_report"),
-            "dfm_findings": result_payload.get("dfm_findings") if isinstance(result_payload.get("dfm_findings"), dict) else meta.get("dfm_findings"),
-            "decision_json": result_payload.get("decision_json") if isinstance(result_payload.get("decision_json"), dict) else meta.get("decision_json"),
-            "stage": "finalize",
-            "progress_percent": 90,
-            "progress": "finalizing",
+            "assembly_meta_key": assembly_key,
+            "assembly_meta": assembly_payload,
         }
-        f.folder_key = f.folder_key or f"project/{str(meta.get('project_id') or 'default')}/{kind}/{mode}"
+    f.meta = {
+        **meta,
+        "part_count": len((assembly_payload or {}).get("occurrences") or []) or int(meta.get("part_count") or 1),
+        "occurrence_count": len((assembly_payload or {}).get("occurrences") or []) or int(meta.get("occurrence_count") or 1),
+        "stage": StageName.ASSEMBLY_META.value,
+        "progress_percent": 52,
+        "progress": "assembly.ready",
+    }
+    db.add(f)
+    upsert_projection(db, f)
+    return {
+        "file_id": f.file_id,
+        "version_no": int(version_no),
+        "kind": kind,
+        "artifact_uri": str(f.meta.get("assembly_meta_key") or ""),
+    }
 
-        if _is_ready_contract(kind, result_payload, f.gltf_key, f.thumbnail_key):
-            f.status = "ready"
-            decision_json = build_decision_json(f, rules)
-            f.decision_json = decision_json
-            f.meta = {**(f.meta or {}), "stage": "ready", "progress_percent": 100, "progress": "ready"}
-            f.meta["decision_json"] = decision_json
-            db.add(f)
-            upsert_orchestrator_session(db, f, decision_json)
-            log_event(db, "job.succeeded", file_id=f.file_id, data={"kind": kind, "mode": mode})
-            db.commit()
-            return {"status": "ready", "kind": kind, "mode": mode}
 
-        _mark_failed(db, f, "Required artifacts missing for ready contract", stage="finalize")
-        return {"status": "failed", "reason": "missing_artifacts"}
+def _stage_rule_engine(db, envelope, version_no: int) -> dict[str, Any]:
+    f = _get_stage_file(db, str(envelope.data.get("file_id") or ""))
+    rules = load_rule_config_map(db)
+    decision_json = build_decision_json(f, rules)
+    f.decision_json = decision_json
+    meta = f.meta if isinstance(f.meta, dict) else {}
+    f.meta = {
+        **meta,
+        "decision_json": decision_json,
+        "stage": StageName.RULE_ENGINE.value,
+        "progress_percent": 64,
+        "progress": "rule_engine.ready",
+    }
+    db.add(f)
+    upsert_orchestrator_session(db, f, decision_json)
+    upsert_projection(db, f)
+    try:
+        record = write_memory_payload(
+            record_type="decision_json",
+            title="Deterministic decision",
+            source_uri=f"scx://files/{f.file_id}/decision_json",
+            tenant_id=str(f.tenant_id),
+            project_id=_memory_project_id(f.meta or {}),
+            tags=["phase2", "decision", "deterministic"],
+            text=json.dumps(decision_json, ensure_ascii=False, sort_keys=True),
+            metadata={"file_id": f.file_id, "version_no": int(version_no)},
+        )
+        f.meta = {**(f.meta or {}), "decision_memory_record": str(record)}
+        db.add(f)
+    except Exception:
+        pass
+    return {
+        "file_id": f.file_id,
+        "version_no": int(version_no),
+        "approval_required": bool(decision_json.get("approval_required")),
+        "artifact_uri": f"scx://files/{f.file_id}/decision_json",
+    }
 
+
+def _stage_dfm(db, envelope, version_no: int) -> dict[str, Any]:
+    f = _get_stage_file(db, str(envelope.data.get("file_id") or ""))
+    _row, decision_json = ensure_session_decision(db, f)
+    f = _get_stage_file(db, f.file_id)
+    meta = f.meta if isinstance(f.meta, dict) else {}
+    dfm_report = meta.get("dfm_report_json") if isinstance(meta.get("dfm_report_json"), dict) else {}
+    f.meta = {
+        **meta,
+        "stage": StageName.DFM.value,
+        "progress_percent": 76,
+        "progress": "dfm.ready",
+    }
+    db.add(f)
+    upsert_projection(db, f)
+    try:
+        record = write_memory_payload(
+            record_type="dfm_report",
+            title="Deterministic DFM report",
+            source_uri=f"scx://files/{f.file_id}/dfm_report",
+            tenant_id=str(f.tenant_id),
+            project_id=_memory_project_id(f.meta or {}),
+            tags=["phase2", "dfm", "deterministic"],
+            text=json.dumps(dfm_report, ensure_ascii=False, sort_keys=True),
+            metadata={"file_id": f.file_id, "version_no": int(version_no)},
+        )
+        f.meta = {**(f.meta or {}), "dfm_memory_record": str(record)}
+        db.add(f)
+    except Exception:
+        pass
+    return {
+        "file_id": f.file_id,
+        "version_no": int(version_no),
+        "approval_required": bool(decision_json.get("approval_required")),
+        "artifact_uri": f"scx://files/{f.file_id}/dfm_report",
+    }
+
+
+def _stage_report(db, envelope, version_no: int) -> dict[str, Any]:
+    f = _get_stage_file(db, str(envelope.data.get("file_id") or ""))
+    meta = f.meta if isinstance(f.meta, dict) else {}
+    dfm_report = meta.get("dfm_report_json") if isinstance(meta.get("dfm_report_json"), dict) else {}
+    report_key = f"reports/{f.file_id}/dfm_report.json"
+    pdf_key = f"reports/{f.file_id}/dfm_report.pdf"
+    try:
+        s3 = get_s3_client(settings)
+        _upload_bytes(
+            s3,
+            f.bucket,
+            report_key,
+            json.dumps(dfm_report, ensure_ascii=False, indent=2).encode("utf-8"),
+            "application/json",
+        )
+        raw_pdf = meta.get("dfm_report_pdf_b64")
+        if isinstance(raw_pdf, str) and raw_pdf:
+            _upload_bytes(s3, f.bucket, pdf_key, base64.b64decode(raw_pdf), "application/pdf")
+        else:
+            pdf_key = ""
+    except Exception as exc:
+        raise TransientStageError(str(exc), "REPORT_FAIL")
+
+    f.meta = {
+        **meta,
+        "dfm_report_key": report_key,
+        "dfm_report_pdf_key": pdf_key or None,
+        "stage": StageName.REPORT.value,
+        "progress_percent": 88,
+        "progress": "report.ready",
+    }
+    db.add(f)
+    upsert_projection(db, f)
+    return {
+        "file_id": f.file_id,
+        "version_no": int(version_no),
+        "artifact_uri": report_key,
+    }
+
+
+def _stage_pack(db, envelope, version_no: int) -> dict[str, Any]:
+    f = _get_stage_file(db, str(envelope.data.get("file_id") or ""))
+    meta = f.meta if isinstance(f.meta, dict) else {}
+    package_key = f"packages/{f.file_id}/production_package.zip"
+    try:
+        s3 = get_s3_client(settings)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            package_path = Path(tmp_dir) / "production_package.zip"
+            with ZipFile(package_path, mode="w", compression=ZIP_DEFLATED) as zf:
+                zf.writestr("decision.json", json.dumps(f.decision_json if isinstance(f.decision_json, dict) else {}, ensure_ascii=False, indent=2))
+                zf.writestr("dfm_report.json", json.dumps(meta.get("dfm_report_json") if isinstance(meta.get("dfm_report_json"), dict) else {}, ensure_ascii=False, indent=2))
+                zf.writestr("assembly_meta.json", json.dumps(meta.get("assembly_meta") if isinstance(meta.get("assembly_meta"), dict) else {}, ensure_ascii=False, indent=2))
+            _upload_file(s3, f.bucket, package_key, package_path, "application/zip")
+    except Exception as exc:
+        raise TransientStageError(str(exc), "PACKAGE_FAIL")
+
+    payload = {
+        "assembly_meta_key": meta.get("assembly_meta_key"),
+        "assembly_meta": meta.get("assembly_meta"),
+        "preview_jpg_keys": meta.get("preview_jpg_keys"),
+        "pdf_key": meta.get("pdf_key"),
+    }
+    kind = str(meta.get("kind") or "3d")
+    if not _is_ready_contract(kind, payload, f.gltf_key, f.thumbnail_key):
+        raise PermanentStageError(
+            "Required artifacts missing for ready contract",
+            "ASSEMBLY_META_FAIL" if kind == "3d" else "PACKAGE_FAIL",
+        )
+
+    rules = load_rule_config_map(db)
+    decision_json = build_decision_json(f, rules)
+    f.status = "ready"
+    f.decision_json = decision_json
+    f.meta = {
+        **meta,
+        "production_package_key": package_key,
+        "stage": "ready",
+        "progress_percent": 100,
+        "progress": "ready",
+        "decision_json": decision_json,
+    }
+    db.add(f)
+    upsert_orchestrator_session(db, f, decision_json)
+    upsert_projection(db, f)
+    log_event(db, "job.succeeded", file_id=f.file_id, data={"kind": kind, "mode": str(meta.get("mode") or "visual_only")})
+    try:
+        record = write_memory_payload(
+            record_type="production_package",
+            title="Production package manifest",
+            source_uri=f"scx://files/{f.file_id}/production_package",
+            tenant_id=str(f.tenant_id),
+            project_id=_memory_project_id(f.meta or {}),
+            tags=["phase2", "package"],
+            text=json.dumps({"production_package_key": package_key}, ensure_ascii=False),
+            metadata={"file_id": f.file_id, "version_no": int(version_no), "package_key": package_key},
+        )
+        f.meta = {**(f.meta or {}), "package_memory_record": str(record)}
+        db.add(f)
+    except Exception:
+        pass
+    return {
+        "file_id": f.file_id,
+        "version_no": int(version_no),
+        "approval_required": bool(decision_json.get("approval_required")),
+        "artifact_uri": package_key,
+    }
+
+
+STAGE_PLAN: tuple[tuple[StageName, str, str, Any, EventType], ...] = (
+    (StageName.CONVERT, "phase2.consumer.convert", "CONVERT_FAIL", _stage_convert, EventType.FILE_CONVERTED),
+    (StageName.ASSEMBLY_META, "phase2.consumer.assembly_meta", "ASSEMBLY_META_FAIL", _stage_assembly_meta, EventType.ASSEMBLY_READY),
+    (StageName.RULE_ENGINE, "phase2.consumer.rule_engine", "DECISION_FAIL", _stage_rule_engine, EventType.DECISION_READY),
+    (StageName.DFM, "phase2.consumer.dfm", "DFM_FAIL", _stage_dfm, EventType.DFM_READY),
+    (StageName.REPORT, "phase2.consumer.report", "REPORT_FAIL", _stage_report, EventType.REPORT_READY),
+    (StageName.PACK, "phase2.consumer.pack", "PACKAGE_FAIL", _stage_pack, EventType.PACKAGE_READY),
+)
+
+
+def convert_file(file_id: str):
+    db = SessionLocal()
+    try:
+        f = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
+        if not f:
+            return {"status": "missing"}
+
+        meta = f.meta if isinstance(f.meta, dict) else {}
+        tenant_id = str(f.tenant_id)
+        project_id = _memory_project_id(meta)
+        version_no = resolve_version_no(db, f.file_id)
+        bus = default_event_bus()
+
+        trace_id = str(uuid4())
+        current = bus.publish_event(
+            event_type=EventType.FILE_UPLOADED.value,
+            source="api.files.upload",
+            subject=f.file_id,
+            tenant_id=tenant_id,
+            project_id=project_id,
+            trace_id=trace_id,
+            data={"file_id": f.file_id, "version_no": int(version_no)},
+        )
+
+        for stage, consumer_name, failure_code, handler, next_event in STAGE_PLAN:
+            if stage == StageName.CONVERT:
+                bus.publish_event(
+                    event_type=EventType.FILE_CONVERT_STARTED.value,
+                    source="worker.pipeline",
+                    subject=f.file_id,
+                    tenant_id=tenant_id,
+                    project_id=project_id,
+                    trace_id=trace_id,
+                    data={"file_id": f.file_id, "version_no": int(version_no), "stage": stage.value},
+                )
+            result = consume_with_guards(
+                db,
+                bus,
+                envelope=current,
+                consumer_name=consumer_name,
+                stage=stage.value,
+                max_retries=3,
+                failure_code=failure_code,
+                handler=handler,
+            )
+            status = str(result.get("status") or "")
+            if status in {"failed"}:
+                f = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
+                if f:
+                    _mark_failed(
+                        db,
+                        f,
+                        str(result.get("error") or f"{stage.value} failed"),
+                        stage=stage.value,
+                        error_code=str(result.get("failure_code") or failure_code),
+                    )
+                return {"status": "failed", "reason": stage.value}
+
+            f = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
+            if not f:
+                return {"status": "missing"}
+            payload = result.get("payload") if isinstance(result.get("payload"), dict) else {}
+            payload = {**payload, "file_id": f.file_id, "version_no": int(version_no), "stage": stage.value}
+            current = bus.publish_event(
+                event_type=next_event.value,
+                source=f"worker.{stage.value}",
+                subject=f.file_id,
+                tenant_id=tenant_id,
+                project_id=project_id,
+                trace_id=trace_id,
+                data=payload,
+            )
+            try:
+                if next_event == EventType.DECISION_READY:
+                    bus.publish_event(
+                        event_type="decision.produced",
+                        source=f"worker.{stage.value}",
+                        subject=f.file_id,
+                        tenant_id=tenant_id,
+                        project_id=project_id,
+                        trace_id=trace_id,
+                        data=payload,
+                    )
+                elif next_event == EventType.DFM_READY:
+                    bus.publish_event(
+                        event_type="dfm.completed",
+                        source=f"worker.{stage.value}",
+                        subject=f.file_id,
+                        tenant_id=tenant_id,
+                        project_id=project_id,
+                        trace_id=trace_id,
+                        data=payload,
+                    )
+                elif next_event == EventType.PACKAGE_READY:
+                    bus.publish_event(
+                        event_type="file.ready",
+                        source=f"worker.{stage.value}",
+                        subject=f.file_id,
+                        tenant_id=tenant_id,
+                        project_id=project_id,
+                        trace_id=trace_id,
+                        data=payload,
+                    )
+            except Exception:
+                pass
+            if bool(payload.get("approval_required")):
+                bus.publish_event(
+                    event_type=EventType.APPROVAL_REQUIRED.value,
+                    source=f"worker.{stage.value}",
+                    subject=f.file_id,
+                    tenant_id=tenant_id,
+                    project_id=project_id,
+                    trace_id=trace_id,
+                    data={"file_id": f.file_id, "version_no": int(version_no), "stage": stage.value},
+                )
+
+        f = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
+        if not f:
+            return {"status": "missing"}
+        return {
+            "status": "ready" if str(f.status).lower() == "ready" else str(f.status).lower(),
+            "kind": str((f.meta or {}).get("kind") or "3d"),
+            "mode": str((f.meta or {}).get("mode") or "visual_only"),
+        }
     except subprocess.CalledProcessError as exc:
         f = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
         if f:
             detail = (exc.stderr or exc.stdout or "conversion failed").strip()
-            _mark_failed(db, f, detail, stage="convert")
+            _mark_failed(db, f, detail, stage=StageName.CONVERT.value, error_code="CONVERT_FAIL")
         raise
     except Exception as exc:
         f = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
         if f:
-            _mark_failed(db, f, str(exc), stage="convert")
+            _mark_failed(db, f, str(exc), stage=StageName.CONVERT.value, error_code="UNKNOWN")
         raise
     finally:
         db.close()
@@ -714,8 +1156,10 @@ def mesh2d3d_export(source_file_id: str):
         meta = source.meta if isinstance(source.meta, dict) else {}
         project_id = str(meta.get("project_id") or "default")
         owner_sub = source.owner_sub
+        tenant_id = int(source.tenant_id)
         bucket = source.bucket
-        object_key = f"uploads/{owner_sub}/generated/{uuid4()}/mesh2d3d.obj"
+        safe_owner = owner_sub.replace("/", "_").replace("\\", "_")
+        object_key = f"uploads/tenant_{tenant_id}/{safe_owner}/generated/{uuid4()}/mesh2d3d.obj"
         thumb_key = f"thumbnails/{source_file_id}/mesh2d3d-thumb.png"
         obj_payload = "\n".join(
             [
@@ -749,6 +1193,7 @@ def mesh2d3d_export(source_file_id: str):
 
         generated = UploadFile(
             owner_sub=source.owner_sub,
+            tenant_id=tenant_id,
             owner_user_id=source.owner_user_id,
             owner_anon_sub=source.owner_anon_sub,
             is_anonymous=source.is_anonymous,
@@ -803,7 +1248,9 @@ def moldcodes_export_job(
         safe_family = (family or "standard").strip() or "standard"
         payload = params if isinstance(params, dict) else {}
         export_name = f"{safe_category}-{safe_family}-{uuid4().hex[:8]}"
-        object_key = f"exports/{safe_project_id}/{export_name}.step"
+        tenant_id = resolve_or_create_tenant_id(db, owner_sub)
+        safe_owner = owner_sub.replace("/", "_").replace("\\", "_")
+        object_key = f"exports/tenant_{tenant_id}/{safe_owner}/{safe_project_id}/{export_name}.step"
         step_payload = (
             "ISO-10303-21;\n"
             "HEADER;\n"
@@ -829,6 +1276,7 @@ def moldcodes_export_job(
               parsed_owner_user_id = None
         generated = UploadFile(
             owner_sub=owner_sub,
+            tenant_id=tenant_id,
             owner_user_id=parsed_owner_user_id,
             owner_anon_sub=owner_anon_sub,
             is_anonymous=is_anonymous,

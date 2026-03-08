@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
@@ -24,6 +25,9 @@ router = APIRouter()
 SHARE_RATE_LIMIT_WINDOW_SECONDS = 60
 SHARE_RATE_LIMIT_REQUESTS = 120
 SHARE_RATE_LIMIT_KEY_PREFIX = "stell:share:rate:"
+SHARE_TOKEN_RATE_LIMIT_WINDOW_SECONDS = 60
+SHARE_TOKEN_RATE_LIMIT_REQUESTS = 30
+SHARE_TOKEN_RATE_LIMIT_KEY_PREFIX = "stell:share:token_probe:"
 MIN_SHARE_TOKEN_LENGTH = 64
 
 
@@ -138,15 +142,48 @@ def _enforce_share_rate_limit(db: Session, share: Share, token: str, request: Re
         return
 
 
+def _enforce_token_probe_rate_limit(
+    db: Session,
+    token: str,
+    request: Request | None,
+) -> None:
+    try:
+        window_bucket = int(_now().timestamp()) // SHARE_TOKEN_RATE_LIMIT_WINDOW_SECONDS
+        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()[:24]
+        rate_key = f"{SHARE_TOKEN_RATE_LIMIT_KEY_PREFIX}{_client_ip(request)}:{token_hash}:{window_bucket}"
+        request_count = int(redis_conn.incr(rate_key))
+        if request_count == 1:
+            redis_conn.expire(rate_key, SHARE_TOKEN_RATE_LIMIT_WINDOW_SECONDS + 5)
+        if request_count > SHARE_TOKEN_RATE_LIMIT_REQUESTS:
+            log_event(
+                db,
+                "share.token_probe_rate_limited",
+                data={
+                    "share_token": _token_fingerprint(token),
+                    "client_ip": _client_ip(request),
+                    "path": request.url.path if request is not None else None,
+                    "limit": SHARE_TOKEN_RATE_LIMIT_REQUESTS,
+                    "window_seconds": SHARE_TOKEN_RATE_LIMIT_WINDOW_SECONDS,
+                    "request_count": request_count,
+                },
+            )
+            db.commit()
+            raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Too many share requests")
+    except HTTPException:
+        raise
+    except Exception:
+        return
+
+
 class ShareCreateIn(BaseModel):
     permission: str = Field(default="view", pattern="^(view|comment|download)$")
-    expires_in_seconds: int = Field(default=7 * 24 * 60 * 60, ge=60, le=30 * 24 * 60 * 60)
+    expires_in_seconds: int = Field(..., ge=60, le=30 * 24 * 60 * 60)
 
 
 class ShareCreateAliasIn(BaseModel):
     file_id: str
     permission: str = Field(default="view", pattern="^(view|comment|download)$")
-    expires_in_seconds: int = Field(default=7 * 24 * 60 * 60, ge=60, le=30 * 24 * 60 * 60)
+    expires_in_seconds: int = Field(..., ge=60, le=30 * 24 * 60 * 60)
 
 
 class ShareCreateOut(BaseModel):
@@ -213,8 +250,20 @@ def _resolve_active_share(
     request: Request | None = None,
     audit_event: str | None = None,
 ) -> tuple[Share, UploadFileModel]:
+    _enforce_token_probe_rate_limit(db, token, request)
     share = db.query(Share).filter(Share.token == token).first()
     if not share:
+        log_event(
+            db,
+            "share.invalid_token",
+            data={
+                "share_token": _token_fingerprint(token),
+                "client_ip": _client_ip(request),
+                "path": request.url.path if request is not None else None,
+                "user_agent": request.headers.get("user-agent") if request is not None else None,
+            },
+        )
+        db.commit()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid share token")
     if share.revoked_at is not None:
         if request is not None:
@@ -412,5 +461,4 @@ def share_gltf(token: str, request: Request, db: Session = Depends(get_db)):
 
     s3 = get_s3_client(settings)
     obj = s3.get_object(Bucket=f.bucket, Key=f.gltf_key)
-    stream = obj["Body"].iter_chunks()
-    return StreamingResponse(stream, media_type="model/gltf-binary")
+    strea

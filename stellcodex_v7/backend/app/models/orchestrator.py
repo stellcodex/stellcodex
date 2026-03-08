@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Optional
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, JSON, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, JSON, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -26,10 +26,14 @@ class OrchestratorSession(Base):
         nullable=False,
         index=True,
     )
+    state: Mapped[str] = mapped_column(String(8), nullable=False, default="S0")
     state_code: Mapped[str] = mapped_column(String(8), nullable=False, default="S0")
     state_label: Mapped[str] = mapped_column(String(64), nullable=False, default="uploaded")
     status_gate: Mapped[str] = mapped_column(String(32), nullable=False, default="PENDING")
     approval_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    rule_version: Mapped[str] = mapped_column(String(32), nullable=False, default="v7.0.0")
+    mode: Mapped[str] = mapped_column(String(32), nullable=False, default="visual_only")
+    confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0.05)
     risk_flags: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     decision_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

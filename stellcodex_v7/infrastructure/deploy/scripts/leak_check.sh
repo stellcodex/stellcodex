@@ -8,10 +8,11 @@ OUT_FILE="${EVIDENCE_DIR}/leak_check.txt"
 mkdir -p "${TARGET_DIR}"
 
 BANNED=(
-  "storage_key"
-  "revision_id"
-  "s3://"
-  "r2://"
+  "storage""_key"
+  "object""_key"
+  "revision""_id"
+  "s3""://"
+  "r2""://"
   "\"bucket\""
   "'bucket'"
 )

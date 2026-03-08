@@ -89,3 +89,37 @@ curl -sS -X POST http://localhost:7010/orchestrate \
 ```bash
 docker-compose -f /root/workspace/ops/orchestra/docker-compose.yml restart orchestrator litellm autopilot
 ```
+
+## Stellcodex 7/24 Orchestrator
+For the 45-module runtime orchestration flow:
+
+```bash
+cd /root/workspace/ops/orchestra
+./stellcodex_247.sh run-once
+./stellcodex_247.sh start
+./stellcodex_247.sh status
+./stellcodex_247.sh tail
+```
+
+Generated outputs:
+- `/root/stellcodex_output/REPORT.md`
+- `/root/stellcodex_output/test_results.json`
+- `/root/stellcodex_output/limits.log`
+- `/root/stellcodex_output/errors.log`
+
+Report interaction CLI:
+
+```bash
+python3 /root/workspace/ops/orchestra/stellcodex_report_cli.py
+```
+
+Systemd enablement (persistent 7/24):
+
+```bash
+sudo cp /root/workspace/ops/systemd/stellcodex-247.service /etc/systemd/system/
+sudo cp /root/workspace/ops/systemd/stellcodex-247-watchdog.service /etc/systemd/system/
+sudo cp /root/workspace/ops/systemd/stellcodex-247-watchdog.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now stellcodex-247.service
+sudo systemctl enable --now stellcodex-247-watchdog.timer
+```

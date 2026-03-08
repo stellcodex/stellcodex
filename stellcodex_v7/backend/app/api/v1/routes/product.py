@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-from pathlib import Path
 from typing import Optional
 from uuid import UUID
 from uuid import uuid4
@@ -11,10 +9,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.core.config import settings
-from app.core.ids import normalize_scx_id
+from app.core.ids import format_scx_file_id, normalize_scx_file_id, normalize_scx_id
 from app.core.render_presets import get_render_preset
-from app.core.storage import get_s3_client, get_s3_presign_client
 from app.api.v1.routes.files import FileOut, direct_upload
 from app.models.core import File, FileKind, Job, JobStatus, JobType, Project, Revision
 from app.models.file import UploadFile as UploadFileModel
@@ -22,17 +18,13 @@ from app.queue import get_queue
 from app.schemas import StatusResponse
 from app.security.deps import Principal, get_current_principal
 from app.security.jwt import decode_token
-from app.storage import Storage, storage_key_for_2d, storage_key_for_3d
-from app.utils import revision_label
-from app.workers.cad_worker import process_cad_lod0
-from app.workers.drawing_worker import process_drawing
 from app.workers.render_worker import process_render
 
 router = APIRouter(tags=["product"])
 
 
 class RenderRequest(BaseModel):
-    revision_id: UUID
+    file_id: str
     preset: str
 
 
@@ -79,6 +71,30 @@ def _revision_uuid_from_identifier(value: str) -> UUID:
         raise HTTPException(status_code=404, detail="revision not found")
 
 
+def _normalize_file_uuid(value: str) -> UUID:
+    try:
+        return normalize_scx_file_id(value)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid file id")
+
+
+def _get_file_by_identifier(db: Session, value: str) -> UploadFileModel | None:
+    uid = _normalize_file_uuid(value)
+    canonical = format_scx_file_id(uid)
+    legacy = str(uid)
+    return db.query(UploadFileModel).filter(UploadFileModel.file_id.in_((canonical, legacy))).first()
+
+
+def _assert_file_access(f: UploadFileModel, principal: Principal) -> None:
+    if principal.typ == "guest":
+        owner_sub = principal.owner_sub or ""
+        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
+            raise HTTPException(status_code=403, detail="Forbidden")
+        return
+    if str(f.owner_user_id or "") != str(principal.user_id or ""):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+
 @router.post(
     "/upload",
     response_model=FileOut,
@@ -105,19 +121,27 @@ async def upload(
 
 
 @router.get("/status/{file_id}", response_model=StatusResponse)
-def status(file_id: str, db: Session = Depends(get_db)):
-    revision_uuid = _revision_uuid_from_identifier(file_id)
-    revision = db.get(Revision, revision_uuid)
-    if revision is None:
-        raise HTTPException(status_code=404, detail="revision not found")
+def status(
+    file_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
+):
+    file_row = _get_file_by_identifier(db, file_id)
+    if file_row is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    _assert_file_access(file_row, principal)
 
-    s3 = get_s3_presign_client(settings) if settings.s3_enabled else None
+    revision_uuid = _revision_uuid_from_identifier(file_row.file_id)
+    revision = db.get(Revision, revision_uuid)
+    public_file_id = normalize_scx_id(str(revision_uuid))
+    if revision is None:
+        return StatusResponse(file_id=public_file_id, jobs=[], artifacts=[])
 
     jobs = revision.jobs
     artifacts = revision.artifacts
 
     return StatusResponse(
-        file_id=normalize_scx_id(str(revision.id)),
+        file_id=public_file_id,
         jobs=[
             {
                 "id": j.id,
@@ -139,37 +163,33 @@ def status(file_id: str, db: Session = Depends(get_db)):
                 "content_type": a.content_type,
                 "size": a.size,
                 "created_at": a.created_at,
-                "url": (
-                    s3.generate_presigned_url(
-                        "get_object",
-                        Params={"Bucket": settings.s3_bucket, "Key": a.storage_key},
-                        ExpiresIn=900,
-                    )
-                    if s3
-                    else None
-                ),
-                "glb_url": (
-                    s3.generate_presigned_url(
-                        "head_object",
-                        Params={"Bucket": settings.s3_bucket, "Key": a.storage_key},
-                        ExpiresIn=900,
-                    )
-                    if (s3 and a.type.value == "lod0_glb")
-                    else None
-                ),
+                # Public contract must never expose internal storage keys via presigned URLs.
+                "url": None,
+                "glb_url": None,
             }
             for a in artifacts
         ],
     )
 
-@router.post("/render", response_model=RenderResponse)
-def render(request: RenderRequest, db: Session = Depends(get_db)):
-    preset = get_render_preset(request.preset)
-    revision = db.get(Revision, request.revision_id)
-    if revision is None:
-        raise HTTPException(status_code=404, detail="revision not found")
 
-    job = Job(revision_id=revision.id, type=JobType.RENDER, status=JobStatus.QUEUED, queue="render")
+@router.post("/render", response_model=RenderResponse)
+def render(
+    request: RenderRequest,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
+):
+    preset = get_render_preset(request.preset)
+    file_row = _get_file_by_identifier(db, request.file_id)
+    if file_row is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    _assert_file_access(file_row, principal)
+
+    revision_uuid = _revision_uuid_from_identifier(file_row.file_id)
+    revision = db.get(Revision, revision_uuid)
+    if revision is None:
+        raise HTTPException(status_code=404, detail="revision not found for file_id")
+
+    job = Job(rev_uid=revision.id, type=JobType.RENDER, status=JobStatus.QUEUED, queue="render")
     db.add(job)
     db.commit()
     db.refresh(job)

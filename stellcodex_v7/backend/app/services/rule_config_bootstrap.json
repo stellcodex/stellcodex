@@ -1,8 +1,19 @@
 {
+  "rule_version": "v7.0.0",
   "draft_min_deg": 1.0,
   "wall_mm_min": 1.0,
   "wall_mm_max": 3.0,
   "block_on_unknown_critical": true,
   "force_approval_on_visual_only": true,
-  "allow_hot_runner": false
+  "allow_hot_runner": false,
+  "legacy_backfill_confidence": 0.05,
+  "manufacturing_unknown_confidence_floor": 0.1,
+  "manufacturing_fallback_method": "manual_review",
+  "quantity_threshold_high": 500,
+  "tolerance_mm_tight": 0.05,
+  "undercut_count_warn": 1,
+  "shrinkage_warn_pct": 2.0,
+  "shrinkage_block_pct": 4.0,
+  "volume_mm3_high": 1000000,
+  "volume_quantity_conflict_limit": 50000000
 }

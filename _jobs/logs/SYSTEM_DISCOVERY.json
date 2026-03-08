@@ -1,0 +1,60 @@
+{
+  "timestamp": "2026-03-08T14:55:34.008114Z",
+  "os": "Linux ns1.localhost.com 5.4.0-216-generic #236-Ubuntu SMP Fri Apr 11 19:53:21 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux",
+  "os_release": "NAME=\"Ubuntu\"\nVERSION=\"20.04.6 LTS (Focal Fossa)\"\nID=ubuntu\nID_LIKE=debian\nPRETTY_NAME=\"Ubuntu 20.04.6 LTS\"",
+  "cpu_count": "2",
+  "ram": "total        used        free      shared  buff/cache   available\nMem:          3.8Gi       2.6Gi       127Mi        28Mi       1.1Gi       980Mi",
+  "disk": "/dev/vda5        56G   19G   35G  35% /",
+  "docker_containers": [
+    {
+      "name": "deploy_backend_1",
+      "status": "Up 12 minutes (healthy) 0.0.0.0:18000->8000/tcp,",
+      "ports": ":::18000->8000/tcp"
+    },
+    {
+      "name": "deploy_worker_1",
+      "status": "Up 10",
+      "ports": "hours"
+    },
+    {
+      "name": "deploy_minio_1",
+      "status": "Up 10 hours (healthy) 0.0.0.0:19000->9000/tcp, :::19000->9000/tcp, 0.0.0.0:19001->9001/tcp,",
+      "ports": ":::19001->9001/tcp"
+    },
+    {
+      "name": "deploy_postgres_1",
+      "status": "Up 10 hours (healthy) 0.0.0.0:15432->5432/tcp,",
+      "ports": ":::15432->5432/tcp"
+    },
+    {
+      "name": "deploy_redis_1",
+      "status": "Up 10 hours (healthy) 0.0.0.0:16379->6379/tcp,",
+      "ports": ":::16379->6379/tcp"
+    },
+    {
+      "name": "orchestra_orchestrator_1",
+      "status": "Up 37 hours 0.0.0.0:7010->7010/tcp,",
+      "ports": ":::7010->7010/tcp"
+    },
+    {
+      "name": "orchestra_litellm_1",
+      "status": "Up 2 days 0.0.0.0:4000->4000/tcp,",
+      "ports": ":::4000->4000/tcp"
+    },
+    {
+      "name": "orchestra_ollama",
+      "status": "Up 2 days",
+      "ports": "11434/tcp"
+    },
+    {
+      "name": "orchestra_stellai_1",
+      "status": "Up 3 days 0.0.0.0:7020->7020/tcp,",
+      "ports": ":::7020->7020/tcp"
+    }
+  ],
+  "pm2_processes": "\u250c\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502 id \u2502 name                    \u2502 namespace   \u2502 version \u2502 mode    \u2502 pid      \u2502 uptime \u2502 \u21ba    \u2502 status    \u2502 cpu      \u2502 mem      \u2502 user     \u2502 watching \u2502\n\u251c\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n\u2502 3  \u2502 stell-event-listener    \u2502 default     \u2502 N/A     \u2502 fork    \u2502 2224044  \u2502 1s     \u2502 135\u2026 \u2502 online    \u2502 20%      \u2502 12.6mb   \u2502 root     \u2502 disabled \u2502\n\u2502 1  \u2502 stell-webhook           \u2502 default     \u2502 N/A     \u2502 fork    \u2502 240550   \u2502 37h    \u2502 26   \u2502 online    \u2502 0%       \u2502 16.2mb   \u2502 root     \u2502 disabled \u2502\n\u2502 0  \u2502 stellcodex-next         \u2502 default     \u2502 0.1.0   \u2502 fork    \u2502 235935   \u2502 37h    \u2502 0    \u2502 online    \u2502 0%       \u2502 48.2mb   \u2502 root     \u2502 disabled \u2502\n\u2514\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518",
+  "python_version": "Python 3.8.10",
+  "postgres_tables": "public | alembic_version       | table | stellcodex\n public | artifact_manifest     | table | stellcodex\n public | artifacts             | table | stellcodex\n public | audit_events          | table | stellcodex\n public | dlq_records           | table | stellcodex\n public | file_read_projections | table | stellcodex\n public | file_versions         | table | stellcodex\n public | files                 | table | stellcodex\n public | job_failures          | table | stellcodex\n public | job_logs              | table | stellcodex\n public | jobs                  | table | stellcodex\n public | knowledge_index_jobs  | table | stellcodex\n public | knowledge_records     | table | stellcodex\n public | library_items         | table | stellcodex\n public | memberships           | table | stellcodex\n public | orchestrator_sessions | table | stellcodex\n public | plans                 | table | stellcodex\n public | processed_event_ids   | table | stellcodex\n public | production_orders     | table | stellcodex\n public | projects              | table | stellcodex\n public | quotes                | table | stellcodex\n public | revision_files        | table | stellcodex\n public | revisions             | table | stellcodex\n public | revoked_tokens        | table | stellcodex\n public | rule_configs          | table | stellcodex\n public | shares                | table | stellcodex\n public | stage_locks           | table | stellcodex\n public | subscriptions         | table | stellcodex\n public | tenants               | table | stellcodex\n public | uploaded_files        | table | stellcodex\n public | users                 | table | stellcodex",
+  "alembic_version": "j1a2b3c4d5e6",
+  "network_ports": "LISTEN    0         4096               0.0.0.0:16379            0.0.0.0:*        users:((\"docker-proxy\",pid=1683234,fd=4))                                      \nLISTEN    0         511                0.0.0.0:443              0.0.0.0:*        users:((\"nginx\",pid=4112514,fd=8),(\"nginx\",pid=4112513,fd=8),(\"nginx\",pid=656315,fd=8))\nLISTEN    0         4096               0.0.0.0:4000             0.0.0.0:*        users:((\"docker-proxy\",pid=2891935,fd=4))                                      \nLISTEN    0         511              127.0.0.1:3010             0.0.0.0:*        users:((\"next-server (v1\",pid=235935,fd=19))                                   \nLISTEN    0         4096               0.0.0.0:7010             0.0.0.0:*        users:((\"docker-proxy\",pid=234644,fd=4))                                       \nLISTEN    0         4096               0.0.0.0:15432            0.0.0.0:*        users:((\"docker-proxy\",pid=1683305,fd=4))                                      \nLISTEN    0         4096               0.0.0.0:7020             0.0.0.0:*        users:((\"docker-proxy\",pid=2675945,fd=4))                                      \nLISTEN    0         4096               0.0.0.0:18000            0.0.0.0:*        users:((\"docker-proxy\",pid=2212811,fd=4))                                      \nLISTEN    0         511                0.0.0.0:80               0.0.0.0:*        users:((\"nginx\",pid=4112514,fd=6),(\"nginx\",pid=4112513,fd=6),(\"nginx\",pid=656315,fd=6))\nLISTEN    0         2048             127.0.0.1:4500             0.0.0.0:*        users:((\"uvicorn\",pid=240550,fd=12))                                           \nLISTEN    0         4096             127.0.0.1:34389            0.0.0.0:*        users:((\"containerd\",pid=500,fd=11))                                           \nLISTEN    0         4096         127.0.0.53%lo:53               0.0.0.0:*        users:((\"systemd-resolve\",pid=391,fd=13))                                      \nLISTEN    0         128                0.0.0.0:22               0.0.0.0:*        users:((\"sshd\",pid=506,fd=3))                                                  \nLISTEN    0         4096               0.0.0.0:19000            0.0.0.0:*        users:((\"docker-proxy\",pid=1683341,fd=4))                                      \nLISTEN    0         4096               0.0.0.0:19001            0.0.0.0:*        users:((\"docker-proxy\",pid=1683263,fd=4))                                      \nLISTEN    0         4096                  [::]:16379               [::]:*        users:((\"docker-proxy\",pid=1683245,fd=4))                                      \nLISTEN    0         511                   [::]:443                 [::]:*        users:((\"nginx\",pid=4112514,fd=9),(\"nginx\",pid=4112513,fd=9),(\"nginx\",pid=656315,fd=9))\nLISTEN    0         511                      *:3100                   *:*        users:((\"next-server (v1\",pid=2470034,fd=18))                                  \nLISTEN    0         4096                  [::]:4000                [::]:*        users:((\"docker-proxy\",pid=2891947,fd=4))                                      \nLISTEN    0         4096                  [::]:7010                [::]:*        users:((\"docker-proxy\",pid=234650,fd=4))"
+}

@@ -32,16 +32,17 @@ LOG_FILE="${EVIDENCE_DIR}/release_gate.log"
   "${SCRIPT_DIR}/contract_tests.sh"
 
   echo "[gate] smoke"
-  "${SCRIPT_DIR}/smoke_v7.sh"
+  "${SCRIPT_DIR}/smoke_test.sh"
 
   echo "[gate] leak check"
   "${SCRIPT_DIR}/leak_check.sh"
 
   echo "[gate] backup"
   "${SCRIPT_DIR}/backup_db.sh"
+  "${SCRIPT_DIR}/backup_storage.sh"
 
-  echo "[gate] restore verify"
-  "${SCRIPT_DIR}/restore_verify.sh"
+  echo "[gate] restore verify + post-restore smoke"
+  "${SCRIPT_DIR}/restore.sh"
 
   echo "[gate] docker ps"
   compose ps

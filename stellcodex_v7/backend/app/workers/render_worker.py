@@ -22,8 +22,8 @@ def process_render(job_id: str, preset_name: str) -> None:
         _preset = get_render_preset(preset_name)
 
         project_id = str(job.revision.project_id)
-        revision_id = str(job.revision_id)
-        write_render_artifact(db, storage, project_id, revision_id)
+        rev_uid = str(job.rev_uid)
+        write_render_artifact(db, storage, project_id, rev_uid)
         mark_job_done(db, job)
         db.commit()
     except Exception as exc:

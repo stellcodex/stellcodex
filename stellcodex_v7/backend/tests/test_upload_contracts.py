@@ -10,6 +10,8 @@ class UploadContractsTests(unittest.TestCase):
     def test_canonical_upload_route_exists(self) -> None:
         paths = {route.path for route in files_router.routes}
         self.assertIn("/upload", paths)
+        self.assertIn("/{file_id}", paths)
+        self.assertIn("/{file_id}/status", paths)
 
     def test_legacy_upload_alias_exists(self) -> None:
         paths = {route.path for route in product_router.routes}

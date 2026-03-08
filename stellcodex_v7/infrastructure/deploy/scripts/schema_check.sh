@@ -19,6 +19,12 @@ OUT_FILE="${EVIDENCE_DIR}/db_schema_check.txt"
   echo "-- decision_json null check"
   compose exec -T postgres psql -U stellcodex -d stellcodex -P pager=off -c \
     "SELECT COUNT(*) AS missing_decision_json FROM uploaded_files WHERE decision_json IS NULL;"
+  compose exec -T postgres psql -U stellcodex -d stellcodex -P pager=off -c \
+    "SELECT COUNT(*) AS missing_orchestrator_decision_json FROM orchestrator_sessions WHERE decision_json IS NULL;"
+  compose exec -T postgres psql -U stellcodex -d stellcodex -P pager=off -c \
+    "SELECT COUNT(*) AS missing_v7_fields FROM orchestrator_sessions WHERE state IS NULL OR rule_version IS NULL OR mode IS NULL OR confidence IS NULL;"
+  compose exec -T postgres psql -U stellcodex -d stellcodex -P pager=off -c \
+    "SELECT COUNT(*) AS missing_tenant_id FROM uploaded_files WHERE tenant_id IS NULL;"
   echo
   echo "-- rule config keys"
   compose exec -T postgres psql -U stellcodex -d stellcodex -P pager=off -c \
@@ -29,5 +35,23 @@ OUT_FILE="${EVIDENCE_DIR}/db_schema_check.txt"
 MISSING_COUNT="$(compose exec -T postgres psql -U stellcodex -d stellcodex -Atc "SELECT COUNT(*) FROM uploaded_files WHERE decision_json IS NULL;")"
 if [[ "${MISSING_COUNT}" != "0" ]]; then
   echo "decision_json NOT NULL check failed (missing=${MISSING_COUNT})" >&2
+  exit 1
+fi
+
+MISSING_SESSION_DECISION="$(compose exec -T postgres psql -U stellcodex -d stellcodex -Atc "SELECT COUNT(*) FROM orchestrator_sessions WHERE decision_json IS NULL;")"
+if [[ "${MISSING_SESSION_DECISION}" != "0" ]]; then
+  echo "orchestrator_sessions decision_json NOT NULL check failed (missing=${MISSING_SESSION_DECISION})" >&2
+  exit 1
+fi
+
+MISSING_V7_FIELDS="$(compose exec -T postgres psql -U stellcodex -d stellcodex -Atc "SELECT COUNT(*) FROM orchestrator_sessions WHERE state IS NULL OR rule_version IS NULL OR mode IS NULL OR confidence IS NULL;")"
+if [[ "${MISSING_V7_FIELDS}" != "0" ]]; then
+  echo "orchestrator_sessions V7 columns backfill check failed (missing=${MISSING_V7_FIELDS})" >&2
+  exit 1
+fi
+
+MISSING_TENANT_ID="$(compose exec -T postgres psql -U stellcodex -d stellcodex -Atc "SELECT COUNT(*) FROM uploaded_files WHERE tenant_id IS NULL;")"
+if [[ "${MISSING_TENANT_ID}" != "0" ]]; then
+  echo "uploaded_files tenant_id check failed (missing=${MISSING_TENANT_ID})" >&2
   exit 1
 fi

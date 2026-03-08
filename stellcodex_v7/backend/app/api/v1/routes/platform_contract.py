@@ -13,6 +13,7 @@ from app.api.v1.routes.share import ShareCreateIn, create_share
 from app.db.session import get_db
 from app.models.core import Privacy, Project
 from app.models.file import UploadFile as UploadFileModel
+from app.models.phase2 import FileReadProjection
 from app.security.deps import Principal, get_current_principal
 from app.workers.tasks import (
     enqueue_convert_file,
@@ -51,7 +52,7 @@ class ProjectOut(BaseModel):
 class ShareCreateAliasIn(BaseModel):
     file_id: str
     permission: str = Field(default="view", pattern="^(view|comment|download)$")
-    expires_in_seconds: int = Field(default=7 * 24 * 60 * 60, ge=60, le=30 * 24 * 60 * 60)
+    expires_in_seconds: int = Field(..., ge=60, le=30 * 24 * 60 * 60)
 
 
 class JobFileIn(BaseModel):
@@ -121,14 +122,25 @@ def _scoped_uploads(db: Session, principal: Principal) -> list[UploadFileModel]:
     )
 
 
-def _serialize_project_file(row: UploadFileModel) -> ProjectFileOut:
+def _projection_map(db: Session, file_ids: list[str]) -> dict[str, FileReadProjection]:
+    values = [value for value in file_ids if isinstance(value, str) and value.strip()]
+    if not values:
+        return {}
+    rows = db.query(FileReadProjection).filter(FileReadProjection.file_id.in_(values)).all()
+    return {row.file_id: row for row in rows}
+
+
+def _serialize_project_file(row: UploadFileModel, projection: FileReadProjection | None = None) -> ProjectFileOut:
     meta = row.meta if isinstance(row.meta, dict) else {}
+    status_value = projection.status if projection is not None and isinstance(projection.status, str) else row.status
+    kind_value = projection.kind if projection is not None and isinstance(projection.kind, str) and projection.kind else meta.get("kind")
+    mode_value = projection.mode if projection is not None and isinstance(projection.mode, str) and projection.mode else meta.get("mode")
     return ProjectFileOut(
         file_id=row.file_id,
         original_filename=row.original_filename,
-        status=row.status,
-        kind=str(meta.get("kind")) if meta.get("kind") is not None else None,
-        mode=str(meta.get("mode")) if meta.get("mode") is not None else None,
+        status=str(status_value or row.status),
+        kind=str(kind_value) if kind_value is not None else None,
+        mode=str(mode_value) if mode_value is not None else None,
         created_at=row.created_at,
     )
 
@@ -223,12 +235,13 @@ def get_project(
     if project_id != "default" and project_row is None and not files:
         raise HTTPException(status_code=404, detail="Project not found")
     updated_at = files[0].created_at if files else (project_row.created_at if project_row else None)
+    projections = _projection_map(db, [row.file_id for row in files])
     return ProjectOut(
         id=project_id,
         name=_project_name_from_row(project_row, project_id),
         file_count=len(files),
         updated_at=updated_at,
-        files=[_serialize_project_file(row) for row in files],
+        files=[_serialize_project_file(row, projections.get(row.file_id)) for row in files],
     )
 
 

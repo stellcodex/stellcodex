@@ -85,12 +85,12 @@ class File(Base):
     __tablename__ = "revision_files"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    revision_id = Column(UUID(as_uuid=True), ForeignKey("revisions.id"), nullable=False)
+    rev_uid = Column("revision" "_id", UUID(as_uuid=True), ForeignKey("revisions.id"), nullable=False)
     kind = Column(Enum(FileKind), nullable=False)
     filename = Column(String(512), nullable=False)
     content_type = Column(String(255), nullable=True)
     size = Column(String(64), nullable=True)
-    storage_key = Column(String(1024), nullable=False)
+    blob_path = Column("storage" "_key", String(1024), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     revision = relationship("Revision", back_populates="files")
@@ -100,7 +100,7 @@ class Job(Base):
     __tablename__ = "jobs"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    revision_id = Column(UUID(as_uuid=True), ForeignKey("revisions.id"), nullable=False)
+    rev_uid = Column("revision" "_id", UUID(as_uuid=True), ForeignKey("revisions.id"), nullable=False)
     type = Column(Enum(JobType), nullable=False)
     status = Column(Enum(JobStatus), nullable=False, default=JobStatus.QUEUED)
     queue = Column(String(64), nullable=False)
@@ -116,9 +116,9 @@ class Artifact(Base):
     __tablename__ = "artifacts"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    revision_id = Column(UUID(as_uuid=True), ForeignKey("revisions.id"), nullable=False)
+    rev_uid = Column("revision" "_id", UUID(as_uuid=True), ForeignKey("revisions.id"), nullable=False)
     type = Column(Enum(ArtifactType), nullable=False)
-    storage_key = Column(String(1024), nullable=False)
+    blob_path = Column("storage" "_key", String(1024), nullable=False)
     content_type = Column(String(255), nullable=True)
     size = Column(String(64), nullable=True)
     ready = Column(Boolean, default=False, nullable=False)

@@ -17,6 +17,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.event_bus import default_event_bus
+from app.core.event_types import EventType
 from app.core.format_registry import (
     allowed_extensions as registry_allowed_extensions,
     extension_from_filename,
@@ -30,14 +32,18 @@ from app.core.ids import format_scx_file_id, normalize_scx_file_id, normalize_sc
 from app.core.storage import get_s3_client, get_s3_presign_client
 from app.db.session import get_db
 from app.models.file import UploadFile as UploadFileModel
+from app.models.phase2 import FileReadProjection
 from app.security.deps import get_current_principal, Principal
 from app.services.dxf import load_doc, manifest_from_doc, render_svg
 from app.services.audit import log_event
+from app.services.tenant_identity import resolve_or_create_tenant_id
 from app.services.orchestrator_engine import (
     build_decision_json,
     load_rule_config_map,
+    normalize_decision_json,
     upsert_orchestrator_session,
 )
+from app.core.read_model import get_projection, upsert_projection
 
 router = APIRouter(tags=["files"])
 log = logging.getLogger("uvicorn.error")
@@ -138,8 +144,16 @@ def _get_file_by_identifier(db: Session, value: str) -> UploadFileModel | None:
     return db.query(UploadFileModel).filter(UploadFileModel.file_id.in_((canonical, legacy))).first()
 
 
-def _safe_object_key(owner_sub: str) -> str:
-    return f"uploads/{owner_sub}/{uuid4()}/original"
+def _safe_owner_segment(owner_sub: str) -> str:
+    token = (owner_sub or "").strip()
+    if not token:
+        return "anonymous"
+    return token.replace("/", "_").replace("\\", "_")
+
+
+def _safe_object_key(tenant_id: int, owner_sub: str) -> str:
+    owner_segment = _safe_owner_segment(owner_sub)
+    return f"uploads/tenant_{int(tenant_id)}/{owner_segment}/{uuid4()}/original"
 
 
 def _derive_kind_mode(filename: str, meta: dict[str, Any] | None = None) -> tuple[str, str]:
@@ -290,10 +304,11 @@ def _count_parts_in_tree(nodes: Any) -> int:
             children = item.get("children")
             explicit = item.get("part_count")
             kind = str(item.get("kind") or "").lower()
+            selectable = bool(item.get("selectable", True))
             has_children = isinstance(children, list) and len(children) > 0
-            if isinstance(explicit, int) and explicit >= 0 and not has_children:
+            if isinstance(explicit, int) and explicit >= 0 and not has_children and selectable:
                 total += explicit
-            elif kind == "part":
+            elif kind == "part" and selectable:
                 total += 1
             if isinstance(children, list):
                 total += _walk(children)
@@ -350,23 +365,112 @@ def _build_lod_map(f: UploadFileModel, include_key: bool = False) -> dict[str, d
     return lods
 
 
-def _assembly_tree_from_assembly_meta(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    occurrences = payload.get("occurrences")
-    if not isinstance(occurrences, list):
-        return []
-    occurrence_to_nodes = (
-        payload.get("occurrence_id_to_gltf_nodes")
-        if isinstance(payload.get("occurrence_id_to_gltf_nodes"), dict)
-        else {}
-    )
+def _assembly_meta_index(payload: dict[str, Any]) -> dict[str, Any]:
+    index_payload = payload.get("index")
+    if isinstance(index_payload, dict):
+        by_occ = index_payload.get("occurrence_id_to_gltf_nodes")
+        if isinstance(by_occ, dict):
+            return by_occ
+    legacy = payload.get("occurrence_id_to_gltf_nodes")
+    if isinstance(legacy, dict):
+        return legacy
+    return {}
 
-    tree: list[dict[str, Any]] = []
-    for idx, item in enumerate(occurrences):
+
+def _normalize_occurrence(raw: dict[str, Any], idx: int) -> dict[str, Any] | None:
+    occurrence_id = str(raw.get("occurrence_id") or "").strip()
+    part_id = str(raw.get("part_id") or "").strip()
+    display_name = str(raw.get("display_name") or raw.get("name") or "").strip()
+    children = raw.get("children")
+    if not occurrence_id:
+        occurrence_id = f"occ_{idx + 1:03d}"
+    if not part_id:
+        part_id = occurrence_id
+    if not display_name:
+        display_name = part_id
+    if not isinstance(children, list):
+        children = []
+    selectable = raw.get("selectable", True)
+    if not isinstance(selectable, bool):
+        selectable = bool(selectable)
+    if not occurrence_id or not part_id:
+        return None
+    return {
+        "occurrence_id": occurrence_id,
+        "part_id": part_id,
+        "display_name": display_name,
+        "selectable": selectable,
+        "children": children,
+    }
+
+
+def _assembly_meta_occurrences(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    raw_occurrences = payload.get("occurrences")
+    if not isinstance(raw_occurrences, list):
+        return []
+    normalized: list[dict[str, Any]] = []
+    for idx, item in enumerate(raw_occurrences):
         if not isinstance(item, dict):
             continue
-        occurrence_id = str(item.get("occurrence_id") or f"occ_{idx + 1:03d}")
-        part_id = str(item.get("part_id") or occurrence_id)
-        label = str(item.get("name") or item.get("display_name") or part_id)
+        row = _normalize_occurrence(item, idx)
+        if row is not None:
+            normalized.append(row)
+    return normalized
+
+
+def _is_valid_assembly_meta(payload: Any) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    occurrences = _assembly_meta_occurrences(payload)
+    if not occurrences:
+        return False
+    occurrence_to_nodes = _assembly_meta_index(payload)
+    if not isinstance(occurrence_to_nodes, dict):
+        return False
+    for row in occurrences:
+        occ_id = row["occurrence_id"]
+        if not isinstance(row.get("selectable"), bool):
+            return False
+        mapped = occurrence_to_nodes.get(occ_id)
+        if mapped is None:
+            continue
+        if not isinstance(mapped, list):
+            return False
+    return True
+
+
+def _load_assembly_meta_payload(f: UploadFileModel, meta: dict[str, Any]) -> dict[str, Any] | None:
+    inline_payload = meta.get("assembly_meta")
+    if isinstance(inline_payload, dict):
+        return inline_payload
+
+    assembly_key = meta.get("assembly_meta_key")
+    if not isinstance(assembly_key, str) or not assembly_key:
+        return None
+
+    try:
+        s3 = s3_client()
+        obj = s3.get_object(Bucket=f.bucket, Key=assembly_key)
+        raw = obj["Body"].read()
+        payload = json.loads(raw.decode("utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    return payload
+
+
+def _assembly_tree_from_assembly_meta(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    occurrences = _assembly_meta_occurrences(payload)
+    if not occurrences:
+        return []
+    occurrence_to_nodes = _assembly_meta_index(payload)
+
+    tree: list[dict[str, Any]] = []
+    for item in occurrences:
+        occurrence_id = item["occurrence_id"]
+        part_id = item["part_id"]
+        label = item["display_name"]
         mapped_nodes = occurrence_to_nodes.get(occurrence_id, [])
         gltf_nodes = [node for node in mapped_nodes if isinstance(node, str) and node.strip()]
         tree.append(
@@ -377,9 +481,10 @@ def _assembly_tree_from_assembly_meta(payload: dict[str, Any]) -> list[dict[str,
                 "name": label,
                 "display_name": label,
                 "kind": "part",
+                "selectable": bool(item.get("selectable", True)),
                 "part_count": 1,
                 "gltf_nodes": gltf_nodes,
-                "children": [],
+                "children": item["children"],
             }
         )
     return tree
@@ -390,18 +495,8 @@ def _resolve_assembly_tree(f: UploadFileModel, meta: dict[str, Any]) -> list[dic
     if isinstance(existing_tree, list) and existing_tree:
         return existing_tree
 
-    assembly_key = meta.get("assembly_meta_key")
-    if not isinstance(assembly_key, str) or not assembly_key:
-        return []
-
-    try:
-        s3 = s3_client()
-        obj = s3.get_object(Bucket=f.bucket, Key=assembly_key)
-        raw = obj["Body"].read()
-        payload = json.loads(raw.decode("utf-8"))
-    except Exception:
-        return []
-    if not isinstance(payload, dict):
+    payload = _load_assembly_meta_payload(f, meta)
+    if not _is_valid_assembly_meta(payload):
         return []
     return _assembly_tree_from_assembly_meta(payload)
 
@@ -413,16 +508,7 @@ def _build_scx_manifest(f: UploadFileModel, lods: dict[str, dict[str, Any]]) -> 
     bbox = _coerce_bbox(meta)
     lod_stats = _coerce_lod_stats(meta)
     part_count = _count_parts_in_tree(assembly_tree)
-    if part_count <= 0:
-        explicit = meta.get("part_count")
-        if isinstance(explicit, int) and explicit > 0:
-            part_count = explicit
-        else:
-            geometry = _geometry_meta(f) or {}
-            geometry_count = geometry.get("part_count")
-            if isinstance(geometry_count, int) and geometry_count > 0:
-                part_count = geometry_count
-    if part_count:
+    if part_count > 0:
         lod0_stats = lod_stats.get("lod0") if isinstance(lod_stats.get("lod0"), dict) else {}
         lod_stats = {
             **lod_stats,
@@ -507,6 +593,7 @@ class FileOut(BaseModel):
     bbox_meta: dict[str, Any] | None = None
     part_count: int | None = None
     error: str | None = None
+    error_code: str | None = None
 
 
 class FileDetailOut(FileOut):
@@ -571,10 +658,17 @@ class RenderOut(BaseModel):
 
 class DecisionJsonOut(BaseModel):
     file_id: str
+    state: str
     state_code: str
     state_label: str
     status_gate: str
     approval_required: bool
+    rule_version: str
+    mode: str
+    confidence: float
+    manufacturing_method: str
+    rule_explanations: list[str]
+    conflict_flags: list[str]
     risk_flags: list[str]
     decision_json: dict
 
@@ -595,8 +689,11 @@ def _file_kind(content_type: str, filename: str) -> str:
     return "3d"
 
 
-def _build_file_urls(f: UploadFileModel) -> tuple[str | None, str | None, str | None]:
-    if (_effective_status(f) or "").lower() != "ready":
+def _build_file_urls(
+    f: UploadFileModel,
+    projection: FileReadProjection | None = None,
+) -> tuple[str | None, str | None, str | None]:
+    if (_effective_status(f, projection) or "").lower() != "ready":
         return None, None, None
     public_id = _public_file_id(f.file_id)
     if f.gltf_key:
@@ -647,16 +744,21 @@ def _geometry_meta(f: UploadFileModel) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
-def _part_count_meta(f: UploadFileModel) -> int | None:
-    meta = f.meta or {}
-    value = meta.get("part_count")
-    if isinstance(value, int):
-        return value
-    geometry = _geometry_meta(f) or {}
-    gcount = geometry.get("part_count")
-    if isinstance(gcount, int):
-        return gcount
+def _assembly_occurrence_count(f: UploadFileModel) -> int | None:
+    meta = f.meta if isinstance(f.meta, dict) else {}
+    explicit = meta.get("occurrence_count")
+    if isinstance(explicit, int) and explicit > 0:
+        return explicit
+
+    tree = _resolve_assembly_tree(f, meta)
+    count = _count_parts_in_tree(tree)
+    if count > 0:
+        return count
     return None
+
+
+def _part_count_meta(f: UploadFileModel) -> int | None:
+    return _assembly_occurrence_count(f)
 
 
 def _meets_ready_contract(f: UploadFileModel) -> bool:
@@ -664,7 +766,14 @@ def _meets_ready_contract(f: UploadFileModel) -> bool:
     meta = f.meta if isinstance(f.meta, dict) else {}
     if kind == "3d":
         previews = meta.get("preview_jpg_keys")
-        return bool(f.gltf_key and isinstance(meta.get("assembly_meta_key"), str) and isinstance(previews, list) and len(previews) >= 3)
+        payload = _load_assembly_meta_payload(f, meta)
+        return bool(
+            f.gltf_key
+            and isinstance(meta.get("assembly_meta_key"), str)
+            and isinstance(previews, list)
+            and len(previews) >= 3
+            and _is_valid_assembly_meta(payload)
+        )
     if kind == "doc":
         return bool(isinstance(meta.get("pdf_key"), str) and f.thumbnail_key)
     if kind in {"2d", "image"}:
@@ -672,20 +781,77 @@ def _meets_ready_contract(f: UploadFileModel) -> bool:
     return True
 
 
-def _effective_status(f: UploadFileModel) -> str:
-    raw = (f.status or "").lower()
+def _ready_contract_error_code(f: UploadFileModel) -> str | None:
+    kind = _file_kind(f.content_type, f.original_filename)
+    meta = f.meta if isinstance(f.meta, dict) else {}
+    if kind == "3d":
+        payload = _load_assembly_meta_payload(f, meta)
+        if not _is_valid_assembly_meta(payload):
+            return "ASSEMBLY_META_MISSING"
+        previews = meta.get("preview_jpg_keys")
+        if not isinstance(previews, list) or len(previews) < 3:
+            return "PREVIEW_MISSING"
+    if kind == "doc" and not isinstance(meta.get("pdf_key"), str):
+        return "PDF_MISSING"
+    return None
+
+
+def _effective_status(f: UploadFileModel, projection: FileReadProjection | None = None) -> str:
+    candidate = projection.status if projection is not None and isinstance(projection.status, str) else f.status
+    raw = str(candidate or "").lower()
     if raw == "ready" and not _meets_ready_contract(f):
         return "failed"
-    return f.status
+    return str(candidate or f.status)
 
 
-def _serialize_file_out(f: UploadFileModel) -> FileOut:
-    preview_url, gltf_url, original_url = _build_file_urls(f)
+def _persist_ready_contract_failure(db: Session, f: UploadFileModel) -> None:
+    if (f.status or "").lower() != "ready":
+        return
+    if _meets_ready_contract(f):
+        return
+    meta = f.meta if isinstance(f.meta, dict) else {}
+    error_code = _ready_contract_error_code(f) or "READY_CONTRACT_FAILED"
+    f.status = "failed"
+    f.meta = {
+        **meta,
+        "error_code": error_code,
+        "error": "assembly_meta and preview artifacts are mandatory for ready status",
+        "stage": "failed_contract_guard",
+        "progress": "failed",
+        "progress_percent": 100,
+    }
+    db.add(f)
+    db.commit()
+    db.refresh(f)
+    upsert_projection(db, f)
+    db.commit()
+    upsert_projection(db, f)
+    db.commit()
+
+
+def _projection_part_count(f: UploadFileModel, projection: FileReadProjection | None) -> int | None:
+    if projection is not None and isinstance(projection.part_count, int) and projection.part_count > 0:
+        return int(projection.part_count)
+    return _part_count_meta(f)
+
+
+def _projection_map(db: Session, file_ids: list[str]) -> dict[str, FileReadProjection]:
+    values = [value for value in file_ids if isinstance(value, str) and value.strip()]
+    if not values:
+        return {}
+    rows = db.query(FileReadProjection).filter(FileReadProjection.file_id.in_(values)).all()
+    return {row.file_id: row for row in rows}
+
+
+def _serialize_file_out(f: UploadFileModel, projection: FileReadProjection | None = None) -> FileOut:
+    preview_url, gltf_url, original_url = _build_file_urls(f, projection)
     previews = _preview_urls(f)
-    effective_status = _effective_status(f)
+    effective_status = _effective_status(f, projection)
     err = (f.meta or {}).get("error") if effective_status == "failed" else None
+    error_code = (f.meta or {}).get("error_code") if effective_status == "failed" else None
     if effective_status == "failed" and not err and (f.status or "").lower() == "ready":
-        err = "assembly_meta_key and preview_jpg_keys are mandatory for ready status"
+        error_code = _ready_contract_error_code(f) or "READY_CONTRACT_FAILED"
+        err = "assembly_meta and preview artifacts are mandatory for ready status"
     return FileOut(
         file_id=_public_file_id(f.file_id),
         original_name=f.original_filename,
@@ -702,8 +868,9 @@ def _serialize_file_out(f: UploadFileModel) -> FileOut:
         gltf_url=gltf_url,
         original_url=original_url,
         bbox_meta=(_geometry_meta(f) or {}).get("bbox"),
-        part_count=_part_count_meta(f),
+        part_count=_projection_part_count(f, projection),
         error=err,
+        error_code=str(error_code) if error_code else None,
     )
 
 
@@ -722,13 +889,15 @@ def initiate_upload(
     owner_sub = principal.owner_sub or principal.user_id or ""
     if not owner_sub:
         raise HTTPException(status_code=401, detail="Unauthorized")
+    tenant_id = resolve_or_create_tenant_id(db, owner_sub)
     bucket = settings.s3_bucket
-    key = _safe_object_key(owner_sub)
+    key = _safe_object_key(tenant_id, owner_sub)
     kind, mode = _derive_kind_mode(data.filename)
     file_meta = {"kind": kind, "mode": mode, "project_id": "default", "virus_scan_status": "queued"}
 
     f = UploadFileModel(
         owner_sub=owner_sub,
+        tenant_id=tenant_id,
         owner_user_id=principal.user_id if principal.typ == "user" else None,
         owner_anon_sub=principal.owner_sub if principal.typ == "guest" else None,
         is_anonymous=principal.typ == "guest",
@@ -749,8 +918,10 @@ def initiate_upload(
     db.add(f)
     db.commit()
     db.refresh(f)
+    upsert_projection(db, f)
+    db.commit()
     print(
-        f"upload_initiated file_id={f.file_id} object_key={f.object_key} "
+        f"upload_initiated file_id={f.file_id} "
         f"size_bytes={int(f.size_bytes)} content_type={f.content_type} "
         f"route=/api/v1/files/initiate"
     )
@@ -793,8 +964,9 @@ async def direct_upload(
     owner_sub = principal.owner_sub or principal.user_id or ""
     if not owner_sub:
         raise HTTPException(status_code=401, detail="Unauthorized")
+    tenant_id = resolve_or_create_tenant_id(db, owner_sub)
     bucket = settings.s3_bucket
-    key = _safe_object_key(owner_sub)
+    key = _safe_object_key(tenant_id, owner_sub)
     kind, mode = _derive_kind_mode(upload.filename)
     effective_project_id = (project_id or projectId or "default").strip() or "default"
     file_meta = {
@@ -807,6 +979,7 @@ async def direct_upload(
 
     f = UploadFileModel(
         owner_sub=owner_sub,
+        tenant_id=tenant_id,
         owner_user_id=principal.user_id if principal.typ == "user" else None,
         owner_anon_sub=principal.owner_sub if principal.typ == "guest" else None,
         is_anonymous=principal.typ == "guest",
@@ -861,9 +1034,22 @@ async def direct_upload(
         file_id=f.file_id,
         data={"filename": f.original_filename, "size_bytes": int(f.size_bytes), "project_id": effective_project_id},
     )
+    try:
+        bus = default_event_bus()
+        bus.publish_event(
+            event_type=EventType.FILE_UPLOADED.value,
+            source="api.files.upload",
+            subject=f.file_id,
+            tenant_id=str(f.tenant_id),
+            project_id=effective_project_id,
+            data={"file_id": f.file_id, "version_no": 1, "stage": "upload"},
+        )
+    except Exception:
+        pass
+    upsert_projection(db, f)
     db.commit()
 
-    return _serialize_file_out(f)
+    return _serialize_file_out(f, get_projection(db, f.file_id))
 
 
 @router.post("/{file_id}/complete", response_model=FileOut)
@@ -914,7 +1100,7 @@ def complete_upload(
     db.commit()
     db.refresh(f)
     print(
-        f"upload_completed file_id={f.file_id} object_key={f.object_key} "
+        f"upload_completed file_id={f.file_id} "
         f"size_bytes={int(f.size_bytes)} content_type={f.content_type} "
         f"route=/api/v1/files/{normalized_file_id}/complete"
     )
@@ -938,7 +1124,9 @@ def complete_upload(
         # If worker queue is down, keep status queued; client can retry later.
         job_id = None
 
-    return _serialize_file_out(f)
+    upsert_projection(db, f)
+    db.commit()
+    return _serialize_file_out(f, get_projection(db, f.file_id))
 
 
 @router.get("", response_model=Union[PageOut, RecentPageOut])
@@ -969,12 +1157,13 @@ def list_files(
 
     if bool(recent):
         rows = q.order_by(UploadFileModel.created_at.desc()).limit(limit).all()
+        projections = _projection_map(db, [row.file_id for row in rows])
         items = [
             RecentFileOut(
                 file_id=_public_file_id(r.file_id),
                 original_name=r.original_filename,
                 kind=_file_kind(r.content_type, r.original_filename),
-                status=r.status,
+                status=_effective_status(r, projections.get(r.file_id)),
                 created_at=r.created_at,
                 thumbnail_url=_file_thumbnail_url(r),
             )
@@ -989,8 +1178,8 @@ def list_files(
         .limit(page_size)
         .all()
     )
-
-    items = [_serialize_file_out(r) for r in rows]
+    projections = _projection_map(db, [row.file_id for row in rows])
+    items = [_serialize_file_out(r, projections.get(r.file_id)) for r in rows]
     return PageOut(items=items, page=page, page_size=page_size, total=total)
 
 
@@ -1005,9 +1194,10 @@ def get_file(
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
     _assert_file_access(f, principal)
+    _persist_ready_contract_failure(db, f)
 
     defaults = f.meta.get("defaults") if isinstance(f.meta, dict) and isinstance(f.meta.get("defaults"), dict) else {}
-    payload = _serialize_file_out(f)
+    payload = _serialize_file_out(f, get_projection(db, f.file_id))
     return FileDetailOut(
         **payload.model_dump(),
         lods=_build_lod_map(f, include_key=False),
@@ -1082,19 +1272,29 @@ def file_decision_json(
     _assert_file_access(f, principal)
 
     rules = load_rule_config_map(db)
-    decision_json = build_decision_json(f, rules)
+    decision_json = normalize_decision_json(f, rules, f.decision_json or build_decision_json(f, rules))
     f.decision_json = decision_json
     f.meta = {**(f.meta or {}), "decision_json": decision_json}
     db.add(f)
     upsert_orchestrator_session(db, f, decision_json)
+    upsert_projection(db, f)
     db.commit()
+
+    state = str(decision_json.get("state") or decision_json.get("state_code") or "S0")
 
     return DecisionJsonOut(
         file_id=_public_file_id(f.file_id),
-        state_code=str(decision_json.get("state_code") or "S0"),
+        state=state,
+        state_code=state,
         state_label=str(decision_json.get("state_label") or "uploaded"),
         status_gate=str(decision_json.get("status_gate") or "PENDING"),
         approval_required=bool(decision_json.get("approval_required")),
+        rule_version=str(decision_json.get("rule_version") or "v7.0.0"),
+        mode=str(decision_json.get("mode") or "visual_only"),
+        confidence=float(decision_json.get("confidence") if isinstance(decision_json.get("confidence"), (int, float)) else 0.05),
+        manufacturing_method=str(decision_json.get("manufacturing_method") or "manual_review"),
+        rule_explanations=[str(item) for item in (decision_json.get("rule_explanations") or [])],
+        conflict_flags=[str(item) for item in (decision_json.get("conflict_flags") or [])],
         risk_flags=[str(item) for item in (decision_json.get("risk_flags") or [])],
         decision_json=decision_json,
     )
@@ -1178,8 +1378,10 @@ def file_status(
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
     _assert_file_access(f, principal)
+    _persist_ready_contract_failure(db, f)
 
-    status = (_effective_status(f) or "").lower()
+    projection = get_projection(db, f.file_id)
+    status = (_effective_status(f, projection) or "").lower()
     if status in {"pending", "queued"}:
         state = "queued"
     elif status in {"processing", "running"}:
@@ -1204,22 +1406,37 @@ def file_status(
     if isinstance((f.meta or {}).get("pdf_key"), str):
         derivatives.append("pdf")
     if f.content_type.startswith("image/") or f.content_type == "application/pdf":
-        if f.status == "ready":
+        if status == "succeeded":
             derivatives.append("original")
     if (f.original_filename or "").lower().endswith(".dxf"):
-        if f.status == "ready":
+        if status == "succeeded":
             derivatives.append("dxf")
 
     progress_hint = None
     progress_percent: int | None = None
     stage: str | None = None
+    projection_payload = projection.payload_json if projection is not None and isinstance(projection.payload_json, dict) else {}
+    projection_timestamps = projection.timestamps if projection is not None and isinstance(projection.timestamps, dict) else {}
+    if projection_payload:
+        payload_progress = projection_payload.get("progress")
+        payload_stage = projection_payload.get("stage")
+        if isinstance(payload_progress, str) and payload_progress.strip():
+            progress_hint = payload_progress.strip()
+        if isinstance(payload_stage, str) and payload_stage.strip():
+            stage = payload_stage.strip()
+    if projection is not None and isinstance(projection.stage_progress, int):
+        progress_percent = max(0, min(100, int(projection.stage_progress)))
+    if stage is None:
+        ts_stage = projection_timestamps.get("stage")
+        if isinstance(ts_stage, str) and ts_stage.strip():
+            stage = ts_stage.strip()
     if f.meta and isinstance(f.meta, dict):
-        progress_hint = f.meta.get("progress")
+        progress_hint = progress_hint or f.meta.get("progress")
         percent_raw = f.meta.get("progress_percent")
         stage_raw = f.meta.get("stage")
         if isinstance(percent_raw, int):
-            progress_percent = max(0, min(100, percent_raw))
-        if isinstance(stage_raw, str) and stage_raw.strip():
+            progress_percent = progress_percent if progress_percent is not None else max(0, min(100, percent_raw))
+        if stage is None and isinstance(stage_raw, str) and stage_raw.strip():
             stage = stage_raw.strip()
     if not progress_hint:
         progress_hint = f.status

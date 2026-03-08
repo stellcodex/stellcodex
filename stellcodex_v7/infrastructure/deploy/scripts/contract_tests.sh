@@ -17,6 +17,7 @@ LOG_FILE="${EVIDENCE_DIR}/contract_tests.log"
     tests.test_master_contract_routes \
     tests.test_upload_contracts \
     tests.test_public_contract_leaks \
-    tests.test_orchestrator_core'
+    tests.test_orchestrator_core \
+    tests.test_v7_contracts'
   echo "[contract] passed"
 } 2>&1 | tee "${LOG_FILE}"

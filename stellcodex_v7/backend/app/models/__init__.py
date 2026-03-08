@@ -18,3 +18,20 @@ from .audit import AuditEvent  # noqa: F401
 from .library_item import LibraryItem  # noqa: F401
 from .quote import Quote, ProductionOrder  # noqa: F401
 from .orchestrator import OrchestratorSession, RuleConfig  # noqa: F401
+from .master_contract import (  # noqa: F401
+    Tenant,
+    Membership,
+    Plan,
+    Subscription,
+    FileRegistry,
+    FileVersion,
+    JobLog,
+)
+from .phase2 import (  # noqa: F401
+    ArtifactManifest,
+    ProcessedEventId,
+    StageLock,
+    DlqRecord,
+    FileReadProjection,
+)
+from .knowledge import KnowledgeRecord, KnowledgeIndexJob  # noqa: F401

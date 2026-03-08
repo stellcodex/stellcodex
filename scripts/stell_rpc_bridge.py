@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 load_dotenv("/root/stell/webhook/.env")
 load_dotenv("/var/www/stellcodex/backend/.env")
 
-LOG_DIR = Path("/root/stell/genois/logs")
+LOG_DIR = Path(os.getenv("STELLCODEX_RPC_LOG_DIR", "/var/log/stellcodex"))
 STREAM_KEY = "stell:events:stream"
 RPC_REQUESTS_KEY = "stell:rpc:requests"
 RPC_RESPONSE_PREFIX = "stell:rpc:response:"

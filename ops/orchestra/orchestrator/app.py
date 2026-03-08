@@ -26,8 +26,14 @@ QUOTA_STATE_PATH = STATE_DIR / "quota_state.json"
 DEFERRED_QUEUE_PATH = STATE_DIR / "deferred_queue.json"
 ROUTING_EVENTS_PATH = STATE_DIR / "routing_events.jsonl"
 
-LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://litellm:4000/v1").rstrip("/")
-LLM_API_KEY = os.getenv("LLM_API_KEY", "dummy")
+def _str_env(name: str, default: str) -> str:
+    raw = os.getenv(name, "")
+    value = str(raw).strip()
+    return value if value else default
+
+
+LLM_BASE_URL = _str_env("LLM_BASE_URL", "http://litellm:4000/v1").rstrip("/")
+LLM_API_KEY = _str_env("LLM_API_KEY", "dummy")
 
 
 def _int_env(name: str, default: int) -> int:
@@ -58,6 +64,44 @@ ROLE_TASK_TYPE = {
 CORE_TASK_TYPES = {"plan", "code", "review", "analysis"}
 SHADOW_TASK_TYPES = {"plan", "analysis"}
 WORKSPACE_ROOT = Path(os.getenv("WORKSPACE_ROOT", "/workspace"))
+DEFAULT_ORCHESTRATOR_PROMPTS_PATH = (
+    WORKSPACE_ROOT
+    / "audit"
+    / "STELL_SYSTEM_CORE"
+    / "05_workers"
+    / "root"
+    / "workspace"
+    / "ops"
+    / "orchestra"
+    / "orchestrator"
+    / "prompt_templates.json"
+)
+ORCHESTRATOR_PROMPTS_PATH = Path(
+    os.getenv("ORCHESTRATOR_PROMPTS_PATH", str(DEFAULT_ORCHESTRATOR_PROMPTS_PATH))
+)
+PROMPT_TEMPLATE_CACHE: Optional[Dict[str, Any]] = None
+REQUIRE_EXTERNAL_PROMPTS = os.getenv("ORCHESTRATOR_REQUIRE_EXTERNAL_PROMPTS", "1") in {
+    "1",
+    "true",
+    "TRUE",
+    "yes",
+    "YES",
+}
+
+REQUIRED_PROMPT_TEMPLATE_PATHS = (
+    "role_prompt_system.code",
+    "role_prompt_system.review",
+    "role_prompt_system.analysis",
+    "role_prompt_system.ops_check",
+    "role_prompt_system.doc",
+    "role_prompt_system.default",
+    "review_messages.system",
+    "merge_messages.system",
+    "degraded_output.code",
+    "degraded_output.review",
+    "degraded_output.analysis",
+    "degraded_output.default",
+)
 
 LOCAL_MODELS = {"local_fast", "local_reason"}
 PAID_MODELS = {"gemini_conductor", "codex_executor", "claude_reviewer", "abacus_analyst"}
@@ -202,6 +246,55 @@ def _default_quota_state() -> Dict[str, Any]:
 
 def _default_deferred_queue() -> Dict[str, Any]:
     return {"updated_at": to_iso(utcnow()), "items": []}
+
+
+def _lookup_template_text(payload: Dict[str, Any], dotted_path: str) -> Optional[str]:
+    node: Any = payload
+    for part in dotted_path.split("."):
+        if not isinstance(node, dict):
+            return None
+        node = node.get(part)
+    if isinstance(node, str):
+        text = node.strip()
+        return text or None
+    return None
+
+
+def _load_prompt_templates() -> Dict[str, Any]:
+    global PROMPT_TEMPLATE_CACHE
+    if PROMPT_TEMPLATE_CACHE is not None:
+        return PROMPT_TEMPLATE_CACHE
+
+    if not ORCHESTRATOR_PROMPTS_PATH.exists():
+        raise RuntimeError(
+            "orchestrator prompt template file missing: "
+            f"{ORCHESTRATOR_PROMPTS_PATH}"
+        )
+
+    payload = _read_json(ORCHESTRATOR_PROMPTS_PATH, {})
+    if not isinstance(payload, dict):
+        raise RuntimeError(
+            "orchestrator prompt template file invalid (expected JSON object): "
+            f"{ORCHESTRATOR_PROMPTS_PATH}"
+        )
+
+    if REQUIRE_EXTERNAL_PROMPTS:
+        missing = [path for path in REQUIRED_PROMPT_TEMPLATE_PATHS if not _lookup_template_text(payload, path)]
+        if missing:
+            raise RuntimeError(
+                "orchestrator prompt template missing required paths: "
+                + ", ".join(missing)
+            )
+
+    PROMPT_TEMPLATE_CACHE = payload
+    return PROMPT_TEMPLATE_CACHE
+
+
+def _template_text(path: str) -> str:
+    value = _lookup_template_text(_load_prompt_templates(), path)
+    if value is None:
+        raise RuntimeError(f"orchestrator prompt template missing value: {path}")
+    return value
 
 
 def _normalize_secret(raw: str) -> str:
@@ -796,25 +889,15 @@ def _parse_sub_tasks(plan_output: str, task: str) -> List[Dict[str, str]]:
 
 def _role_prompt(task_type: str, instruction: str, task: str, context: Dict[str, Any]) -> List[Dict[str, str]]:
     if task_type == "code":
-        system = (
-            "You are Codex Executor. Return a unified diff only when feasible, with minimal safe changes. "
-            "Also include APPLY COMMANDS and ROLLBACK NOTES."
-        )
+        system = _template_text("role_prompt_system.code")
     elif task_type == "review":
-        system = (
-            "You are Claude Reviewer. Return PASS or FAIL, concrete findings, regression risks, "
-            "and exact test/smoke commands."
-        )
+        system = _template_text("role_prompt_system.review")
     elif task_type == "analysis":
-        system = (
-            "You are Abacus Analyst. Return structured bullets: assumptions, risks, checks, and next actions."
-        )
+        system = _template_text("role_prompt_system.analysis")
     elif task_type in {"ops_check", "doc"}:
-        system = "You are a local support agent. Return concise checklists and alternatives only."
+        system = _template_text(f"role_prompt_system.{task_type}")
     else:
-        system = (
-            "You are Gemini Conductor. Return a plan with 3-7 steps, acceptance criteria, and rollback plan."
-        )
+        system = _template_text("role_prompt_system.default")
 
     user = (
         f"Task: {task}\n"
@@ -825,10 +908,7 @@ def _role_prompt(task_type: str, instruction: str, task: str, context: Dict[str,
 
 
 def _review_messages(task: str, context: Dict[str, Any], code_output: str, instruction: str) -> List[Dict[str, str]]:
-    system = (
-        "You are Claude Reviewer. Evaluate the Codex diff first, then provide PASS/FAIL, "
-        "findings, and verification commands."
-    )
+    system = _template_text("review_messages.system")
     user = (
         f"Task: {task}\n"
         f"Instruction: {instruction}\n"
@@ -846,11 +926,7 @@ def _merge_messages(
     results: List[Dict[str, Any]],
     deferred_summary: Dict[str, Any],
 ) -> List[Dict[str, str]]:
-    system = (
-        "You are Gemini Conductor. Merge outputs into one executable response. "
-        "Include these sections exactly: MERGED PLAN, APPLY STEPS, TESTS/SMOKE, ROLLBACK PLAN, "
-        "READINESS, DEFERRED SUMMARY."
-    )
+    system = _template_text("merge_messages.system")
     compact_results = [
         {
             "role": item.get("role"),
@@ -872,35 +948,13 @@ def _merge_messages(
 
 def _deterministic_degraded_output(task_type: str, task: str) -> str:
     if task_type == "code":
-        return (
-            "DEGRADED CODE OUTPUT (quota or upstream failure)\n"
-            "- Patch draft guidance (prefer local_reason when available):\n"
-            "1. Identify smallest files impacted by task.\n"
-            "2. Apply minimal change behind existing interfaces.\n"
-            "3. Run smoke checks and capture rollback command.\n"
-            "Rollback: revert touched files to previous commit/state."
-        )
+        return _template_text("degraded_output.code")
     if task_type == "review":
-        return (
-            "DEGRADED REVIEW OUTPUT\n"
-            "PASS/FAIL: FAIL (insufficient primary reviewer output).\n"
-            "Findings: missing authoritative reviewer response; verify diff manually.\n"
-            "Tests: run unit tests and endpoint smoke checks before apply."
-        )
+        return _template_text("degraded_output.review")
     if task_type in {"analysis", "ops_check", "doc"}:
-        return (
-            "DEGRADED ANALYSIS OUTPUT\n"
-            "- Assumption: partial model availability.\n"
-            "- Risk: blind spots in quality gates.\n"
-            "- Action: run smoke tests, keep rollback ready, replay deferred tasks after cooldown."
-        )
-    return (
-        "DEGRADED PLAN OUTPUT\n"
-        f"1. Clarify scope for: {task}\n"
-        "2. Apply minimal safe change.\n"
-        "3. Run smoke and rollback if needed.\n"
-        "Acceptance Criteria: no regressions; rollback documented."
-    )
+        return _template_text("degraded_output.analysis")
+    template = _template_text("degraded_output.default")
+    return template.replace("{task}", task)
 
 
 async def _best_effort_fallback(
@@ -1422,6 +1476,7 @@ _scheduler_task: Optional[asyncio.Task[Any]] = None
 @app.on_event("startup")
 async def _startup() -> None:
     global _scheduler_task
+    _load_prompt_templates()
     ensure_state_files()
     discovered = _discover_workspace_credentials()
     _configure_runtime_role_defaults(discovered)

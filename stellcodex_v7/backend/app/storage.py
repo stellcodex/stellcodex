@@ -30,13 +30,13 @@ class Storage:
         return (self.root / key).exists()
 
 
-def storage_key_for_3d(project_id: str, revision_id: str, filename: str) -> str:
-    return f"models/{project_id}/{revision_id}/{filename}"
+def artifact_path_for_3d(project_id: str, rev_uid: str, filename: str) -> str:
+    return f"models/{project_id}/{rev_uid}/{filename}"
 
 
-def storage_key_for_2d(project_id: str, revision_id: str, filename: str) -> str:
-    return f"drawings/{project_id}/{revision_id}/{filename}"
+def artifact_path_for_2d(project_id: str, rev_uid: str, filename: str) -> str:
+    return f"drawings/{project_id}/{rev_uid}/{filename}"
 
 
-def storage_key_for_render(project_id: str, revision_id: str, filename: str) -> str:
-    return f"renders/{project_id}/{revision_id}/{filename}"
+def artifact_path_for_render(project_id: str, rev_uid: str, filename: str) -> str:
+    return f"renders/{project_id}/{rev_uid}/{filename}"

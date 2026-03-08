@@ -18,3 +18,7 @@ running="$(docker ps --filter name=orchestra_orchestrator --filter status=runnin
 if [[ -z "${running}" ]]; then
   compose_cmd -f "${COMPOSE_FILE}" up -d orchestrator litellm autopilot stellai >/dev/null 2>&1 || true
 fi
+
+if [[ -x "${ROOT_DIR}/stellcodex_watchdog_check.sh" ]]; then
+  "${ROOT_DIR}/stellcodex_watchdog_check.sh" || true
+fi
