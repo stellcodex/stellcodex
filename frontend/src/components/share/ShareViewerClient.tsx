@@ -55,7 +55,7 @@ export function ShareViewerClient({ fileId, shareToken, policy }: ShareViewerCli
 
   const renderSurface = () => {
     if (!state.policy.canView) {
-      return <div className="p-4 text-sm text-[#6b7280]">Bu paylaşım için görüntüleme izni yok.</div>;
+      return <div className="p-4 text-sm text-[#6b7280]">Viewing is not allowed for this share.</div>;
     }
     if (state.policy.gltfUrl) {
       return (
@@ -65,7 +65,7 @@ export function ShareViewerClient({ fileId, shareToken, policy }: ShareViewerCli
       );
     }
     if (!state.policy.originalUrl) {
-      return <div className="p-4 text-sm text-[#6b7280]">İçerik hazır değil.</div>;
+      return <div className="p-4 text-sm text-[#6b7280]">Content is not ready.</div>;
     }
     if (state.policy.contentType === "application/pdf") {
       return <iframe title="Shared PDF" src={state.policy.originalUrl} className="h-full w-full rounded-xl" />;
@@ -83,7 +83,7 @@ export function ShareViewerClient({ fileId, shareToken, policy }: ShareViewerCli
     if (state.policy.contentType.startsWith("image/")) {
       return <img src={state.policy.originalUrl} alt={state.policy.originalFilename} className="h-full w-full object-contain" />;
     }
-    return <div className="p-4 text-sm text-[#6b7280]">Bu içerik türü share viewer içinde önizlenemiyor.</div>;
+    return <div className="p-4 text-sm text-[#6b7280]">This content type cannot be previewed in the share viewer.</div>;
   };
 
   return (
@@ -102,12 +102,12 @@ export function ShareViewerClient({ fileId, shareToken, policy }: ShareViewerCli
               className={`rounded-md border px-3 py-1.5 text-xs font-semibold ${
                 canExport ? "border-[#334155] bg-[#111827] text-white hover:bg-[#1f2937]" : "cursor-not-allowed border-[#1f2937] bg-[#0f172a] text-[#64748b]"
               }`}
-              title={canExport ? "PNG dışa aktar" : "Bu paylaşımda indirme kapalı"}
+              title={canExport ? "Export PNG" : "Downloads are disabled for this share"}
             >
               Export PNG
             </button>
             <Link href="/" className="rounded-md border border-[#334155] bg-[#111827] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1f2937]">
-              Ana Sayfa
+              Home
             </Link>
           </div>
         </header>

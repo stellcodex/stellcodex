@@ -112,7 +112,7 @@ export async function apiFetchJson<T = unknown>(
   const res = await apiFetch(path, init, options);
   const payload = await res.json().catch(() => null);
   if (!res.ok) {
-    const fallback = options?.fallbackMessage || "API isteği başarısız.";
+    const fallback = options?.fallbackMessage || "The API request failed.";
     const detail =
       (payload && typeof payload === "object" && "detail" in payload
         ? (payload as { detail?: unknown }).detail

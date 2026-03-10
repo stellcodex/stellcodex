@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { tokens } from "@/lib/tokens";
+import { resolveFileAppPath } from "@/lib/workspace-routing";
 import { uploadDirect } from "@/services/api";
 import { ALLOWED_FORMATS } from "@/lib/formats.generated";
 import {
@@ -38,19 +39,19 @@ export function UploadDrop({ onUploaded }: { onUploaded?: (fileId: string) => vo
 
       if (!hasAllowedExt(file.name)) {
         setError(
-          "Desteklenmeyen dosya türü. STEP/IGES/BREP/STL/OBJ/PLY/OFF/3MF/AMF/DAE/DXF/PDF/PNG/JPG kabul edilir. DWG ve Parasolid desteklenmez."
+          "Unsupported file type. Accepted formats: STEP/IGES/BREP/STL/OBJ/PLY/OFF/3MF/AMF/DAE/DXF/PDF/PNG/JPG. DWG and Parasolid are not supported."
         );
         return;
       }
       if (file.size > MAX_UPLOAD_BYTES) {
-        setError(`Dosya boyutu ${MAX_UPLOAD_MB}MB limitini aşıyor.`);
+        setError(`The file exceeds the ${MAX_UPLOAD_MB}MB limit.`);
         return;
       }
 
       setBusy(true);
-      setStatus("Yükleme başlatılıyor...");
+      setStatus("Preparing upload...");
       try {
-        setStatus("Dosya yükleniyor...");
+        setStatus("Uploading file...");
         const res = await uploadDirect(file);
         const mode: WorkspaceMode = detectWorkspaceMode(file.name, file.type || null);
         const registered = registerUploadedFile({
@@ -62,9 +63,11 @@ export function UploadDrop({ onUploaded }: { onUploaded?: (fileId: string) => vo
           projectId: DEFAULT_PROJECT_ID,
           projectName: DEFAULT_PROJECT_NAME,
         });
-        setStatus("Viewer’a yönlendiriliyor...");
+        // Public upload uses the same routing rule as the suite home: file type decides the app.
+        const destination = resolveFileAppPath(null, { original_filename: file.name, content_type: file.type || null }, registered.fileId);
+        setStatus("Opening the responsible application...");
         onUploaded?.(registered.fileId);
-        const target = `/view/${registered.fileId}`;
+        const target = destination.href;
         router.push(target);
         window.setTimeout(() => {
           if (window.location.pathname !== target) {
@@ -73,7 +76,7 @@ export function UploadDrop({ onUploaded }: { onUploaded?: (fileId: string) => vo
         }, 1500);
       } catch (error: unknown) {
         setStatus(null);
-        setError(error instanceof Error ? error.message : "Yükleme başarısız.");
+        setError(error instanceof Error ? error.message : "Upload failed.");
       } finally {
         setBusy(false);
       }
@@ -106,9 +109,12 @@ export function UploadDrop({ onUploaded }: { onUploaded?: (fileId: string) => vo
         }}
       />
 
-      <div style={tokens.typography.h2} className="text-[#111827]">Dosya yükle</div>
+      <div style={tokens.typography.h2} className="text-[#111827]">Upload file</div>
       <div style={tokens.typography.body} className="mt-2 text-[#6b7280]">
-        STEP / IGES / BREP / STL / OBJ / PLY / OFF / 3MF / AMF / DAE / DXF / PDF / PNG / JPG
+        Upload once. STELLCODEX routes 3D, 2D, and document files into the responsible application automatically.
+      </div>
+      <div className="mt-2 text-xs text-[#6b7280]">
+        Supported formats: STEP / IGES / BREP / STL / OBJ / PLY / OFF / 3MF / AMF / DAE / DXF / PDF / PNG / JPG
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
@@ -116,9 +122,9 @@ export function UploadDrop({ onUploaded }: { onUploaded?: (fileId: string) => vo
           onClick={() => inputRef.current?.click()}
           disabled={busy}
         >
-          Dosya seç
+          Select file
         </PrimaryButton>
-        <span className="text-xs text-[#6b7280]">Maks: {MAX_UPLOAD_MB}MB</span>
+        <span className="text-xs text-[#6b7280]">Max: {MAX_UPLOAD_MB}MB</span>
       </div>
 
       {status ? <div className="mt-4 text-sm text-[#6b7280]">{status}</div> : null}

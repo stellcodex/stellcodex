@@ -25,19 +25,19 @@ async function sendToStell(message: string): Promise<string> {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Hata: ${res.status}`);
+    throw new Error(err.detail || `Error: ${res.status}`);
   }
   const data = await res.json();
   return data.reply as string;
 }
 
 function now() {
-  return new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+  return new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
 export default function StellChatPage() {
   const [messages, setMessages] = useState<Message[]>([
-    { role: "stell", text: "👋 Merhaba! Ben Stell, Stellcodex'in asistanıyım.\nKomutlar için `yardım` yaz.", ts: now() },
+    { role: "stell", text: "Hello. I am Stell, the Stellcodex assistant.\nType `help` for available commands.", ts: now() },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -72,15 +72,13 @@ export default function StellChatPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)] max-w-3xl mx-auto">
-      {/* Başlık */}
       <div className="mb-4">
-        <h1 className="text-xl font-semibold text-slate-900">🤖 Stell Asistan</h1>
+        <h1 className="text-xl font-semibold text-slate-900">Stell Assistant</h1>
         <p className="text-sm text-slate-500">
-          Platform yönetimi, not alma ve bilgi sorgulama için Stell ile konuş.
+          Use Stell for platform operations, note taking, and knowledge queries.
         </p>
       </div>
 
-      {/* Mesaj alanı */}
       <div className="flex-1 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
         {messages.map((msg, i) => (
           <div
@@ -117,19 +115,18 @@ export default function StellChatPage() {
               S
             </div>
             <div className="bg-slate-100 rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm text-slate-500">
-              <span className="animate-pulse">Stell yazıyor...</span>
+              <span className="animate-pulse">Stell is typing...</span>
             </div>
           </div>
         )}
         <div ref={bottomRef} />
       </div>
 
-      {/* Input alanı */}
       <div className="mt-3 flex gap-2 items-end">
         <textarea
           className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-slate-900 placeholder:text-slate-400"
           rows={1}
-          placeholder="Stell'e yaz... (Enter göndermek için, Shift+Enter yeni satır)"
+          placeholder="Message Stell... (Enter to send, Shift+Enter for a new line)"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={onKey}
@@ -139,13 +136,13 @@ export default function StellChatPage() {
           onClick={send}
           disabled={loading || !input.trim()}
           className="flex-shrink-0 h-11 w-11 rounded-2xl bg-slate-900 text-white flex items-center justify-center disabled:opacity-40 hover:bg-slate-700 transition"
-          aria-label="Gönder"
+          aria-label="Send"
         >
           ↑
         </button>
       </div>
       <p className="mt-1.5 text-center text-[10px] text-slate-400">
-        Komutlar: <code>durum</code> · <code>not: ...</code> · <code>log: backend</code> · <code>bilgi: platform</code> · <code>yardım</code>
+        Commands: <code>status</code> · <code>note: ...</code> · <code>log: backend</code> · <code>knowledge: platform</code> · <code>help</code>
       </p>
     </div>
   );

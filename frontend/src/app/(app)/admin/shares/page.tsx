@@ -27,7 +27,7 @@ export default function AdminSharesPage() {
       })
       .catch((e: any) => {
         if (!active) return;
-        setError(e?.message || "Paylaşımlar alınamadı.");
+        setError(e?.message || "Shares could not be loaded.");
       });
     return () => {
       active = false;
@@ -37,27 +37,27 @@ export default function AdminSharesPage() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Paylaşımlar"
-        description="Aktif linkler ve iptaller."
-        crumbs={[{ label: "Yönetim", href: "/admin" }, { label: "Paylaşımlar" }]}
+        title="Shares"
+        description="Active links and revocations."
+        crumbs={[{ label: "Admin", href: "/admin" }, { label: "Shares" }]}
       />
       {error ? (
-        <EmptyState title="Paylaşım verisi yok" description={error} />
+        <EmptyState title="No share data" description={error} />
       ) : (
         <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <div className="text-sm font-semibold text-slate-900">Paylaşım linkleri</div>
+          <div className="text-sm font-semibold text-slate-900">Share links</div>
           <div className="mt-3 space-y-2 text-sm text-slate-700">
             {shares.length ? (
               shares.map((s) => (
                 <div key={s.id} className="rounded-lg border border-slate-100 p-2">
                   <div className="font-medium">{s.file_id}</div>
                   <div className="text-xs text-slate-500">
-                    {s.permission} · süre {s.expires_at || "-"} · {s.revoked_at ? "iptal" : "aktif"}
+                    {s.permission} · expires {s.expires_at || "-"} · {s.revoked_at ? "revoked" : "active"}
                   </div>
                 </div>
               ))
             ) : (
-              <div className="text-sm text-slate-500">Paylaşım yok.</div>
+              <div className="text-sm text-slate-500">No shares are available.</div>
             )}
           </div>
         </div>

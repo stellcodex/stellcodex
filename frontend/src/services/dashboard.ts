@@ -16,5 +16,5 @@ export async function fetchActivity(): Promise<ActivityItem[]> {
   if (DASHBOARD_STUBS_ENABLED) {
     return [];
   }
-  throw new Error("Backend uç noktası tanımlı değil.");
+  throw new Error("The backend endpoint is not configured.");
 }

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { getApiBase } from "@/lib/apiClient";
+import { AuthShell, authInputClassName, authPrimaryButtonClassName } from "@/components/auth/AuthShell";
 
 export default function ForgotPage() {
   const [email, setEmail] = useState("");
@@ -30,31 +31,27 @@ export default function ForgotPage() {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#1a1a1a] px-4 text-gray-100">
-      <div className="w-full max-w-md">
-        <div className="mb-10 text-center">
-          <span className="text-3xl font-bold tracking-tight text-white">STELL<span className="text-blue-500">CONSOLE</span></span>
+    <AuthShell
+      eyebrow="Recovery"
+      title="Reset password"
+      description="Enter the account email and STELLCODEX will send a recovery link if the account exists."
+      footer={
+        <Link href="/login" className="font-semibold text-[#0f766e] hover:underline">
+          Back to sign in
+        </Link>
+      }
+    >
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+        <div>
+          <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[#6b7280]">Email address</label>
+          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="engineer@stellcodex.com" className={authInputClassName} />
         </div>
-        <section className="rounded-2xl border border-gray-800 bg-[#2d2d2d] p-8 shadow-xl">
-          <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-blue-500 mb-2">Recovery</div>
-          <h1 className="text-2xl font-semibold text-white">Reset Password</h1>
-          <p className="text-gray-400 text-sm mt-1">Enter email to receive a recovery link.</p>
-          <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-5">
-            <div>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-gray-500">Email Address</label>
-              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="engineer@stellcodex.com" className="w-full rounded-lg border border-gray-700 bg-black/30 px-4 py-3 text-sm text-white outline-none focus:border-blue-500 transition-colors" />
-            </div>
-            {error && <div className="text-xs text-red-400">{error}</div>}
-            {message && <div className="text-xs text-green-400">{message}</div>}
-            <button type="submit" disabled={loading} className="w-full rounded-lg bg-blue-600 py-3 text-sm font-bold text-white shadow-lg hover:bg-blue-500 transition-all">
-              {loading ? "SENDING..." : "SEND RESET LINK"}
-            </button>
-          </form>
-          <div className="mt-8 text-center text-xs text-gray-500 border-t border-gray-800 pt-6">
-            <Link href="/login" className="text-blue-500 hover:underline font-bold">Back to Login</Link>
-          </div>
-        </section>
-      </div>
-    </main>
+        {error ? <div className="rounded-2xl border border-[#f1c9c9] bg-[#fff5f5] px-4 py-3 text-sm text-[#b42318]">{error}</div> : null}
+        {message ? <div className="rounded-2xl border border-[#b7d9d5] bg-[#eef8f6] px-4 py-3 text-sm text-[#0f766e]">{message}</div> : null}
+        <button type="submit" disabled={loading} className={authPrimaryButtonClassName}>
+          {loading ? "Sending reset link..." : "Send reset link"}
+        </button>
+      </form>
+    </AuthShell>
   );
 }

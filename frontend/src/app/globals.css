@@ -2,29 +2,18 @@
 
 :root {
   color-scheme: light;
-  --bg: #ffffff;
+  --bg: #f5f7f6;
   --surface: #ffffff;
-  --border: #e5e7eb;
+  --border: rgba(15, 23, 42, 0.1);
   --text: #111827;
   --primary: #111827;
-  --platform-bg: #ffffff;
+  --platform-bg: #f5f7f6;
   --platform-sidebar: #ffffff;
   --platform-text: #111827;
-  --platform-muted: #4b5563;
+  --platform-muted: rgba(17, 24, 39, 0.58);
+  --accent: #0f766e;
+  --accent-soft: #e8f3f1;
   --platform-font: "Soehne", "Avenir Next", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
-}
-
-:root[data-theme-resolved="dark"] {
-  color-scheme: dark;
-  --bg: #101317;
-  --surface: #171c22;
-  --border: rgba(255, 255, 255, 0.1);
-  --text: #f2f4f7;
-  --primary: #ffffff;
-  --platform-bg: #101317;
-  --platform-sidebar: #141a20;
-  --platform-text: #f2f4f7;
-  --platform-muted: rgba(242, 244, 247, 0.58);
 }
 
 * {
@@ -32,7 +21,10 @@
 }
 
 html {
-  background: var(--platform-bg);
+  background:
+    radial-gradient(circle at top, rgba(15, 118, 110, 0.08), transparent 28%),
+    linear-gradient(180deg, rgba(148, 163, 184, 0.08), transparent 24%),
+    var(--platform-bg);
 }
 
 body {
@@ -40,7 +32,6 @@ body {
   color: var(--text);
   margin: 0;
   padding: 0;
-  line-height: 1.5;
   font-family: var(--platform-font);
 }
 

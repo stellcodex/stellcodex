@@ -8,31 +8,31 @@ export default function HomePage() {
       <section className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
         <div>
           <div className="inline-flex items-center gap-2 rounded-full border border-[#d7d3c8] bg-[#f7f5ef] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#4f6f6b]">
-            STELLCODEX MÜHENDİSLİK GÖRÜNTÜLEYİCİ
+            STELLCODEX ENGINEERING WORKSPACE
           </div>
           <h1 className="mt-4 text-xl font-semibold tracking-tight text-[#0c2a2a] sm:text-2xl">
-            Görüntüle. İncele. Paylaş. CAD&apos;siz mühendislik verisi.
+            One suite for 3D review, 2D review, documents, files, and controlled sharing.
           </h1>
           <p className="mt-4 max-w-xl text-sm text-[#2c4b49]">
-            Endüstriyel tasarımcılar, imalat ekipleri ve CAD lisansı olmayan karar
-            vericiler için. Dosyayı yükle, 2D/3D görüntüle, link ile paylaş.
+            Built for industrial designers, manufacturing teams, and decision makers without CAD licenses.
+            Upload once, route the file into the right STELLCODEX application, and keep every handoff inside one trusted platform.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <Button href="/dashboard">Panel</Button>
+            <Button href="/">Open STELLCODEX</Button>
             <Button href="/docs" variant="ghost">
-              Dokümanlar
+              Docs
             </Button>
           </div>
 
           <div className="mt-8 grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-[#d7d3c8] bg-[#f7f5ef] px-4 py-3 text-xs text-[#4f6f6b]">
-              Salt görüntüleme
+              Read-only review
             </div>
             <div className="rounded-2xl border border-[#d7d3c8] bg-[#f7f5ef] px-4 py-3 text-xs text-[#4f6f6b]">
-              Sunucu tarafı dönüşüm
+              Server-side conversion
             </div>
             <div className="rounded-2xl border border-[#d7d3c8] bg-[#f7f5ef] px-4 py-3 text-xs text-[#4f6f6b]">
-              Güvenli paylaşım linkleri
+              Secure sharing links
             </div>
           </div>
         </div>
@@ -40,15 +40,15 @@ export default function HomePage() {
         <div className="relative">
           <div className="rounded-3xl border border-[#d7d3c8] bg-[#f7f5ef] p-5 shadow-sm">
             <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.2em] text-[#4f6f6b]">
-              <span>Görüntüleyici Önizleme</span>
+              <span>Viewer Preview</span>
               <span className="rounded-full border border-[#d7d3c8] bg-white px-2 py-1 text-[10px]">
-                Salt görüntüleme
+                Read-only
               </span>
             </div>
             <div className="mt-4 overflow-hidden rounded-2xl border border-[#e3dfd3] bg-white">
               <Image
                 src="/preview.svg"
-                alt="Stellcodex görüntüleyici önizleme"
+                alt="Stellcodex viewer preview"
                 width={900}
                 height={560}
                 className="h-auto w-full"
@@ -57,13 +57,13 @@ export default function HomePage() {
             </div>
             <div className="mt-4 grid grid-cols-3 gap-2 text-xs text-[#4f6f6b]">
               <div className="rounded-xl border border-[#e3dfd3] bg-white px-3 py-2 text-center">
-                Yörünge
+                Orbit
               </div>
               <div className="rounded-xl border border-[#e3dfd3] bg-white px-3 py-2 text-center">
-                Ölçüm
+                Measure
               </div>
               <div className="rounded-xl border border-[#e3dfd3] bg-white px-3 py-2 text-center">
-                Paylaş
+                Share
               </div>
             </div>
           </div>
@@ -72,32 +72,31 @@ export default function HomePage() {
 
       <section className="mt-10 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="rounded-3xl border border-[#d7d3c8] bg-white/70 p-5 shadow-sm">
-          <div className="text-sm font-semibold text-[#0c2a2a]">Tek bakışta akış</div>
+          <div className="text-sm font-semibold text-[#0c2a2a]">Workflow at a glance</div>
           <div className="mt-4 grid gap-3 text-sm text-[#2c4b49] sm:grid-cols-4">
             <div className="rounded-2xl border border-[#e3dfd3] bg-[#f7f5ef] px-3 py-3 text-center">
-              Yükle
+              Upload
             </div>
             <div className="rounded-2xl border border-[#e3dfd3] bg-[#f7f5ef] px-3 py-3 text-center">
-              Dönüştür
+              Convert
             </div>
             <div className="rounded-2xl border border-[#e3dfd3] bg-[#f7f5ef] px-3 py-3 text-center">
-              Görüntüle
+              View
             </div>
             <div className="rounded-2xl border border-[#e3dfd3] bg-[#f7f5ef] px-3 py-3 text-center">
-              Paylaş
+              Share
             </div>
           </div>
         </div>
 
-        <div className="rounded-3xl border border-[#d7d3c8] bg-[#0c3b3a] p-5 text-white shadow-sm">
-          <div className="text-sm font-semibold">Dosya yüklemeden önce</div>
-          <p className="mt-2 text-sm text-white/80">
-            STEP, IGES, STL, PDF, PNG, DXF ve daha fazlası. Dosya yükleme ve
-            görüntüleme akıcı, stabil ve güvenli.
+        <div className="rounded-3xl border border-[#cfe1de] bg-[#eef8f6] p-5 text-[#0c2a2a] shadow-sm">
+          <div className="text-sm font-semibold">Before you upload</div>
+          <p className="mt-2 text-sm text-[#2c4b49]">
+            STEP, IGES, STL, PDF, PNG, DXF, and more. STELLCODEX will open the responsible application automatically and keep the flow simple.
           </p>
           <div className="mt-4">
-            <Button href="/dashboard" variant="secondary">
-              Panele git
+            <Button href="/upload" variant="secondary">
+              Upload a file
             </Button>
           </div>
         </div>
@@ -107,40 +106,40 @@ export default function HomePage() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#4f6f6b]">
-              Neden STELLCODEX
+              Why STELLCODEX
             </div>
             <h2 className="mt-3 text-xl font-semibold text-[#0c2a2a] sm:text-2xl">
-              CAD lisansı olmadan teknik kararları hızlandır.
+              Move technical decisions faster without a CAD seat.
             </h2>
           </div>
           <Link className="text-sm font-semibold text-[#1d5a57] hover:text-[#0c2a2a]" href="/docs">
-            Yardım merkezi →
+            Help center ->
           </Link>
         </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           <div className="rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
-            <div className="text-sm font-semibold text-[#0c2a2a]">2D + 3D aynı yerde</div>
+            <div className="text-sm font-semibold text-[#0c2a2a]">2D + 3D in one place</div>
             <p className="mt-2 text-sm text-[#2c4b49]">
-              Tek bir link ile teknik ekipten müşteriye kadar herkes aynı modeli görür.
+              One suite keeps engineering teams and customers aligned on the same file without sending them into separate products.
             </p>
           </div>
           <div className="rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
-            <div className="text-sm font-semibold text-[#0c2a2a]">Güvenli paylaşım</div>
+            <div className="text-sm font-semibold text-[#0c2a2a]">Secure sharing</div>
             <p className="mt-2 text-sm text-[#2c4b49]">
-              Salt görüntüleme. Versiyon kontrolü ve paylaşım limiti ile dosyalar kontrol altında.
+              Read-only review with version control and controlled sharing limits.
             </p>
           </div>
           <div className="rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
-            <div className="text-sm font-semibold text-[#0c2a2a]">Sunucu tarafı dönüşüm</div>
+            <div className="text-sm font-semibold text-[#0c2a2a]">Server-side conversion</div>
             <p className="mt-2 text-sm text-[#2c4b49]">
-              Kurulum yok. Dönüşüm ve önizleme tek merkezden yapılır.
+              No local setup. Conversion and previews run from a single controlled backend.
             </p>
           </div>
           <div className="rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
-            <div className="text-sm font-semibold text-[#0c2a2a]">Takım için hazır</div>
+            <div className="text-sm font-semibold text-[#0c2a2a]">Built for teams</div>
             <p className="mt-2 text-sm text-[#2c4b49]">
-              Dosya durumları, görüntüleme bağlantıları ve kontrol merkezi.
+              File states, viewing links, and a central control surface stay connected.
             </p>
           </div>
         </div>
@@ -148,19 +147,19 @@ export default function HomePage() {
 
       <section className="mt-10 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
         <div className="rounded-3xl border border-[#d7d3c8] bg-[#f7f5ef] p-5 shadow-sm">
-          <div className="text-sm font-semibold text-[#0c2a2a]">Kimler için</div>
+          <div className="text-sm font-semibold text-[#0c2a2a]">Who it is for</div>
           <ul className="mt-3 grid gap-2 text-sm text-[#2c4b49]">
-            <li>Endüstriyel tasarım ve ürün ekipleri</li>
-            <li>Üretim ve teknik satın alma</li>
-            <li>CAD lisansı olmayan yönetici ve tedarikçiler</li>
-            <li>Kalite ve teknik inceleme ekipleri</li>
+            <li>Industrial design and product teams</li>
+            <li>Manufacturing and technical sourcing teams</li>
+            <li>Managers and suppliers without CAD licenses</li>
+            <li>Quality and technical review teams</li>
           </ul>
         </div>
 
         <div className="rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
-          <div className="text-sm font-semibold text-[#0c2a2a]">Topluluk</div>
+          <div className="text-sm font-semibold text-[#0c2a2a]">Community</div>
           <p className="mt-2 text-sm text-[#2c4b49]">
-            Kurasyonlu model kitaplığı, örnek dosyalar ve topluluk paylaşımları.
+            Curated model libraries, example files, and community shares.
           </p>
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             {Array.from({ length: 3 }).map((_, idx) => (
@@ -168,13 +167,13 @@ export default function HomePage() {
                 key={idx}
                 className="rounded-2xl border border-dashed border-[#d7d3c8] bg-[#f7f5ef] px-3 py-6 text-center text-xs text-[#4f6f6b]"
               >
-                Önizleme
+                Preview
               </div>
             ))}
           </div>
           <div className="mt-4">
             <Button href="/docs" variant="secondary">
-              Dokümanlar
+              Docs
             </Button>
           </div>
         </div>
@@ -182,40 +181,40 @@ export default function HomePage() {
 
       <section className="mt-10 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
-          <div className="text-sm font-semibold text-[#0c2a2a]">Dokümanlar</div>
+          <div className="text-sm font-semibold text-[#0c2a2a]">Documentation</div>
           <p className="mt-2 text-sm text-[#2c4b49]">
-            Kısa rehberler, format listeleri ve sorun giderme akışları tek yerde.
+            Quick guides, format lists, and troubleshooting paths in one place.
           </p>
           <div className="mt-4 flex flex-wrap gap-2 text-xs">
-            <span className="rounded-full border border-[#d7d3c8] bg-[#f7f5ef] px-3 py-1">Başlangıç</span>
-            <span className="rounded-full border border-[#d7d3c8] bg-[#f7f5ef] px-3 py-1">Formatlar</span>
-            <span className="rounded-full border border-[#d7d3c8] bg-[#f7f5ef] px-3 py-1">Sorun giderme</span>
-            <span className="rounded-full border border-[#d7d3c8] bg-[#f7f5ef] px-3 py-1">SSS</span>
+            <span className="rounded-full border border-[#d7d3c8] bg-[#f7f5ef] px-3 py-1">Getting Started</span>
+            <span className="rounded-full border border-[#d7d3c8] bg-[#f7f5ef] px-3 py-1">Formats</span>
+            <span className="rounded-full border border-[#d7d3c8] bg-[#f7f5ef] px-3 py-1">Troubleshooting</span>
+            <span className="rounded-full border border-[#d7d3c8] bg-[#f7f5ef] px-3 py-1">FAQ</span>
           </div>
         </div>
 
-        <div className="rounded-3xl border border-[#d7d3c8] bg-[#0c3b3a] p-5 text-white shadow-sm">
-          <div className="text-sm font-semibold">Güvenlik ve sınırlar</div>
-          <ul className="mt-3 grid gap-2 text-sm text-white/80">
-            <li>Salt görüntüleme</li>
-            <li>Paylaşım linkleri kontrollü</li>
-            <li>PII maskeleme ve denetim kaydı</li>
-            <li>KVKK / GDPR uyumlu altyapı</li>
+        <div className="rounded-3xl border border-[#cfe1de] bg-[#eef8f6] p-5 text-[#0c2a2a] shadow-sm">
+          <div className="text-sm font-semibold">Security and limits</div>
+          <ul className="mt-3 grid gap-2 text-sm text-[#2c4b49]">
+            <li>Read-only viewing</li>
+            <li>Controlled sharing links</li>
+            <li>PII masking and audit logging</li>
+            <li>KVKK / GDPR aligned infrastructure</li>
           </ul>
         </div>
       </section>
 
       <section className="mt-10 rounded-3xl border border-[#d7d3c8] bg-[#f7f5ef] p-5 text-center shadow-sm">
         <h3 className="text-xl font-semibold text-[#0c2a2a] sm:text-2xl">
-          Dosyayı yükle, anında görüntüle.
+          Upload a file and review it immediately.
         </h3>
         <p className="mt-2 text-sm text-[#2c4b49]">
-          Stellcodex bir pazarlama sitesi değil, ürünün kendisi.
+          Stellcodex is not a marketing shell. It is the product itself.
         </p>
         <div className="mt-5 flex flex-wrap justify-center gap-3">
-          <Button href="/dashboard">Panele git</Button>
+          <Button href="/">Open STELLCODEX</Button>
           <Button href="/login" variant="secondary">
-            Giriş yap
+            Sign in
           </Button>
         </div>
       </section>
