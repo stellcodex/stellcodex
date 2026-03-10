@@ -18,7 +18,7 @@ export default function HomePage() {
             Upload a file, view it in 2D or 3D, and share it with a controlled link.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <Button href="/dashboard">Dashboard</Button>
+            <Button href="/">Open STELLCODEX</Button>
             <Button href="/docs" variant="ghost">
               Docs
             </Button>
@@ -96,8 +96,8 @@ export default function HomePage() {
             stable, and secure.
           </p>
           <div className="mt-4">
-            <Button href="/dashboard" variant="secondary">
-              Open dashboard
+            <Button href="/upload" variant="secondary">
+              Upload a file
             </Button>
           </div>
         </div>
@@ -213,7 +213,7 @@ export default function HomePage() {
           Stellcodex is not a marketing shell. It is the product itself.
         </p>
         <div className="mt-5 flex flex-wrap justify-center gap-3">
-          <Button href="/dashboard">Open dashboard</Button>
+          <Button href="/">Open STELLCODEX</Button>
           <Button href="/login" variant="secondary">
             Sign in
           </Button>

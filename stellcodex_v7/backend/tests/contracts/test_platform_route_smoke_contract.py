@@ -9,6 +9,11 @@ APPS_PAGE_PATH = FRONTEND_ROOT / "app" / "apps" / "page.tsx"
 APP_RUNNER_PAGE_PATH = FRONTEND_ROOT / "app" / "app" / "[appId]" / "page.tsx"
 WORKSPACE_ROUTE_PATH = FRONTEND_ROOT / "app" / "workspace" / "[workspaceId]" / "[[...slug]]" / "page.tsx"
 PUBLIC_HOME_PATH = FRONTEND_ROOT / "app" / "(public)" / "home" / "page.tsx"
+PUBLIC_PRICING_PATH = FRONTEND_ROOT / "app" / "(public)" / "pricing" / "page.tsx"
+DASHBOARD_PAGE_PATH = FRONTEND_ROOT / "app" / "(app)" / "dashboard" / "page.tsx"
+DASHBOARD_FILES_PATH = FRONTEND_ROOT / "app" / "(app)" / "dashboard" / "files" / "page.tsx"
+DASHBOARD_SETTINGS_PATH = FRONTEND_ROOT / "app" / "(app)" / "dashboard" / "settings" / "page.tsx"
+DASHBOARD_SHARES_PATH = FRONTEND_ROOT / "app" / "(app)" / "dashboard" / "shares" / "page.tsx"
 CLIENT_PATH = FRONTEND_ROOT / "components" / "platform" / "PlatformClient.tsx"
 
 
@@ -48,6 +53,30 @@ def test_public_home_does_not_duplicate_suite_entry_copy() -> None:
     assert "STELLCODEX Suite" not in public_text
     assert "Simple in front. Specialized underneath." not in public_text
     assert "Upload once. Open the right app automatically." not in public_text
+    assert 'href="/dashboard"' not in public_text
+    assert 'href="/"' in public_text
+    assert 'href="/upload"' in public_text
+
+
+def test_public_pricing_matches_locked_plan_model() -> None:
+    pricing_text = PUBLIC_PRICING_PATH.read_text(encoding="utf-8")
+
+    assert "Free" in pricing_text
+    assert "Plus" in pricing_text
+    assert "Pro" in pricing_text
+    assert "Coming soon" not in pricing_text
+
+
+def test_legacy_dashboard_routes_redirect_into_workspace_shell() -> None:
+    dashboard_text = DASHBOARD_PAGE_PATH.read_text(encoding="utf-8")
+    files_text = DASHBOARD_FILES_PATH.read_text(encoding="utf-8")
+    settings_text = DASHBOARD_SETTINGS_PATH.read_text(encoding="utf-8")
+    shares_text = DASHBOARD_SHARES_PATH.read_text(encoding="utf-8")
+
+    assert "WorkspaceRedirect" in dashboard_text
+    assert 'suffix="/files"' in files_text
+    assert 'suffix="/settings"' in settings_text
+    assert 'suffix="/files"' in shares_text
 
 
 def test_home_surface_primary_actions_are_unique() -> None:
