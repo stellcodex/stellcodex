@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+"""MinIO bootstrap helpers for bucket readiness.
+
+The implementation keeps startup behavior explicit and English-first so
+infrastructure operators can read failures without locale ambiguity.
+"""
+
 import os
 import time
 import logging
@@ -24,10 +30,10 @@ def get_s3_client():
 
     if not endpoint or not access_key or not secret_key:
         raise RuntimeError(
-            "S3 env eksik. Gerekli: STELLCODEX_S3_ENDPOINT_URL/STELLCODEX_S3_ENDPOINT, STELLCODEX_S3_ACCESS_KEY_ID/STELLCODEX_S3_ACCESS_KEY, STELLCODEX_S3_SECRET_ACCESS_KEY/STELLCODEX_S3_SECRET_KEY"
+            "Missing S3 environment variables. Required: STELLCODEX_S3_ENDPOINT_URL/STELLCODEX_S3_ENDPOINT, STELLCODEX_S3_ACCESS_KEY_ID/STELLCODEX_S3_ACCESS_KEY, STELLCODEX_S3_SECRET_ACCESS_KEY/STELLCODEX_S3_SECRET_KEY"
         )
 
-    # MinIO için: signature v4 + path-style adresleme
+    # MinIO requires signature v4 with path-style addressing.
     cfg = Config(signature_version="s3v4", s3={"addressing_style": "path"})
     return boto3.client(
         "s3",
@@ -42,24 +48,24 @@ def ensure_bucket_exists(max_wait_seconds: int = 30):
     log.info("BOOTSTRAP ensure_bucket_exists() called")
     bucket = _env("STELLCODEX_S3_BUCKET")
     if not bucket:
-        raise RuntimeError("Bucket env eksik: STELLCODEX_S3_BUCKET")
+        raise RuntimeError("Missing bucket environment variable: STELLCODEX_S3_BUCKET")
 
     s3 = get_s3_client()
 
-    # MinIO bazen container yeni kalkınca çok kısa süre hazır olmuyor -> kısa retry
+    # MinIO can take a short time to become ready after container startup.
     deadline = time.time() + max_wait_seconds
     last_err = None
 
     while time.time() < deadline:
         try:
-            # varsa sorun yok
+            # The bucket already exists and is reachable.
             s3.head_bucket(Bucket=bucket)
             log.info("MinIO bucket OK: %s", bucket)
             return
 
         except ClientError as e:
             code = str(e.response.get("Error", {}).get("Code", ""))
-            # bucket yoksa oluştur
+            # Create the bucket when it does not exist yet.
             if code in ("404", "NoSuchBucket", "NotFound"):
                 try:
                     log.info("BOOTSTRAP creating bucket...")
@@ -72,7 +78,7 @@ def ensure_bucket_exists(max_wait_seconds: int = 30):
                     time.sleep(2)
                     continue
 
-            # minio hazır değil / bağlantı vb -> retry
+            # Retry when MinIO is not ready or the connection is not stable yet.
             last_err = e
             log.warning("Bucket head failed, retrying... err=%s", e)
             time.sleep(2)
@@ -85,4 +91,3 @@ def ensure_bucket_exists(max_wait_seconds: int = 30):
             continue
 
     raise RuntimeError(f"MinIO bucket init failed. bucket={bucket} last_err={last_err}")
-

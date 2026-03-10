@@ -57,9 +57,9 @@ class InviteIn(BaseModel):
 def register(data: RegisterIn, db: Session = Depends(get_db)):
     existing = db.query(User).filter(User.email == data.email).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Bu email zaten kayıtlı.")
+        raise HTTPException(status_code=400, detail="This email is already registered.")
     if len(data.password) < 6:
-        raise HTTPException(status_code=400, detail="Şifre en az 6 karakter olmalı.")
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters long.")
 
     user = User(
         email=data.email,
@@ -88,11 +88,11 @@ def register(data: RegisterIn, db: Session = Depends(get_db)):
 def login(data: LoginIn, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == data.email).first()
     if not user or not user.password_hash:
-        raise HTTPException(status_code=401, detail="Email veya şifre hatalı.")
+        raise HTTPException(status_code=401, detail="Email or password is invalid.")
     if not _verify_password(data.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Email veya şifre hatalı.")
+        raise HTTPException(status_code=401, detail="Email or password is invalid.")
     if user.is_suspended:
-        raise HTTPException(status_code=403, detail="Hesabınız askıya alınmış.")
+        raise HTTPException(status_code=403, detail="Your account is suspended.")
 
     token = create_user_token(str(user.id), user.role)
     return AuthOut(
@@ -111,11 +111,11 @@ def invite_user(
 ):
     """Admin can invite/create users with a specific role."""
     if principal.typ != "user" or principal.role != "admin":
-        raise HTTPException(status_code=403, detail="Sadece admin davet edebilir.")
+        raise HTTPException(status_code=403, detail="Only admins can invite users.")
 
     existing = db.query(User).filter(User.email == data.email).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Bu email zaten kayıtlı.")
+        raise HTTPException(status_code=400, detail="This email is already registered.")
 
     password = data.password or _generate_temp_password()
     user = User(
@@ -148,17 +148,17 @@ def change_password(
     principal: Principal = Depends(get_current_principal),
 ):
     if principal.typ != "user" or not principal.user_id:
-        raise HTTPException(status_code=401, detail="Oturum açık değil.")
+        raise HTTPException(status_code=401, detail="No active session was found.")
     old_pw = data.get("old_password", "")
     new_pw = data.get("new_password", "")
     if len(new_pw) < 6:
-        raise HTTPException(status_code=400, detail="Yeni şifre en az 6 karakter olmalı.")
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters long.")
 
     user = db.get(User, principal.user_id)
     if not user:
-        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı.")
+        raise HTTPException(status_code=404, detail="User was not found.")
     if user.password_hash and not _verify_password(old_pw, user.password_hash):
-        raise HTTPException(status_code=401, detail="Mevcut şifre hatalı.")
+        raise HTTPException(status_code=401, detail="Current password is invalid.")
 
     user.password_hash = _hash_password(new_pw)
     db.commit()

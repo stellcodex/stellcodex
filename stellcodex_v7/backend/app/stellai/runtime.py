@@ -332,27 +332,27 @@ class StellAIRuntime:
                 estimated_unit_cost = cost_estimate.get("estimated_unit_cost", first_output.get("estimated_unit_cost"))
                 currency = str(cost_estimate.get("currency") or "EUR")
                 risk_count = int(dfm_report.get("risk_count") or len(dfm_report.get("risks") or []))
-                reply = f"STELL-AI mühendislik analizini tamamladı. Önerilen süreç: {process}. Yetenek: {capability}."
+                reply = f"STELL-AI completed the engineering analysis. Recommended process: {process}. Capability: {capability}."
                 if estimated_unit_cost is not None:
-                    reply += f" Tahmini birim maliyet: {estimated_unit_cost} {currency}."
+                    reply += f" Estimated unit cost: {estimated_unit_cost} {currency}."
                 if risk_count:
-                    reply += f" DFM risk sayısı: {risk_count}."
+                    reply += f" DFM risk count: {risk_count}."
                 return guard_text_or_default(reply, default=GENERAL_FAILURE_TEXT)
             if "state" in first_output:
                 return guard_text_or_default(
-                    f"STELL-AI karar durumunu doğruladı. Durum: {first_output.get('state')}.",
+                    f"STELL-AI verified the decision state. State: {first_output.get('state')}.",
                     default=GENERAL_FAILURE_TEXT,
                 )
             if "status" in first_output:
                 return guard_text_or_default(
-                    f"STELL-AI dosya durumunu doğruladı. Durum: {first_output.get('status')}.",
+                    f"STELL-AI verified the file status. Status: {first_output.get('status')}.",
                     default=GENERAL_FAILURE_TEXT,
                 )
             if "capability_status" in first_output:
                 mode = str(first_output.get("mode") or "unknown")
                 capability = str(first_output.get("capability_status") or "unknown")
                 return guard_text_or_default(
-                    f"STELL-AI mühendislik kapasitesini doğruladı. Mod: {mode}. Yetenek: {capability}.",
+                    f"STELL-AI verified the engineering capability. Mode: {mode}. Capability: {capability}.",
                     default=GENERAL_FAILURE_TEXT,
                 )
 
@@ -363,12 +363,12 @@ class StellAIRuntime:
             top_preview = " ".join(str(retrieval.chunks[0].text or "").split())[:180]
             if top_preview:
                 return guard_text_or_default(
-                    f"STELL-AI doğrulanmış bağlam buldu. Özet: {top_preview}",
+                    f"STELL-AI found grounded context. Summary: {top_preview}",
                     default=GENERAL_FAILURE_TEXT,
                 )
-            return "STELL-AI doğrulanmış bağlam buldu."
+            return "STELL-AI found grounded context."
 
-        return "STELL-AI isteği aldı. Daha kesin sonuç için file_id ile ilerleyebilirim."
+        return "STELL-AI received the request. I can continue with a file_id for a more precise result."
 
     def _safe_response(
         self,

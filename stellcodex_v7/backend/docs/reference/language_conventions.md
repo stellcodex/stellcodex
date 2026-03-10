@@ -27,6 +27,7 @@ When you add a new engineering module or artifact:
 2. Update `docs/reference/engineering_pipeline_reference.md` if the artifact
    changes the pipeline surface.
 3. Keep public contract names stable even if UI copy is localized.
+4. Run `python3 scripts/audit_language_consistency.py` before closing the task.
 
 ## Why this exists
 

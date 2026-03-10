@@ -1,7 +1,7 @@
 """
 Stell Chat API — Admin Panel Endpoint
-POST /api/v1/stell/chat  (admin JWT zorunlu)
-İç ağda stell-webhook (port 4500) ile konuşur.
+POST /api/v1/stell/chat  (admin JWT required)
+Uses the internal stell-webhook bridge on port 4500 when available.
 """
 
 from __future__ import annotations
@@ -20,7 +20,12 @@ from fastapi import APIRouter, HTTPException
 from fastapi.params import Depends
 from pydantic import BaseModel
 
+from app.core.identity.stell_identity import RUNTIME_UNAVAILABLE_TEXT
 from app.security.deps import require_role, Principal
+from app.stellai.channel_runtime import execute_channel_runtime
+from app.stellai.service import get_stellai_runtime
+from app.stellai.tools import GLOBAL_ALLOWLIST
+from app.stellai.types import RuntimeContext, RuntimeRequest
 
 router = APIRouter(prefix="/stell", tags=["stell"])
 
@@ -111,7 +116,7 @@ def latest_checkpoint_snapshot() -> Dict[str, Any]:
                 "live_context_markdown": data.get("live_context_markdown"),
             },
         }
-    raise LookupError("Checkpoint event bulunamadi.")
+    raise LookupError("Checkpoint event was not found.")
 
 
 def rpc_chat(message: str, timeout: int = 30) -> Dict[str, Any]:
@@ -128,7 +133,7 @@ def rpc_chat(message: str, timeout: int = 30) -> Dict[str, Any]:
     client.rpush(RPC_REQUESTS_KEY, json.dumps(payload, ensure_ascii=False))
     result = client.blpop(response_key, timeout=timeout)
     if not result:
-        raise TimeoutError("RPC bridge yanit vermedi.")
+        raise TimeoutError("RPC bridge did not respond in time.")
     _, raw = result
     client.delete(response_key)
     return json.loads(raw)
@@ -170,31 +175,27 @@ def stell_chat(
     body: ChatIn,
     principal: Principal = Depends(require_role("admin")),
 ):
-    """Admin panelden Stell'e mesaj gönder."""
+    """Send a message to Stell from the admin panel."""
     message = body.message.strip()
-    payload = json.dumps({"message": message}).encode()
-    failures: list[str] = []
-    for transport in chat_transport_sequence():
-        if transport == "rpc":
-            try:
-                rpc_result = rpc_chat(message, timeout=40)
-                return ChatOut(reply=str(rpc_result.get("reply", "")))
-            except TimeoutError as exc:
-                failures.append(f"rpc timeout: {exc}")
-            except redis.RedisError as exc:
-                failures.append(f"rpc redis: {exc}")
-            except Exception as exc:
-                failures.append(f"rpc error: {exc}")
-            continue
-        try:
-            data = fetch_json("/stell/internal/chat", payload=payload, method="POST", timeout=HTTP_BRIDGE_TIMEOUT)
-            return ChatOut(reply=data["reply"])
-        except urllib.error.URLError as exc:
-            failures.append(f"http bridge: {exc}")
-        except Exception as exc:
-            failures.append(f"http error: {exc}")
-    detail = "; ".join(failures) if failures else "bilinmeyen transport hatasi"
-    raise HTTPException(status_code=503, detail=f"Stell servisi yanit vermiyor: {detail}")
+    if not message:
+        raise HTTPException(status_code=400, detail="message is required")
+    context = RuntimeContext(
+        tenant_id="0",
+        project_id="admin",
+        principal_type="user",
+        principal_id=str(principal.user_id or "admin"),
+        session_id=f"admin_{uuid.uuid4().hex[:16]}",
+        trace_id=str(uuid.uuid4()),
+        allowed_tools=GLOBAL_ALLOWLIST,
+    )
+    request = RuntimeRequest(message=message, context=context, top_k=4)
+    outcome = execute_channel_runtime(
+        request=request,
+        db=None,
+        runtime=get_stellai_runtime(),
+        channel="admin",
+    )
+    return ChatOut(reply=str(outcome.reply or RUNTIME_UNAVAILABLE_TEXT))
 
 
 @router.get("/health")
@@ -206,14 +207,12 @@ def stell_health():
 def stell_context(
     principal: Principal = Depends(require_role("admin")),
 ):
-    """Admin panel için ortak canlı context snapshotını döndür."""
+    """Return the shared live context snapshot for the admin panel."""
     try:
         return latest_checkpoint_snapshot()
-    except LookupError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except redis.RedisError as e:
-        raise HTTPException(status_code=503, detail=f"Checkpoint stream erişilemiyor: {e}")
-    except urllib.error.URLError as e:
-        raise HTTPException(status_code=503, detail=f"Stell context servisi yanıt vermiyor: {e}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Hata: {e}")
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Context was not found")
+    except (redis.RedisError, urllib.error.URLError):
+        raise HTTPException(status_code=503, detail=RUNTIME_UNAVAILABLE_TEXT)
+    except Exception:
+        raise HTTPException(status_code=500, detail=RUNTIME_UNAVAILABLE_TEXT)

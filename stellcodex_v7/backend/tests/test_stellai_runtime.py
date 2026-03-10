@@ -286,9 +286,9 @@ class StellAIRuntimeTests(unittest.TestCase):
             context_bundle={},
         )
 
-        self.assertIn("Önerilen süreç: cnc_machining", reply)
-        self.assertIn("Tahmini birim maliyet: 42.5 EUR", reply)
-        self.assertIn("DFM risk sayısı: 2", reply)
+        self.assertIn("Recommended process: cnc_machining", reply)
+        self.assertIn("Estimated unit cost: 42.5 EUR", reply)
+        self.assertIn("DFM risk count: 2", reply)
 
     def test_self_evaluator_flags_missing_grounding(self) -> None:
         evaluator = SelfEvaluatorAgent()
