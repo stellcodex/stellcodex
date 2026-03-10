@@ -50,8 +50,8 @@ export function PageHeader({
               type="button"
               className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-[#cfd8e3] bg-white text-[#1f2937] hover:bg-[#f8fafc]"
               onClick={toggleFocusMode}
-              title={focusMode ? "Odaktan çık" : "Odak modu"}
-              aria-label={focusMode ? "Odaktan çık" : "Odak modu"}
+              title={focusMode ? "Exit focus mode" : "Focus mode"}
+              aria-label={focusMode ? "Exit focus mode" : "Focus mode"}
             >
               {focusMode ? (
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" aria-hidden>

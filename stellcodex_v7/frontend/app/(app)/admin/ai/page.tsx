@@ -8,7 +8,7 @@ import { fetchAdminQueues, fetchAdminFailed } from "@/services/admin";
 function metric(value: string | number, sub?: string) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
-      <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Metrik</div>
+      <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Metric</div>
       <div className="mt-2 text-2xl font-semibold text-slate-900">{value}</div>
       {sub ? <div className="mt-1 text-xs text-slate-500">{sub}</div> : null}
     </div>
@@ -30,7 +30,7 @@ export default function AdminAiPage() {
       })
       .catch((e: any) => {
         if (!active) return;
-        setError(e?.message || "AI verisi alınamadı.");
+        setError(e?.message || "AI data could not be loaded.");
       });
     return () => {
       active = false;
@@ -54,18 +54,18 @@ export default function AdminAiPage() {
     const issues: string[] = [];
     const recs: string[] = [];
     if (queueDepth > 20) {
-      issues.push("Kuyruk derinliği yükseldi.");
-      recs.push("İşçi sayısını artırın veya büyük işler için toplu planlama yapın.");
+      issues.push("Queue depth is rising.");
+      recs.push("Increase worker capacity or batch large jobs.");
     }
     if (failed > 5) {
-      issues.push("Dönüşüm hataları artıyor.");
-      recs.push("En sık hata nedenlerine göre format ve hatları kontrol edin.");
+      issues.push("Conversion failures are increasing.");
+      recs.push("Review the most common failure causes by format and route.");
     }
     if (!issues.length) {
-      issues.push("Belirgin sorun tespit edilmedi.");
+      issues.push("No notable issue detected.");
     }
     if (!recs.length) {
-      recs.push("Sistem stabil görünüyor. İzlemeye devam edin.");
+      recs.push("The system looks stable. Keep monitoring.");
     }
 
     return { queueDepth, failed, topFailList, issues, recs };
@@ -74,23 +74,23 @@ export default function AdminAiPage() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="AI Önerileri"
-        description="Mevcut operasyon verilerinden üretilen salt okunur içgörüler."
-        crumbs={[{ label: "Yönetim", href: "/admin" }, { label: "AI" }]}
+        title="AI Insights"
+        description="Read-only insights derived from current operational data."
+        crumbs={[{ label: "Admin", href: "/admin" }, { label: "AI" }]}
       />
       {error ? (
-        <EmptyState title="AI verisi yok" description={error} />
+        <EmptyState title="No AI data" description={error} />
       ) : (
         <>
           <section className="grid gap-4 lg:grid-cols-3">
-            {metric(insights.queueDepth, "Kuyruk derinliği")}
-            {metric(insights.failed, "Başarısız işler")}
-            {metric(insights.topFailList[0] || "-", "En sık hata nedeni")}
+            {metric(insights.queueDepth, "Queue depth")}
+            {metric(insights.failed, "Failed jobs")}
+            {metric(insights.topFailList[0] || "-", "Most frequent failure reason")}
           </section>
 
           <section className="grid gap-4 lg:grid-cols-2">
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="text-sm font-semibold text-slate-900">Öne çıkan sorunlar</div>
+              <div className="text-sm font-semibold text-slate-900">Top issues</div>
               <ul className="mt-3 list-disc pl-4 text-sm text-slate-700">
                 {insights.issues.map((i) => (
                   <li key={i}>{i}</li>
@@ -99,7 +99,7 @@ export default function AdminAiPage() {
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="text-sm font-semibold text-slate-900">Öneriler</div>
+              <div className="text-sm font-semibold text-slate-900">Recommendations</div>
               <ul className="mt-3 list-disc pl-4 text-sm text-slate-700">
                 {insights.recs.map((i) => (
                   <li key={i}>{i}</li>

@@ -55,7 +55,7 @@ export function Tabs({
                     "rounded-md px-1.5 py-0.5 text-xs",
                     active ? "hover:bg-white/10" : "hover:bg-slate-200"
                   )}
-                  aria-label={`${tab.label} sekmesini kapat`}
+                  aria-label={`Close ${tab.label} tab`}
                 >
                   ✕
                 </button>
@@ -68,4 +68,3 @@ export function Tabs({
     </div>
   );
 }
-

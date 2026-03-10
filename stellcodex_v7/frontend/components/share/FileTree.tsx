@@ -24,7 +24,7 @@ export function FileTree({
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-3">
       <div className="mb-2 px-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-        Klasörler
+        Folders
       </div>
       <button
         className={clsx(
@@ -33,7 +33,7 @@ export function FileTree({
         )}
         onClick={() => onSelectFolder(null)}
       >
-        Tümü
+        All
       </button>
       <div className="grid gap-1">
         {roots.map((folder) => (
@@ -53,7 +53,7 @@ export function FileTree({
                     currentFolderId === folder.id ? "bg-white/15 text-white" : "bg-slate-100 text-slate-500"
                   )}
                 >
-                  Sistem
+                  System
                 </span>
               ) : null}
             </button>
@@ -75,4 +75,3 @@ export function FileTree({
     </div>
   );
 }
-

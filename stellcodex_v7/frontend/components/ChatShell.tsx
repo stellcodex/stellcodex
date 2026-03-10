@@ -18,66 +18,81 @@ function botReply(input: string) {
   const files = listWorkspaceFiles();
   const latest = getLatestWorkspaceFile();
 
+  // Keep a small bilingual keyword set here so quick-start prompts work for
+  // both English and Turkish users without changing the underlying workflow.
   if (!text) {
-    return "Sorunuzu biraz daha detaylandırın, adım adım yönlendireyim.";
+    return "Add a little more detail and I will guide you step by step.";
   }
 
-  if (text.includes("nasıl kullan") || text.includes("nereden başla") || text.includes("ilk adım")) {
+  if (
+    text.includes("how to use") ||
+    text.includes("where to start") ||
+    text.includes("first step") ||
+    text.includes("nasıl kullan") ||
+    text.includes("nereden başla") ||
+    text.includes("ilk adım")
+  ) {
     return [
-      "STELLCODEX hızlı başlangıç:",
-      "1. `Dosya Yükle` ile modelinizi yükleyin.",
-      "2. Dosya tipine göre sistem sizi 3D veya 2D moduna taşır.",
-      "3. Sol menüden Patlatma/Render/MoldCodes modlarını açın.",
-      "4. Gerekirse Projeler bölümünden aynı dosyayı tekrar çağırın.",
+      "STELLCODEX quick start:",
+      "1. Upload the model with `Upload File`.",
+      "2. The system routes you into 3D or 2D mode based on the file type.",
+      "3. Open Exploded View, Render, or MoldCodes from the left navigation.",
+      "4. Reopen the same file from Projects whenever you need it.",
     ].join("\n");
   }
 
-  if (text.includes("dosya") && text.includes("yük")) {
+  if ((text.includes("file") && text.includes("upload")) || (text.includes("dosya") && text.includes("yük"))) {
     return [
-      "Dosya yükleme için izlenecek yol:",
-      "1. Ana ekrandaki grid alana dosyayı sürükleyin veya `Dosya Yükle` deyin.",
-      "2. Yükleme tamamlanınca dosya otomatik projeye eklenir.",
-      "3. 3D dosya ise `/app/3d`, 2D dosya ise `/app/2d` açılır.",
+      "Upload flow:",
+      "1. Drag the file into the main drop zone or click `Upload File`.",
+      "2. The uploaded file is added to the active project automatically.",
+      "3. 3D files open in `/app/3d`, and 2D files open in `/app/2d`.",
     ].join("\n");
   }
 
-  if (text.includes("proje")) {
+  if (text.includes("project") || text.includes("proje")) {
     if (!files.length) {
-      return "Henüz proje kaydı yok. Dosya yüklediğinizde otomatik olarak `Genel Proje` içine eklenir.";
+      return "There is no project record yet. Uploaded files are added to the default project automatically.";
     }
-    return `Toplam ${files.length} dosyanız proje akışına kaydedildi. Projeler sayfasından dosya bazlı açabilirsiniz.`;
+    return `${files.length} files are already registered in the project flow. You can reopen them from the Projects page.`;
   }
 
   if (text.includes("3d")) {
-    return "3D için sol menüden `3D Model` açın. Dosya seçiliyse görüntüleyici alanında modeliniz doğrudan açılır.";
+    return "Open `3D Model` from the left navigation. If a file is selected, the model opens directly in the viewer surface.";
   }
 
   if (text.includes("2d") || text.includes("dxf")) {
-    return "2D/DXF için `2D DXF` modunu açın. Ölçü, katman ve görünüm araçları bu modda kullanılır.";
+    return "Open `2D DXF` for drawings. Measurement, layer, and view tools are available in that mode.";
   }
 
-  if (text.includes("patlat")) {
-    return "Patlatma modunda montajı adımlı olarak ayırabilir, odak ve kesit kontrolleriyle bileşen ilişkisini inceleyebilirsiniz.";
+  if (text.includes("explode") || text.includes("patlat")) {
+    return "Exploded View lets you separate the assembly step by step and inspect component relationships with focus and section controls.";
   }
 
   if (text.includes("render")) {
-    return "Render modunda önce dosyayı seçin, sonra preset belirleyip `Render Başlat` ile kuyruğa alın.";
+    return "In Render mode, select a file first, then choose a preset and start the render job.";
   }
 
   if (text.includes("moldcodes")) {
-    return "MoldCodes bölümünde kategori ve arama ile standart elemanları tarayıp teknik özet panelinden kontrol edebilirsiniz.";
+    return "In MoldCodes, browse standard components by category and search, then review them in the technical summary panel.";
   }
 
-  if (text.includes("kütüphane") || text.includes("paylaş")) {
-    return "Kütüphane akışında dosyaları paylaşabilir, şablonları görebilir ve indirilenleri ayrı sekmelerde yönetebilirsiniz.";
+  if (text.includes("library") || text.includes("share") || text.includes("kütüphane") || text.includes("paylaş")) {
+    return "The library flow lets you share files, review templates, and manage downloads in separate tabs.";
   }
 
-  if (text.includes("son dosya") || text.includes("en son dosya") || text.includes("ne yükledim")) {
-    if (!latest) return "Henüz kayıtlı bir yükleme yok.";
-    return `Son yüklenen dosya: ${latest.originalFilename} (${latest.mode.toUpperCase()}). İstersen bu dosyayı ilgili modda açmana yardımcı olayım.`;
+  if (
+    text.includes("latest file") ||
+    text.includes("last file") ||
+    text.includes("son dosya") ||
+    text.includes("en son dosya") ||
+    text.includes("ne yükledim")
+  ) {
+    if (!latest) return "There is no recorded upload yet.";
+    return `Latest uploaded file: ${latest.originalFilename} (${latest.mode.toUpperCase()}). I can help you open it in the correct mode.`;
   }
 
-  return "Bunu netleştirelim: dosya yükleme, 3D/2D görüntüleme, proje yönetimi veya render adımından hangisinde yardıma ihtiyacınız var?";
+  return "Let’s narrow it down: do you need help with upload flow, 3D or 2D viewing, project management, or rendering?";
 }
 
 export default function ChatShell() {
@@ -85,7 +100,7 @@ export default function ChatShell() {
     {
       id: createId("assistant"),
       role: "assistant",
-      text: "Merhaba. STELLCODEX kullanımında size adım adım yardımcı olabilirim. Dosya yükleme, 3D/2D görüntüleme, proje ve render konularında soru sorabilirsiniz.",
+      text: "Hello. I can guide you through STELLCODEX step by step. Ask about upload flow, 3D or 2D viewing, projects, or rendering.",
     },
   ]);
   const [input, setInput] = useState("");
@@ -173,7 +188,7 @@ export default function ChatShell() {
 
           {typing ? (
             <div className="flex justify-start">
-              <div className="rounded-2xl bg-[#F7F8FA] px-4 py-2 text-sm text-[#6B7280]">Yazıyor...</div>
+              <div className="rounded-2xl bg-[#F7F8FA] px-4 py-2 text-sm text-[#6B7280]">Typing...</div>
             </div>
           ) : null}
           <div ref={endRef} />
@@ -187,7 +202,7 @@ export default function ChatShell() {
           <input
             value={input}
             onChange={(event) => setInput(event.target.value)}
-            placeholder="Mesaj yaz... (örn: 3D dosyamı nasıl açarım?)"
+            placeholder="Ask anything... (for example: how do I open my 3D file?)"
             className="w-full rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 text-sm text-[#111827] outline-none placeholder:text-[#6B7280]"
           />
         </form>

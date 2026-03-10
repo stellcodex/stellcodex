@@ -4,7 +4,7 @@ import { getShareByToken } from "@/lib/stellcodex/mock-db";
 export async function GET(_: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const result = getShareByToken(token);
-  if (!result) return NextResponse.json({ error: "Paylaşım linki bulunamadı." }, { status: 404 });
+  if (!result) return NextResponse.json({ error: "The share link could not be found." }, { status: 404 });
   return NextResponse.json({
     file: result.file,
     previewUrl: result.previewUrl,
@@ -14,4 +14,3 @@ export async function GET(_: Request, { params }: { params: Promise<{ token: str
     expiresAt: result.share.expiresAt,
   });
 }
-

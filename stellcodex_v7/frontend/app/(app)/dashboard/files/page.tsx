@@ -36,7 +36,7 @@ export default function DashboardFilesPage() {
       })
       .catch((err) => {
         if (!mounted) return;
-        setError(err?.message || "Dosyalar yüklenemedi.");
+        setError(err?.message || "Files could not be loaded.");
         setState("error");
       });
     return () => {
@@ -57,11 +57,11 @@ export default function DashboardFilesPage() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Dosya Kütüphanem"
-        description="Dosyaları ara, filtrele ve yönet."
+        title="My File Library"
+        description="Search, filter, and manage your files."
         crumbs={[
-          { label: "Panel", href: "/dashboard" },
-          { label: "Dosyalar" },
+          { label: "Dashboard", href: "/dashboard" },
+          { label: "Files" },
         ]}
       />
 
@@ -69,7 +69,7 @@ export default function DashboardFilesPage() {
         <div className="flex flex-wrap items-center gap-3">
           <input
             className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm"
-            placeholder="Ara"
+            placeholder="Search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -78,7 +78,7 @@ export default function DashboardFilesPage() {
             value={filterFormat}
             onChange={(e) => setFilterFormat(e.target.value)}
           >
-            <option value="">Tüm Formatlar</option>
+            <option value="">All formats</option>
             {formats.map((f) => <option key={f} value={f}>{f}</option>)}
           </select>
           <select
@@ -86,7 +86,7 @@ export default function DashboardFilesPage() {
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
           >
-            <option value="">Tüm Durumlar</option>
+            <option value="">All statuses</option>
             {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
@@ -94,10 +94,10 @@ export default function DashboardFilesPage() {
         <div className="mt-5">
           {state === "loading" ? <LoadingState lines={6} /> : null}
           {state === "error" ? (
-            <ErrorState title="Yüklenemedi" description={error || ""} />
+            <ErrorState title="Could not load" description={error || ""} />
           ) : null}
           {state === "ready" && filtered.length === 0 ? (
-            <EmptyState title="Henüz dosya yok" description="Burada görmek için dosya yükleyin." />
+            <EmptyState title="No files yet" description="Upload a file to see it here." />
           ) : null}
           {state === "ready" && filtered.length > 0 ? (
             <div className="grid gap-3">

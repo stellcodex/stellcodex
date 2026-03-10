@@ -1,17 +1,17 @@
 import type { JobStage } from "@/lib/stellcodex/types";
 
 const STAGES: Array<{ key: JobStage; label: string }> = [
-  { key: "uploaded", label: "Yüklendi" },
-  { key: "security", label: "Güvenlik kontrolü" },
-  { key: "preview", label: "Önizleme hazırlanıyor" },
-  { key: "ready", label: "Hazır" },
+  { key: "uploaded", label: "Uploaded" },
+  { key: "security", label: "Security check" },
+  { key: "preview", label: "Preparing preview" },
+  { key: "ready", label: "Ready" },
 ];
 
 export function ProcessingScreen({
   stage,
   progress,
-  title = "Hazırlanıyor",
-  subtitle = "Dosya arka planda işleniyor. Viewer hazır olmadan açılmayacak.",
+  title = "Preparing",
+  subtitle = "The file is processing in the background. The viewer will not open before it is ready.",
 }: {
   stage: JobStage;
   progress: number;
@@ -58,4 +58,3 @@ export function ProcessingScreen({
     </div>
   );
 }
-

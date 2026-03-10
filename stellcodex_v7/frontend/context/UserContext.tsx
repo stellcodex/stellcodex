@@ -15,7 +15,7 @@ type UserContextValue = {
   loading: boolean;
 };
 
-const GUEST: User = { name: "Misafir", role: "user" };
+const GUEST: User = { name: "Guest", role: "user" };
 
 const UserContext = createContext<UserContextValue | null>(null);
 
@@ -51,7 +51,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     setUser(GUEST);
   }, []);
 
-  const isAuthenticated = user.name !== "Misafir";
+  const isAuthenticated = user.name !== "Guest";
 
   const value = useMemo(
     () => ({ user, setUser, logout, isAuthenticated, loading }),
@@ -63,6 +63,6 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
 export function useUser() {
   const ctx = useContext(UserContext);
-  if (!ctx) throw new Error("useUser, UserProvider içinde kullanılmalı.");
+  if (!ctx) throw new Error("useUser must be used inside UserProvider.");
   return ctx;
 }

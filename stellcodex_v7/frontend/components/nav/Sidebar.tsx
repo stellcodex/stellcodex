@@ -7,20 +7,20 @@ import { applications } from "@/data/applications";
 import { tokens } from "@/lib/tokens";
 
 const primaryLinks = [
-  { label: "Panel", href: "/dashboard" },
-  { label: "Dosyalarım", href: "/dashboard/files" },
+  { label: "Dashboard", href: "/dashboard" },
+  { label: "My Files", href: "/dashboard/files" },
   { label: "Apps", href: "/apps" },
-  { label: "Ayarlar", href: "/dashboard/settings" },
+  { label: "Settings", href: "/dashboard/settings" },
 ];
 
 const adminLinks = [
-  { label: "Kullanıcılar", href: "/admin/users" },
-  { label: "Dosyalar", href: "/admin/files" },
-  { label: "Paylaşımlar", href: "/admin/shares" },
-  { label: "Kuyruklar", href: "/admin/queue" },
-  { label: "Sağlık", href: "/admin/system" },
-  { label: "Denetim", href: "/admin/audit" },
-  { label: "AI Önerileri", href: "/admin/ai" },
+  { label: "Users", href: "/admin/users" },
+  { label: "Files", href: "/admin/files" },
+  { label: "Shares", href: "/admin/shares" },
+  { label: "Queues", href: "/admin/queue" },
+  { label: "Health", href: "/admin/system" },
+  { label: "Audit", href: "/admin/audit" },
+  { label: "AI Insights", href: "/admin/ai" },
 ];
 
 export function Sidebar() {
@@ -53,7 +53,7 @@ export function Sidebar() {
       {user.role === "admin" ? (
         <>
           <div className="mt-sp2 text-xs font-semibold uppercase tracking-[0.18em] text-[#8a9895]">
-            Yönetim
+            Admin
           </div>
           <div className="flex flex-col gap-sp1">
             {adminLinks.map((item) => (
@@ -65,7 +65,7 @@ export function Sidebar() {
         </>
       ) : null}
       <div className="mt-sp2 text-xs font-semibold uppercase tracking-[0.18em] text-[#8a9895]">
-        Uygulamalar
+        Applications
       </div>
       <div className="flex flex-col gap-sp1">
         {applications.map((item) => (

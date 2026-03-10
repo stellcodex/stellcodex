@@ -16,7 +16,7 @@ export function AdminJobDetail({ jobId }: { jobId: string }) {
         const next = await getAdminSnapshot();
         if (alive) setData(next);
       } catch (e) {
-        if (alive) setError(e instanceof Error ? e.message : "Job verisi yüklenemedi.");
+        if (alive) setError(e instanceof Error ? e.message : "Job data could not be loaded.");
       }
     })();
     return () => {
@@ -27,8 +27,8 @@ export function AdminJobDetail({ jobId }: { jobId: string }) {
   const job = useMemo(() => data?.jobs.find((j) => j.id === jobId) || null, [data, jobId]);
 
   if (error) return <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>;
-  if (!data) return <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">Yükleniyor...</div>;
-  if (!job) return <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">Job bulunamadı.</div>;
+  if (!data) return <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">Loading...</div>;
+  if (!job) return <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">Job was not found.</div>;
 
   const stages = ["uploaded", "security", "preview", "ready"];
   const activeIndex = stages.indexOf(job.stage);
@@ -45,7 +45,7 @@ export function AdminJobDetail({ jobId }: { jobId: string }) {
             </p>
           </div>
           <Link className="text-sm text-slate-700 hover:text-slate-900" href="/admin">
-            Admin&apos;e dön
+            Back to Admin
           </Link>
         </div>
       </div>
@@ -80,17 +80,17 @@ export function AdminJobDetail({ jobId }: { jobId: string }) {
             ))}
           </div>
         ) : (
-          <p className="text-sm text-slate-500">Risk flag yok.</p>
+          <p className="text-sm text-slate-500">No risk flags are set.</p>
         )}
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
         <div className="mb-3 text-sm font-semibold text-slate-800">ApproveRejectBar</div>
         <div className="flex gap-2">
-          <Button variant="primary" onClick={() => window.alert("Mock approve: admin onayı placeholder")}>
+          <Button variant="primary" onClick={() => window.alert("Mock approve: admin approval placeholder")}>
             Approve
           </Button>
-          <Button variant="danger" onClick={() => window.alert("Mock reject: admin red placeholder")}>
+          <Button variant="danger" onClick={() => window.alert("Mock reject: admin reject placeholder")}>
             Reject
           </Button>
         </div>
@@ -98,4 +98,3 @@ export function AdminJobDetail({ jobId }: { jobId: string }) {
     </div>
   );
 }
-

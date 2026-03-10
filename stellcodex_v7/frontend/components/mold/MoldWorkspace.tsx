@@ -10,8 +10,8 @@ function dataDownload(name: string, content: string) {
 export function MoldWorkspace() {
   const [material, setMaterial] = useState("P20");
   const [cavityCount, setCavityCount] = useState("1");
-  const [parting, setParting] = useState("Tek Yüzey");
-  const [runner, setRunner] = useState("Soğuk Yolluk");
+  const [parting, setParting] = useState("Single Surface");
+  const [runner, setRunner] = useState("Cold Runner");
 
   const summary = useMemo(
     () => ({ material, cavityCount, parting, runner }),
@@ -25,7 +25,7 @@ export function MoldWorkspace() {
         <p className="mt-1 text-sm text-slate-600">Toolbox / parametric configuration (V1)</p>
         <div className="mt-4 grid gap-3">
           <label className="grid gap-1 text-sm">
-            <span className="text-slate-600">Kalıp çeliği</span>
+            <span className="text-slate-600">Mold steel</span>
             <select
               value={material}
               onChange={(e) => setMaterial(e.target.value)}
@@ -38,7 +38,7 @@ export function MoldWorkspace() {
             </select>
           </label>
           <label className="grid gap-1 text-sm">
-            <span className="text-slate-600">Göz sayısı</span>
+            <span className="text-slate-600">Cavity count</span>
             <select
               value={cavityCount}
               onChange={(e) => setCavityCount(e.target.value)}
@@ -51,25 +51,25 @@ export function MoldWorkspace() {
             </select>
           </label>
           <label className="grid gap-1 text-sm">
-            <span className="text-slate-600">Ayrım tipi</span>
+            <span className="text-slate-600">Parting type</span>
             <select
               value={parting}
               onChange={(e) => setParting(e.target.value)}
               className="h-10 rounded-xl border border-slate-200 px-3"
             >
-              <option>Tek Yüzey</option>
-              <option>Çoklu Ayrım</option>
+              <option>Single Surface</option>
+              <option>Multi Parting</option>
             </select>
           </label>
           <label className="grid gap-1 text-sm">
-            <span className="text-slate-600">Yolluk tipi</span>
+            <span className="text-slate-600">Runner type</span>
             <select
               value={runner}
               onChange={(e) => setRunner(e.target.value)}
               className="h-10 rounded-xl border border-slate-200 px-3"
             >
-              <option>Soğuk Yolluk</option>
-              <option>Sıcak Yolluk</option>
+              <option>Cold Runner</option>
+              <option>Hot Runner</option>
             </select>
           </label>
         </div>
@@ -80,21 +80,21 @@ export function MoldWorkspace() {
             variant="primary"
             download="mold-output.step"
           >
-            STEP indir
+            Download STEP
           </Button>
           <Button
             href={dataDownload("mold-output.scx", JSON.stringify(summary, null, 2))}
             download="mold-output.scx"
           >
-            SCX indir
+            Download SCX
           </Button>
         </div>
 
         <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
-          <div className="text-sm font-medium text-slate-800">Otomatik kalıplama (V2)</div>
+          <div className="text-sm font-medium text-slate-800">Automatic mold generation (V2)</div>
           <p className="mt-1 text-sm text-slate-500">Coming soon / disabled placeholder</p>
           <button disabled className="mt-3 h-10 rounded-xl border border-slate-200 px-4 text-sm text-slate-400">
-            V2 Yakında
+            V2 Coming Soon
           </button>
         </div>
       </div>
@@ -105,10 +105,10 @@ export function MoldWorkspace() {
           <div>
             <div className="text-sm font-semibold text-slate-900">Mold Preview Placeholder</div>
             <div className="mt-2 text-sm text-slate-600">
-              {summary.cavityCount} göz · {summary.material} · {summary.runner}
+              {summary.cavityCount} cavities · {summary.material} · {summary.runner}
             </div>
             <div className="mt-4 grid gap-1 text-xs text-slate-500">
-              <div>Ayrım: {summary.parting}</div>
+              <div>Parting: {summary.parting}</div>
               <div>V1 toolbox preview (placeholder viewer)</div>
             </div>
           </div>
@@ -117,4 +117,3 @@ export function MoldWorkspace() {
     </div>
   );
 }
-

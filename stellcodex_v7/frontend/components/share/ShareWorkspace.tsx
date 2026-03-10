@@ -38,7 +38,7 @@ export function ShareWorkspace() {
         if (!alive) return;
         setTree(next);
       } catch (e) {
-        if (alive) setError(e instanceof Error ? e.message : "StellShare yüklenemedi.");
+        if (alive) setError(e instanceof Error ? e.message : "StellShare could not be loaded.");
       } finally {
         if (alive) setLoading(false);
       }
@@ -63,7 +63,7 @@ export function ShareWorkspace() {
 
   async function handleCreateFolder() {
     if (!projectId) return;
-    const name = window.prompt("Yeni klasör adı");
+    const name = window.prompt("New folder name");
     if (!name) return;
     await createFolder({ projectId, parentId: currentFolderId, name });
     await reload(projectId);
@@ -71,11 +71,11 @@ export function ShareWorkspace() {
 
   async function handleMoveSelected() {
     if (!tree || !projectId || selectedFileIds.length === 0) return;
-    const targetName = window.prompt("Hedef klasör adı (tam isim)");
+    const targetName = window.prompt("Target folder name (exact name)");
     if (!targetName) return;
     const target = tree.folders.find((f) => f.name.toLowerCase() === targetName.toLowerCase());
     if (!target) {
-      setError("Hedef klasör bulunamadı.");
+      setError("The target folder could not be found.");
       return;
     }
     await moveFiles({ projectId, fileIds: selectedFileIds, folderId: target.id });
@@ -85,17 +85,17 @@ export function ShareWorkspace() {
 
   async function handleDeleteSelected() {
     if (!projectId || selectedFileIds.length === 0) return;
-    if (!window.confirm("Seçili dosyalar silinsin mi?")) return;
+    if (!window.confirm("Delete the selected files?")) return;
     await deleteFiles({ projectId, fileIds: selectedFileIds });
     setSelectedFileIds([]);
     await reload(projectId);
   }
 
   if (loading) {
-    return <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Yükleniyor...</div>;
+    return <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Loading...</div>;
   }
   if (!tree) {
-    return <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">{error || "Proje bulunamadı."}</div>;
+    return <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">{error || "The project could not be found."}</div>;
   }
 
   return (
@@ -110,16 +110,16 @@ export function ShareWorkspace() {
                 ...(currentFolder ? [{ label: currentFolder.name }] : []),
               ]}
             />
-            <div className="mt-2 text-sm text-slate-600">Varsayılan proje: {tree.projectName}</div>
+            <div className="mt-2 text-sm text-slate-600">Default project: {tree.projectName}</div>
           </div>
           <div className="flex items-center gap-2">
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="h-10 w-64 rounded-xl border border-slate-200 px-3 text-sm"
-              placeholder="Ara"
+              placeholder="Search"
             />
-            <Button onClick={handleCreateFolder}>Yeni klasör</Button>
+            <Button onClick={handleCreateFolder}>New Folder</Button>
           </div>
         </div>
       </div>
@@ -136,13 +136,13 @@ export function ShareWorkspace() {
         <div className="grid gap-3">
           {selectedFileIds.length > 0 ? (
             <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3">
-              <span className="text-sm text-slate-600">{selectedFileIds.length} dosya seçili</span>
-              <Button onClick={handleMoveSelected}>Taşı</Button>
+              <span className="text-sm text-slate-600">{selectedFileIds.length} files selected</span>
+              <Button onClick={handleMoveSelected}>Move</Button>
               <Button onClick={handleDeleteSelected} variant="danger">
-                Sil
+                Delete
               </Button>
               {selectedFileIds.length === 1 ? (
-                <Button href={`/api/file/${selectedFileIds[0]}?download=1`}>İndir</Button>
+                <Button href={`/api/file/${selectedFileIds[0]}?download=1`}>Download</Button>
               ) : null}
             </div>
           ) : null}
@@ -165,4 +165,3 @@ export function ShareWorkspace() {
     </div>
   );
 }
-

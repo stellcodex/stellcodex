@@ -27,14 +27,14 @@ export async function POST(req: Request) {
   const file = form.get("file");
   const projectId = String(form.get("projectId") || "").trim() || undefined;
   if (!(file instanceof File)) {
-    return NextResponse.json({ error: "Dosya bulunamadı." }, { status: 400 });
+    return NextResponse.json({ error: "The uploaded file is missing." }, { status: 400 });
   }
   if (file.size > MAX_SIZE) {
-    return NextResponse.json({ error: "Dosya boyutu limiti aşıldı (200MB)." }, { status: 400 });
+    return NextResponse.json({ error: "The file size limit was exceeded (200MB)." }, { status: 400 });
   }
   const ext = (file.name.split(".").pop() || "").toLowerCase();
   if (!ALLOWED_EXT.has(ext)) {
-    return NextResponse.json({ error: "Desteklenmeyen dosya uzantısı." }, { status: 400 });
+    return NextResponse.json({ error: "Unsupported file extension." }, { status: 400 });
   }
   const result = createUpload({
     projectId,
@@ -44,4 +44,3 @@ export async function POST(req: Request) {
   });
   return NextResponse.json(result);
 }
-

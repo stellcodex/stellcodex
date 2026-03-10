@@ -27,7 +27,7 @@ export function WorkspaceRedirect({
 
   return (
     <div className="grid min-h-screen place-items-center bg-[var(--platform-bg)] px-6 text-center text-sm text-slate-500">
-      Workspace hazirlaniyor...
+      Preparing the workspace...
     </div>
   );
 }

@@ -32,8 +32,8 @@ export default function DashboardSettingsPage() {
     <div className="space-y-6">
       <SectionHeader
         title="Settings"
-        description="Tema, profil ve güvenlik ayarları."
-        crumbs={[{ label: "Panel", href: "/dashboard" }, { label: "Settings" }]}
+        description="Theme, profile, and security settings."
+        crumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Settings" }]}
       />
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5">
@@ -92,7 +92,7 @@ export default function DashboardSettingsPage() {
               value={profileName}
               onChange={(e) => setProfileName(e.target.value)}
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
-              placeholder="Ad Soyad"
+              placeholder="Full name"
             />
           </label>
           <label className="grid gap-1 text-xs text-slate-600">
@@ -101,7 +101,7 @@ export default function DashboardSettingsPage() {
               value={company}
               onChange={(e) => setCompany(e.target.value)}
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
-              placeholder="Şirket"
+              placeholder="Company"
             />
           </label>
         </div>
@@ -110,11 +110,10 @@ export default function DashboardSettingsPage() {
       <section className="rounded-2xl border border-slate-200 bg-white p-5">
         <div className="text-sm font-semibold text-slate-900">Security</div>
         <div className="mt-3 grid gap-2 text-sm text-slate-600">
-          <div>Bağlı hesaplar: Google / Apple / Facebook</div>
-          <div>Oturum yönetimi: Tek oturum hissi için cookie-session aktif.</div>
+          <div>Connected accounts: Google / Apple / Facebook</div>
+          <div>Session handling: cookie-backed session is active for a single-session experience.</div>
         </div>
       </section>
     </div>
   );
 }
-

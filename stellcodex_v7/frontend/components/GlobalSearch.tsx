@@ -23,7 +23,7 @@ export default function GlobalSearch() {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Herhangi bir şey sor"
+          placeholder="Ask anything"
           className="w-full bg-transparent text-base text-[#111827] outline-none placeholder:text-[#6B7280]"
         />
       </div>

@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/Button";
 import { clsx } from "clsx";
 
 const nav = [
-  { href: "/", label: "Ana Sayfa" },
-  { href: "/dashboard", label: "Panel" },
-  { href: "/docs", label: "Dokümanlar" },
+  { href: "/", label: "Home" },
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/docs", label: "Docs" },
 ];
 
 function isActivePath(pathname: string, href: string) {
@@ -65,15 +65,15 @@ export function SiteHeader() {
 
           <div className="hidden items-center gap-2 md:flex">
             <Button href="/login" variant="ghost">
-              Giriş
+              Sign In
             </Button>
-            <Button href="/dashboard">Panel</Button>
+            <Button href="/dashboard">Dashboard</Button>
           </div>
 
           <button
             className="grid h-10 w-10 place-items-center rounded-xl border border-[#d1d5db] bg-white text-[#111827] md:hidden"
             onClick={() => setOpen((s) => !s)}
-            aria-label="Menü"
+            aria-label="Menu"
             aria-expanded={open}
           >
             ☰
@@ -100,9 +100,9 @@ export function SiteHeader() {
 
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <Button href="/login" variant="secondary">
-                    Giriş
+                    Sign In
                   </Button>
-                  <Button href="/dashboard">Panel</Button>
+                  <Button href="/dashboard">Dashboard</Button>
                 </div>
               </div>
             </div>

@@ -27,50 +27,50 @@ export default function DocsPage() {
     <main className="mx-auto max-w-6xl px-6 py-6 sm:py-8">
       <header className="max-w-2xl">
         <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#4f6f6b]">
-          Dokümanlar
+          Docs
         </div>
         <h1 className="mt-4 text-xl font-semibold tracking-tight text-[#0c2a2a] sm:text-2xl">
-          Yardım ve dokümantasyon
+          Help and documentation
         </h1>
         <p className="mt-3 text-sm text-[#2c4b49]">
-          Başlangıç, format listeleri, sorun giderme ve SSS burada.
+          Getting started guides, format lists, troubleshooting notes, and FAQ live here.
         </p>
       </header>
 
       <section className="mt-8 rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
-        <div className="text-sm font-semibold text-[#0c2a2a]">Başlangıç</div>
-        <p className="mt-2 text-sm text-[#2c4b49]">Yükle → Görüntüle → Paylaş.</p>
+        <div className="text-sm font-semibold text-[#0c2a2a]">Getting Started</div>
+        <p className="mt-2 text-sm text-[#2c4b49]">Upload -> View -> Share.</p>
       </section>
 
       <section className="mt-6 rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
-        <div className="text-sm font-semibold text-[#0c2a2a]">Desteklenen Formatlar</div>
+        <div className="text-sm font-semibold text-[#0c2a2a]">Supported Formats</div>
         <p className="mt-2 text-sm text-[#2c4b49]">
-          Ayrıntı için{" "}
+          For details, review{" "}
           <code className="rounded bg-[#f0eee7] px-2 py-1">docs/compatibility/formats-matrix.md</code>{" "}
-          dosyasına bakın.
+          in the repository.
         </p>
       </section>
 
       <section className="mt-6 rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
-        <div className="text-sm font-semibold text-[#0c2a2a]">Sorun Giderme</div>
+        <div className="text-sm font-semibold text-[#0c2a2a]">Troubleshooting</div>
         <p className="mt-2 text-sm text-[#2c4b49]">
-          Sorunlar belgelendikçe içerik eklenecektir.
+          Additional guides will be added as known issues are documented.
         </p>
       </section>
 
       <section className="mt-6 rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
-        <div className="text-sm font-semibold text-[#0c2a2a]">SSS</div>
+        <div className="text-sm font-semibold text-[#0c2a2a]">FAQ</div>
         <p className="mt-2 text-sm text-[#2c4b49]">
-          SSS, yayından sonraki geri bildirimlerle oluşacaktır.
+          FAQ entries will grow from real usage feedback after release.
         </p>
       </section>
 
       <section className="mt-8 rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
-        <div className="text-sm font-semibold text-[#0c2a2a]">Repo doküman listesi</div>
+        <div className="text-sm font-semibold text-[#0c2a2a]">Repository document index</div>
         {docs.length === 0 ? (
           <p className="mt-3 text-sm text-[#2c4b49]">
-            Doküman bulunamadı.{" "}
-            <code className="rounded bg-[#f0eee7] px-2 py-1">docs/</code> klasörünü kontrol edin.
+            No documents were found. Check the{" "}
+            <code className="rounded bg-[#f0eee7] px-2 py-1">docs/</code> directory.
           </p>
         ) : (
           <ul className="mt-4 grid gap-2 text-sm text-[#2c4b49]">

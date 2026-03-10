@@ -1,95 +1,95 @@
 # Third-Party Licenses
 
-Bu dosya STELLCODEX V2-4 geregi zorunludur. Her ucuncu parti bilesen icin asagidaki alanlar doldurulmalidir.
+This file is mandatory under STELLCODEX V2-4. Fill in the fields below for each third-party component.
 
-## Kayit Formati
-- Bilesen adi:
-- Lisans adi:
-- Ticari kullanim uygunlugu (Evet/Hayir):
-- Dagitim kisiti (statik/dinamik):
-- Kaynak linki:
+## Record Format
+- Component name:
+- License name:
+- Commercial use allowed (Yes/No):
+- Distribution constraint (static/dynamic):
+- Source link:
 
-## Kayitlar
-- Bilesen adi: next
-- Lisans adi: MIT
-- Ticari kullanim uygunlugu (Evet/Hayir): Evet
-- Dagitim kisiti (statik/dinamik): Yok
-- Kaynak linki: https://github.com/vercel/next.js
+## Records
+- Component name: next
+- License name: MIT
+- Commercial use allowed (Yes/No): Yes
+- Distribution constraint (static/dynamic): None
+- Source link: https://github.com/vercel/next.js
 
-- Bilesen adi: react
-- Lisans adi: MIT
-- Ticari kullanim uygunlugu (Evet/Hayir): Evet
-- Dagitim kisiti (statik/dinamik): Yok
-- Kaynak linki: https://github.com/facebook/react
+- Component name: react
+- License name: MIT
+- Commercial use allowed (Yes/No): Yes
+- Distribution constraint (static/dynamic): None
+- Source link: https://github.com/facebook/react
 
-- Bilesen adi: next-auth
-- Lisans adi: MIT
-- Ticari kullanim uygunlugu (Evet/Hayir): Evet
-- Dagitim kisiti (statik/dinamik): Yok
-- Kaynak linki: https://github.com/nextauthjs/next-auth
+- Component name: next-auth
+- License name: MIT
+- Commercial use allowed (Yes/No): Yes
+- Distribution constraint (static/dynamic): None
+- Source link: https://github.com/nextauthjs/next-auth
 
-- Bilesen adi: three
-- Lisans adi: MIT
-- Ticari kullanim uygunlugu (Evet/Hayir): Evet
-- Dagitim kisiti (statik/dinamik): Yok
-- Kaynak linki: https://github.com/mrdoob/three.js
+- Component name: three
+- License name: MIT
+- Commercial use allowed (Yes/No): Yes
+- Distribution constraint (static/dynamic): None
+- Source link: https://github.com/mrdoob/three.js
 
-- Bilesen adi: fastapi
-- Lisans adi: MIT
-- Ticari kullanim uygunlugu (Evet/Hayir): Evet
-- Dagitim kisiti (statik/dinamik): Yok
-- Kaynak linki: https://github.com/fastapi/fastapi
+- Component name: fastapi
+- License name: MIT
+- Commercial use allowed (Yes/No): Yes
+- Distribution constraint (static/dynamic): None
+- Source link: https://github.com/fastapi/fastapi
 
-- Bilesen adi: celery
-- Lisans adi: BSD-3-Clause
-- Ticari kullanim uygunlugu (Evet/Hayir): Evet
-- Dagitim kisiti (statik/dinamik): Yok
-- Kaynak linki: https://github.com/celery/celery
+- Component name: celery
+- License name: BSD-3-Clause
+- Commercial use allowed (Yes/No): Yes
+- Distribution constraint (static/dynamic): None
+- Source link: https://github.com/celery/celery
 
-- Bilesen adi: assimp
-- Lisans adi: BSD-3-Clause
-- Ticari kullanim uygunlugu (Evet/Hayir): Evet
-- Dagitim kisiti (statik/dinamik): Yok
-- Kaynak linki: https://github.com/assimp/assimp
+- Component name: assimp
+- License name: BSD-3-Clause
+- Commercial use allowed (Yes/No): Yes
+- Distribution constraint (static/dynamic): None
+- Source link: https://github.com/assimp/assimp
 
-- Bilesen adi: opencascade (occt)
-- Lisans adi: LGPL-2.1 with exception
-- Ticari kullanim uygunlugu (Evet/Hayir): Evet
-- Dagitim kisiti (statik/dinamik): Dinamik
-- Kaynak linki: https://github.com/Open-Cascade-SAS/OCCT
+- Component name: opencascade (occt)
+- License name: LGPL-2.1 with exception
+- Commercial use allowed (Yes/No): Yes
+- Distribution constraint (static/dynamic): Dynamic
+- Source link: https://github.com/Open-Cascade-SAS/OCCT
 
-- Bilesen adi: oneTBB (libtbb)
-- Lisans adi: Apache-2.0
-- Ticari kullanim uygunlugu (Evet/Hayir): Evet
-- Dagitim kisiti (statik/dinamik): Dinamik
-- Kaynak linki: https://github.com/oneapi-src/oneTBB
+- Component name: oneTBB (libtbb)
+- License name: Apache-2.0
+- Commercial use allowed (Yes/No): Yes
+- Distribution constraint (static/dynamic): Dynamic
+- Source link: https://github.com/oneapi-src/oneTBB
 
-- Bilesen adi: FreeCAD (1.0.2 AppImage)
-- Lisans adi: LGPL-2.1
-- Ticari kullanim uygunlugu (Evet/Hayir): Evet
-- Dagitim kisiti (statik/dinamik): Dinamik
-- Kaynak linki: https://github.com/FreeCAD/FreeCAD
+- Component name: FreeCAD (1.0.2 AppImage)
+- License name: LGPL-2.1
+- Commercial use allowed (Yes/No): Yes
+- Distribution constraint (static/dynamic): Dynamic
+- Source link: https://github.com/FreeCAD/FreeCAD
 
-- Bilesen adi: Blender (4.5.6 LTS)
-- Lisans adi: GPL-2.0-or-later
-- Ticari kullanim uygunlugu (Evet/Hayir): Evet
-- Dagitim kisiti (statik/dinamik): Dinamik
-- Kaynak linki: https://www.blender.org/
+- Component name: Blender (4.5.6 LTS)
+- License name: GPL-2.0-or-later
+- Commercial use allowed (Yes/No): Yes
+- Distribution constraint (static/dynamic): Dynamic
+- Source link: https://www.blender.org/
 
-- Bilesen adi: ezdxf (1.4.3)
-- Lisans adi: MIT
-- Ticari kullanim uygunlugu (Evet/Hayir): Evet
-- Dagitim kisiti (statik/dinamik): Yok
-- Kaynak linki: https://github.com/mozman/ezdxf
+- Component name: ezdxf (1.4.3)
+- License name: MIT
+- Commercial use allowed (Yes/No): Yes
+- Distribution constraint (static/dynamic): None
+- Source link: https://github.com/mozman/ezdxf
 
-- Bilesen adi: CGAL (6.1.1)
-- Lisans adi: LGPL-3.0-or-later / GPL-3.0-or-later (cekirdek politikaya gore)
-- Ticari kullanim uygunlugu (Evet/Hayir): Evet
-- Dagitim kisiti (statik/dinamik): Dinamik
-- Kaynak linki: https://www.cgal.org/
+- Component name: CGAL (6.1.1)
+- License name: LGPL-3.0-or-later / GPL-3.0-or-later (per core policy)
+- Commercial use allowed (Yes/No): Yes
+- Distribution constraint (static/dynamic): Dynamic
+- Source link: https://www.cgal.org/
 
-- Bilesen adi: MeshLab (2025.07)
-- Lisans adi: GPL-3.0-or-later
-- Ticari kullanim uygunlugu (Evet/Hayir): Evet
-- Dagitim kisiti (statik/dinamik): Dinamik
-- Kaynak linki: https://www.meshlab.net/
+- Component name: MeshLab (2025.07)
+- License name: GPL-3.0-or-later
+- Commercial use allowed (Yes/No): Yes
+- Distribution constraint (static/dynamic): Dynamic
+- Source link: https://www.meshlab.net/

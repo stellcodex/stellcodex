@@ -29,7 +29,7 @@ function defaultAssistantMessage(): WorkspaceMessage {
   return {
     id: createId("msg"),
     role: "assistant",
-    text: "STELLCODEX workspace hazir. Dosya yukleyebilir, projeleri acabilir ve calismaya dogrudan devam edebilirsiniz.",
+    text: "The STELLCODEX workspace is ready. You can upload files, open projects, and continue working immediately.",
     createdAt: nowIso(),
   };
 }

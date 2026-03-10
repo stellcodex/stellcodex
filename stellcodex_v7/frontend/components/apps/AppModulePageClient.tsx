@@ -50,7 +50,7 @@ export function AppModulePageClient({ slug }: Props) {
         setError(null);
       } catch (err) {
         if (!active) return;
-        setError(err instanceof Error ? err.message : "App modülü yüklenemedi.");
+        setError(err instanceof Error ? err.message : "The app module could not be loaded.");
       } finally {
         if (active) setLoading(false);
       }
@@ -104,7 +104,7 @@ export function AppModulePageClient({ slug }: Props) {
                 onChange={(event) => setFileId(event.target.value)}
                 className="mt-1 w-full rounded-lg border border-[#ced9e6] px-3 py-2 text-sm"
               >
-                <option value="">Dosya seçin</option>
+                <option value="">Select a file</option>
                 {fileOptions.map((file) => (
                   <option key={file.file_id} value={file.file_id}>
                     {file.file_id} • {file.original_name}
@@ -115,14 +115,14 @@ export function AppModulePageClient({ slug }: Props) {
           </div>
         </div>
 
-        {loading ? <div className="rounded-2xl border border-[#dbe3ec] bg-white p-4 text-sm">Yükleniyor...</div> : null}
+        {loading ? <div className="rounded-2xl border border-[#dbe3ec] bg-white p-4 text-sm">Loading...</div> : null}
         {error ? <div className="rounded-2xl border border-[#ef9a9a] bg-[#fff4f4] p-4 text-sm text-[#8a1f1f]">{error}</div> : null}
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
           <section className="rounded-2xl border border-[#dbe3ec] bg-white p-4">
             <h1 className="text-xl font-semibold text-[#10243e]">{catalogItem?.name || slug}</h1>
             <p className="mt-2 text-sm text-[#4b657c]">
-              Kategori: <strong>{catalogItem?.category || "unknown"}</strong> | Plan: <strong>{catalogItem?.tier || "n/a"}</strong>
+              Category: <strong>{catalogItem?.category || "unknown"}</strong> | Tier: <strong>{catalogItem?.tier || "n/a"}</strong>
             </p>
             <div className="mt-3 grid gap-3 md:grid-cols-2">
               <div className="rounded-lg border border-[#dbe3ec] bg-[#f7fbff] p-3">

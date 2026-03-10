@@ -48,18 +48,18 @@ export function UploadDropzone() {
       }
       await new Promise((r) => setTimeout(r, 700));
     }
-    setError("İşleme beklenenden uzun sürdü. Lütfen tekrar deneyin.");
+    setError("Processing took longer than expected. Please try again.");
     setBusy(false);
   }
 
   async function handleFile(file: File) {
     setError(null);
     if (!ALLOWED_EXT.includes(extOf(file.name))) {
-      setError("Desteklenmeyen dosya uzantısı.");
+      setError("Unsupported file extension.");
       return;
     }
     if (file.size > MAX_BYTES) {
-      setError("Dosya boyutu limiti 200MB. Daha küçük dosya yükleyin.");
+      setError("The file size limit is 200MB. Upload a smaller file.");
       return;
     }
     setBusy(true);
@@ -69,7 +69,7 @@ export function UploadDropzone() {
       const result = await uploadFile(file, project.projectId);
       await poll(result.jobId, result.fileId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Yükleme başarısız.");
+      setError(e instanceof Error ? e.message : "Upload failed.");
       setBusy(false);
     }
   }
@@ -85,12 +85,12 @@ export function UploadDropzone() {
               STELLCODEX
             </h1>
             <p className="mt-3 text-sm text-slate-600">
-              Dosyayı yükleyin. Sistem uygun klasöre yerleştirir ve StellView için hazırlar.
+              Upload the file. The system places it in the correct project area and prepares it for StellView.
             </p>
           </div>
           <div className="mt-7 flex flex-col items-center gap-3">
             <Button size="lg" variant="primary" onClick={() => inputRef.current?.click()}>
-              Dosya Yükle
+              Upload File
             </Button>
             <input
               ref={inputRef}
@@ -112,4 +112,3 @@ export function UploadDropzone() {
     </div>
   );
 }
-

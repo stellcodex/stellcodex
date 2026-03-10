@@ -39,12 +39,12 @@ export function ProjectWorkspace() {
   return (
     <div className="flex flex-col gap-sectionGap">
       <div style={tokens.typography.h2} className="text-[#0c2a2a]">
-        Çalışma alanı: {projectName}
+        Workspace: {projectName}
       </div>
 
       {!files.length ? (
         <div className="rounded-r1 border-soft bg-surface px-cardPad py-cardPad text-fs0 text-muted">
-          Bu projede henüz dosya yok. <Link href="/dashboard" className="underline">Panele git</Link>.
+          No files are linked to this project yet. <Link href="/dashboard" className="underline">Open the dashboard</Link>.
         </div>
       ) : (
         <div className="flex flex-col gap-3">
@@ -52,7 +52,7 @@ export function ProjectWorkspace() {
             <ListRow
               key={file.fileId}
               title={file.originalFilename}
-              subtitle={`Yüklendi: ${formatWorkspaceDate(file.uploadedAt)}`}
+              subtitle={`Uploaded: ${formatWorkspaceDate(file.uploadedAt)}`}
               href={appHrefForFile(file)}
               trailing={file.mode === "2d" ? "2D" : "3D"}
             />
@@ -61,7 +61,7 @@ export function ProjectWorkspace() {
       )}
 
       <div style={tokens.typography.h2} className="text-[#0c2a2a]">
-        Uygulamalar
+        Applications
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {applications.map((app) => (

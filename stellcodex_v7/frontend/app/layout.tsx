@@ -6,7 +6,7 @@ import { UserProvider } from "@/context/UserContext";
 
 export const metadata: Metadata = {
   title: "STELLCODEX",
-  description: "2D ve 3D mühendislik görüntüleyicisi",
+  description: "2D and 3D engineering workspace",
   manifest: "/site.webmanifest",
   icons: {
     icon: [
@@ -42,7 +42,7 @@ export default async function RootLayout({
   const initScript = `(function(){try{var d=document.documentElement;var t=localStorage.getItem('scx_theme')||'${theme}';var a=localStorage.getItem('scx_accent')||'${accent}';if(!t){t='light';}if(!a){a='cyan';}d.dataset.theme=t;d.dataset.accent=a;var r=t==='system'?(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):t;d.dataset.themeResolved=r;}catch(e){}})();`;
 
   return (
-    <html lang="tr" data-theme={theme} data-theme-resolved={resolvedTheme} data-accent={accent} suppressHydrationWarning>
+    <html lang="en" data-theme={theme} data-theme-resolved={resolvedTheme} data-accent={accent} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: initScript }} />
       </head>

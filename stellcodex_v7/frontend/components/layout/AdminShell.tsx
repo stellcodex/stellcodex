@@ -8,13 +8,13 @@ import { clsx } from "clsx";
 import { Button } from "@/components/ui/Button";
 
 const nav = [
-  { href: "/admin/users", label: "Kullanıcılar" },
-  { href: "/admin/files", label: "Dosyalar" },
-  { href: "/admin/shares", label: "Paylaşımlar" },
-  { href: "/admin/queue", label: "Kuyruklar" },
-  { href: "/admin/system", label: "Sağlık" },
-  { href: "/admin/audit", label: "Denetim" },
-  { href: "/admin/ai", label: "AI Önerileri" },
+  { href: "/admin/users", label: "Users" },
+  { href: "/admin/files", label: "Files" },
+  { href: "/admin/shares", label: "Shares" },
+  { href: "/admin/queue", label: "Queues" },
+  { href: "/admin/system", label: "Health" },
+  { href: "/admin/audit", label: "Audit" },
+  { href: "/admin/ai", label: "AI Insights" },
   { href: "/admin/stell", label: "🤖 Stell" },
 ];
 
@@ -38,7 +38,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       <div className="flex">
         <aside className="hidden w-64 flex-col border-r border-slate-200 bg-white p-4 lg:flex">
           <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-            Yönetim
+            Admin
           </div>
           <nav className="mt-4 grid gap-1">
             {items.map((item) => (
@@ -58,7 +58,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
           </nav>
           <div className="mt-auto grid gap-2 pt-6">
             <Button href="/" variant="ghost">
-              Genel site
+              Public site
             </Button>
           </div>
         </aside>
@@ -70,16 +70,16 @@ export function AdminShell({ children }: { children: ReactNode }) {
                 <button
                   className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white lg:hidden"
                   onClick={() => setOpen((s) => !s)}
-                  aria-label="Yönetim menüsünü aç"
+                  aria-label="Open admin menu"
                   aria-expanded={open}
                 >
                   ☰
                 </button>
-                <div className="text-sm font-semibold text-slate-900">Yönetim Konsolu</div>
+                <div className="text-sm font-semibold text-slate-900">Admin Console</div>
               </div>
               <div className="flex items-center gap-2">
                 <div className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500">
-                  Yönetici oturumu
+                  Admin session
                 </div>
               </div>
             </div>

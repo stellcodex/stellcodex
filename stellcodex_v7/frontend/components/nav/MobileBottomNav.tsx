@@ -4,9 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const items = [
-  { label: "Panel", href: "/dashboard" },
-  { label: "Dosyalarım", href: "/dashboard/files" },
-  { label: "Ayarlar", href: "/dashboard/settings" },
+  { label: "Dashboard", href: "/dashboard" },
+  { label: "My Files", href: "/dashboard/files" },
+  { label: "Settings", href: "/dashboard/settings" },
 ];
 
 export function MobileBottomNav() {

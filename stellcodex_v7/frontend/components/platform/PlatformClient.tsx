@@ -131,7 +131,7 @@ function formatDate(value?: string | null) {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("tr-TR", {
+  return date.toLocaleString("en-US", {
     year: "numeric",
     month: "short",
     day: "2-digit",
@@ -176,7 +176,7 @@ function buildPublishedPage(kind: "webbuilder" | "cms", payload: Record<string, 
   const ctaLabel = String(payload.ctaLabel || "Contact sales").trim() || "Contact sales";
   const body = richTextToHtml(payload.body || "");
   const status = escapeHtml(payload.status || "draft");
-  const publishedAt = new Date().toLocaleString("tr-TR");
+  const publishedAt = new Date().toLocaleString("en-US");
 
   if (kind === "webbuilder") {
     return {
@@ -310,7 +310,7 @@ function useWorkspaceData(): WorkspaceData {
       setFiles(fileRows);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Workspace verisi yuklenemedi.");
+      setError(err instanceof Error ? err.message : "Workspace data could not be loaded.");
     } finally {
       setLoading(false);
     }
@@ -427,7 +427,7 @@ function HomeScreen() {
     const reply = appendSessionMessage(
       userMessage,
       "assistant",
-      "Bu istegi bir STELLCODEX uygulamasina yonlendirebilirsiniz. Files ile yukleme, Projects ile proje acma veya Explore Applications ile uygun runner secimi hazir."
+      "Route this request through a STELLCODEX application. Use Files for uploads, Projects for project work, or Explore Applications to open the right runner."
     );
     const next = upsertSession(reply);
     setSessions(next);
@@ -528,7 +528,7 @@ function ProjectsScreen() {
       setProjects(rows);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Projeler yuklenemedi.");
+      setError(err instanceof Error ? err.message : "Projects could not be loaded.");
     }
   }
 
@@ -545,7 +545,7 @@ function ProjectsScreen() {
       setName("");
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Proje olusturulamadi.");
+      setError(err instanceof Error ? err.message : "The project could not be created.");
     } finally {
       setBusy(false);
     }
@@ -611,7 +611,7 @@ function ProjectScreen({ projectId }: { projectId: string }) {
       setProject(row);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Proje yuklenemedi.");
+      setError(err instanceof Error ? err.message : "The project could not be loaded.");
     }
   }
 
@@ -627,7 +627,7 @@ function ProjectScreen({ projectId }: { projectId: string }) {
       await uploadDirect(file, projectId);
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Yukleme basarisiz.");
+      setError(err instanceof Error ? err.message : "Upload failed.");
     } finally {
       setUploading(false);
     }
@@ -698,7 +698,7 @@ function FilesScreen() {
       await workspace.refresh();
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Yukleme basarisiz.");
+      setError(err instanceof Error ? err.message : "Upload failed.");
     } finally {
       setUploading(false);
     }
@@ -709,7 +709,7 @@ function FilesScreen() {
       const result = await createShare(fileId, 7 * 24 * 60 * 60);
       setShareLinks((prev) => ({ ...prev, [fileId]: `${window.location.origin}/s/${result.token}` }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Share olusturulamadi.");
+      setError(err instanceof Error ? err.message : "The share link could not be created.");
     }
   }
 
@@ -804,7 +804,7 @@ function LibraryScreen() {
       setFeed(data.items);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Library feed yuklenemedi.");
+      setError(err instanceof Error ? err.message : "The library feed could not be loaded.");
     }
   }
 
@@ -824,7 +824,7 @@ function LibraryScreen() {
       setTitle("");
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Publish basarisiz.");
+      setError(err instanceof Error ? err.message : "Publish failed.");
     }
   }
 
@@ -986,7 +986,7 @@ function ViewerScreen({ fileId }: { fileId: string }) {
         setError(null);
       } catch (err) {
         if (!mounted) return;
-        setError(err instanceof Error ? err.message : "Viewer yuklenemedi.");
+        setError(err instanceof Error ? err.message : "The viewer could not be loaded.");
       }
     }
     void load();
@@ -1060,7 +1060,7 @@ function RecordWorkspace({
       setRecords(rows);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Kayitlar yuklenemedi.");
+      setError(err instanceof Error ? err.message : "Records could not be loaded.");
     }
   }
 
@@ -1088,7 +1088,7 @@ function RecordWorkspace({
       setPayload(initialPayload);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Kayit saklanamadi.");
+      setError(err instanceof Error ? err.message : "The record could not be saved.");
     } finally {
       setBusy(false);
     }
@@ -1111,7 +1111,7 @@ function RecordWorkspace({
       setPayload(initialPayload);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Kayit silinemedi.");
+      setError(err instanceof Error ? err.message : "The record could not be deleted.");
     } finally {
       setBusy(false);
     }
@@ -1312,7 +1312,7 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
       })
       .catch((err) => {
         if (!mounted) return;
-        setError(err instanceof Error ? err.message : "Dosya yuklenemedi.");
+        setError(err instanceof Error ? err.message : "The file could not be loaded.");
       });
     return () => {
       mounted = false;
@@ -1458,7 +1458,7 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
       const result = await createShare(selectedFileId, 7 * 24 * 60 * 60);
       setShareUrl(`${window.location.origin}/s/${result.token}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Share olusturulamadi.");
+      setError(err instanceof Error ? err.message : "The share link could not be created.");
     }
   }
 
@@ -1467,7 +1467,7 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
       const blobUrl = await fetchAuthedBlobUrl(`/api/v1/files/${encodeURIComponent(fileId)}/download`);
       window.open(blobUrl, "_blank", "noopener,noreferrer");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Download basarisiz.");
+      setError(err instanceof Error ? err.message : "Download failed.");
     }
   }
 

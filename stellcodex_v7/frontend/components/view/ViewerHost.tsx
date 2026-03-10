@@ -26,8 +26,8 @@ export function ViewerHost({
 }) {
   const [showMiniToolbar, setShowMiniToolbar] = useState(false);
   const placeholder = useMemo(() => {
-    if (engine === "archive") return "Arşiv dosyaları StellShare içinde yönetilir.";
-    if (engine === "unsupported") return "Bu format için görüntüleyici mevcut değil.";
+    if (engine === "archive") return "Archive files are managed inside StellShare.";
+    if (engine === "unsupported") return "No viewer is available for this format.";
     return "Preview not available (placeholder viewer)";
   }, [engine]);
 
@@ -48,14 +48,14 @@ export function ViewerHost({
             </div>
             <div className="mt-3 text-sm text-slate-600">{placeholder}</div>
             <div className="mt-3 text-xs text-slate-400">
-              Model üstüne tıklama mini toolbar simülasyonu için alan.
+              Click the model area to toggle the mini-toolbar simulation.
             </div>
           </div>
         </button>
         {showMiniToolbar && (engine === "viewer3d" || engine === "viewer2d") ? (
           <div className="absolute right-6 top-6 flex gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
-            <button className="rounded-lg border border-slate-200 px-2 py-1 text-xs">Ölçüm</button>
-            <button className="rounded-lg border border-slate-200 px-2 py-1 text-xs">Kesit</button>
+            <button className="rounded-lg border border-slate-200 px-2 py-1 text-xs">Measure</button>
+            <button className="rounded-lg border border-slate-200 px-2 py-1 text-xs">Section</button>
             <button className="rounded-lg border border-slate-200 px-2 py-1 text-xs">Explode</button>
           </div>
         ) : null}
@@ -63,4 +63,3 @@ export function ViewerHost({
     </div>
   );
 }
-

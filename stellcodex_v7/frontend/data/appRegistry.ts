@@ -15,7 +15,7 @@ export const appRegistry: AppRegistryItem[] = [
     shortLabel: "3D",
     href: "/app/3d",
     icon: "3D",
-    description: "3D modeli inceleyin ve detaylara bakın.",
+    description: "Inspect the 3D model and review the details.",
   },
   {
     key: "2d",
@@ -24,16 +24,16 @@ export const appRegistry: AppRegistryItem[] = [
     homeLabel: "2D DXF",
     href: "/app/2d",
     icon: "2D",
-    description: "DXF çizimleri görüntüleyin ve ölçülendirin.",
+    description: "Open DXF drawings and inspect measurements.",
   },
   {
     key: "exploded",
-    label: "Patlatma",
-    shortLabel: "Patlatma",
-    homeLabel: "Patlatma",
+    label: "Exploded View",
+    shortLabel: "Explode",
+    homeLabel: "Exploded View",
     href: "/app/explode",
     icon: "PT",
-    description: "Patlatılmış görünümle montajı inceleyin.",
+    description: "Inspect the assembly with an exploded view.",
   },
   {
     key: "render",
@@ -41,7 +41,7 @@ export const appRegistry: AppRegistryItem[] = [
     shortLabel: "Render",
     href: "/app/render",
     icon: "RD",
-    description: "Sahne ve malzeme ayarlarıyla render alın.",
+    description: "Prepare renders with scene and material settings.",
   },
   {
     key: "moldcodes",
@@ -49,7 +49,7 @@ export const appRegistry: AppRegistryItem[] = [
     shortLabel: "Mold",
     href: "/app/moldcodes",
     icon: "MC",
-    description: "Standart eleman kataloglarını inceleyin.",
+    description: "Browse standard component catalogs.",
   },
   {
     key: "qa",
@@ -57,6 +57,6 @@ export const appRegistry: AppRegistryItem[] = [
     shortLabel: "QA",
     href: "/app/qa",
     icon: "QA",
-    description: "Hızlı kalite kontrol ve doğrulama paneli.",
+    description: "Run quick quality control and validation checks.",
   },
 ];

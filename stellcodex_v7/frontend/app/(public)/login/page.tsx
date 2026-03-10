@@ -24,19 +24,19 @@ export default function LoginPage() {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
-        setError(data?.detail || "Giriş başarısız. Email veya şifre hatalı.");
+        setError(data?.detail || "Sign-in failed. Check the email address and password.");
         return;
       }
       const token = data?.access_token;
       if (!token) {
-        setError("Sunucudan geçersiz yanıt alındı.");
+        setError("The server returned an invalid response.");
         return;
       }
       window.localStorage.setItem("scx_token", token);
       document.cookie = `scx_token=${token}; path=/; max-age=86400; SameSite=Lax`;
       router.push("/console"); // Redirect to the NEW console
     } catch {
-      setError("Sunucuya bağlanılamadı. Lütfen tekrar deneyin.");
+      setError("The server could not be reached. Please try again.");
     } finally {
       setLoading(false);
     }

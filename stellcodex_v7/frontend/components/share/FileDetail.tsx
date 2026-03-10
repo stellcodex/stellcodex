@@ -22,7 +22,7 @@ export function FileDetail({ fileId }: { fileId: string }) {
         const next = await getFile(fileId);
         if (alive) setDetail(next);
       } catch (e) {
-        if (alive) setError(e instanceof Error ? e.message : "Dosya yüklenemedi.");
+        if (alive) setError(e instanceof Error ? e.message : "The file could not be loaded.");
       }
     })();
     return () => {
@@ -38,7 +38,7 @@ export function FileDetail({ fileId }: { fileId: string }) {
       const result = await listArchive(detail.file.id);
       setArchiveEntries(result.entries as Array<{ path: string; sizeBytes: number; kind: string }>);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Arşiv okunamadı.");
+      setError(e instanceof Error ? e.message : "The archive could not be read.");
     } finally {
       setBusy(false);
     }
@@ -54,7 +54,7 @@ export function FileDetail({ fileId }: { fileId: string }) {
       setDetail(refreshed);
       await handleListArchive();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Arşiv çıkartılamadı.");
+      setError(e instanceof Error ? e.message : "The archive could not be extracted.");
     } finally {
       setBusy(false);
     }
@@ -64,7 +64,7 @@ export function FileDetail({ fileId }: { fileId: string }) {
     return <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>;
   }
   if (!detail) {
-    return <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Yükleniyor...</div>;
+    return <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Loading...</div>;
   }
 
   const { file, inFolder } = detail;
@@ -86,12 +86,12 @@ export function FileDetail({ fileId }: { fileId: string }) {
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
-        <div className="mb-3 text-sm font-medium text-slate-700">Önizleme</div>
+        <div className="mb-3 text-sm font-medium text-slate-700">Preview</div>
         <div className="grid min-h-[340px] place-items-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
           <div>
             <div className="text-sm font-medium text-slate-800">{file.name}</div>
             <div className="mt-1 text-sm text-slate-500">
-              {file.kind === "zip" ? "Arşiv içeriği görüntüleme/çıkartma bu sayfada yapılır." : "Preview placeholder"}
+              {file.kind === "zip" ? "Archive inspection and extraction are handled on this page." : "Preview placeholder"}
             </div>
           </div>
         </div>
@@ -100,27 +100,27 @@ export function FileDetail({ fileId }: { fileId: string }) {
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
         <div className="flex flex-wrap gap-2">
           <Button href={`/view/file/${file.id}`} variant="primary">
-            Viewer&apos;da Aç
+            Open in Viewer
           </Button>
-          <Button onClick={() => setShareOpen(true)}>Paylaş</Button>
-          <Button href={detail.downloadUrl}>İndir</Button>
+          <Button onClick={() => setShareOpen(true)}>Share</Button>
+          <Button href={detail.downloadUrl}>Download</Button>
         </div>
 
         {file.kind === "zip" ? (
           <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
             <div className="mb-2 text-sm font-medium text-slate-800">
-              ZIP arşivi otomatik çıkartılmaz. Arşiv klasöründe tutulur.
+              ZIP archives are not extracted automatically. They remain inside the archive folder.
             </div>
             <div className="flex flex-wrap gap-2">
               <Button onClick={handleListArchive} disabled={busy}>
-                İçeriği Görüntüle
+                View Contents
               </Button>
               <Button onClick={handleExtractArchive} disabled={busy}>
-                Çıkart
+                Extract
               </Button>
               {detail.file.extractedFolderId ? (
                 <Link className="self-center text-sm text-slate-600 hover:text-slate-900" href="/dashboard/files">
-                  Çıkartılan klasörü Dosyalarım içinde gör
+                  Open the extracted folder in My Files
                 </Link>
               ) : null}
             </div>
@@ -142,4 +142,3 @@ export function FileDetail({ fileId }: { fileId: string }) {
     </div>
   );
 }
-

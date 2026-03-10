@@ -93,15 +93,15 @@ function ViewerFrame({ minHeight, children }: { minHeight: number; children: Rea
 }
 
 function viewerLabelByVariant(variant: ViewerVariant) {
-  if (variant === "2d") return "2D çizim çalışma alanı";
-  if (variant === "explode") return "Patlatma çalışma alanı";
-  return "3D model çalışma alanı";
+  if (variant === "2d") return "2D drawing workspace";
+  if (variant === "explode") return "Exploded assembly workspace";
+  return "3D model workspace";
 }
 
 function viewerToolsByVariant(variant: ViewerVariant) {
-  if (variant === "2d") return ["Yakınlaştır", "Uzaklaştır", "Ölçü", "Not", "Katman", "Sığdır"];
-  if (variant === "explode") return ["Patlat", "Topla", "Adım", "Odak", "Kesit", "Sıfırla"];
-  return ["Döndür", "Kaydır", "Yakınlaştır", "Sığdır", "Kesit", "Patlat"];
+  if (variant === "2d") return ["Zoom In", "Zoom Out", "Measure", "Annotate", "Layers", "Fit"];
+  if (variant === "explode") return ["Explode", "Collapse", "Step", "Focus", "Section", "Reset"];
+  return ["Rotate", "Pan", "Zoom In", "Fit", "Section", "Explode"];
 }
 
 function modeFromVariant(variant: ViewerVariant | "render"): WorkspaceMode {
@@ -174,14 +174,14 @@ function SelectedFileCard({
     return (
       <aside className="space-y-4">
         <div className="rounded-2xl border border-[#dce3ee] bg-white p-4 shadow-[0_2px_8px_rgba(15,23,42,0.06)]">
-          <h3 className="text-base font-semibold text-[#0f172a]">Seçili Dosya</h3>
-          <p className="mt-2 text-sm text-[#64748b]">Henüz dosya seçili değil. Dosya yükleyerek başlayın.</p>
+          <h3 className="text-base font-semibold text-[#0f172a]">Selected File</h3>
+          <p className="mt-2 text-sm text-[#64748b]">No file is selected yet. Start by uploading a file.</p>
           <div className="mt-4">
             <Link
               href="/dashboard"
               className="inline-flex h-10 items-center justify-center rounded-xl border border-[#1d4ed8] bg-[#2563eb] px-4 text-sm font-semibold text-white hover:bg-[#1d4ed8]"
             >
-              Panele Git
+              Open Dashboard
             </Link>
           </div>
         </div>
@@ -192,22 +192,22 @@ function SelectedFileCard({
   return (
     <aside className="space-y-4">
       <div className="rounded-2xl border border-[#dce3ee] bg-white p-4 shadow-[0_2px_8px_rgba(15,23,42,0.06)]">
-        <h3 className="text-base font-semibold text-[#0f172a]">Seçili Dosya</h3>
+        <h3 className="text-base font-semibold text-[#0f172a]">Selected File</h3>
         <dl className="mt-3 space-y-2 text-sm text-[#475569]">
           <div className="flex justify-between gap-2">
-            <dt>Ad</dt>
+            <dt>Name</dt>
             <dd className="max-w-[62%] truncate text-right font-medium text-[#0f172a]">{selected.originalFilename}</dd>
           </div>
           <div className="flex justify-between gap-2">
-            <dt>Dosya Kimliği</dt>
+            <dt>File ID</dt>
             <dd className="max-w-[62%] truncate text-right font-medium text-[#0f172a]">{selected.fileId}</dd>
           </div>
           <div className="flex justify-between gap-2">
-            <dt>Proje</dt>
+            <dt>Project</dt>
             <dd className="max-w-[62%] truncate text-right font-medium text-[#0f172a]">{selected.projectName}</dd>
           </div>
           <div className="flex justify-between gap-2">
-            <dt>Yükleme Tarihi</dt>
+            <dt>Uploaded At</dt>
             <dd className="font-medium text-[#0f172a]">{formatWorkspaceDate(selected.uploadedAt)}</dd>
           </div>
         </dl>
@@ -216,19 +216,19 @@ function SelectedFileCard({
             href={`/view/${selected.fileId}`}
             className="inline-flex h-9 items-center justify-center rounded-lg border border-[#d1dae6] bg-white text-xs font-medium text-[#1f2937]"
           >
-            Görüntüle
+            View
           </Link>
           <Link
             href={`/projects/${selected.projectId}`}
             className="inline-flex h-9 items-center justify-center rounded-lg border border-[#d1dae6] bg-white text-xs font-medium text-[#1f2937]"
           >
-            Proje
+            Project
           </Link>
           <Link
             href={`${targetPath}?file=${encodeURIComponent(selected.fileId)}&project=${encodeURIComponent(selected.projectId)}`}
             className="inline-flex h-9 items-center justify-center rounded-lg border border-[#d1dae6] bg-white text-xs font-medium text-[#1f2937]"
           >
-            Odakla
+            Focus
           </Link>
         </div>
       </div>
@@ -255,7 +255,7 @@ function Inline3DViewport({
   const [renderMode, setRenderMode] = useState<RenderMode>("shadedEdges");
   const [cameraPreset, setCameraPreset] = useState<"iso" | "front" | "top" | "right">("iso");
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-  const [message, setMessage] = useState("Model hazırlanıyor...");
+  const [message, setMessage] = useState("Preparing model...");
   const sourceUrlRef = useRef<string | null>(null);
   const objectUrlRef = useRef<string | null>(null);
 
@@ -270,13 +270,13 @@ function Inline3DViewport({
         const state = (file.status || "").toLowerCase();
         if (state === "failed") {
           setStatus("error");
-          setMessage(file.error || "Model dönüştürülemedi.");
+          setMessage(file.error || "The model could not be converted.");
           return;
         }
 
         if (state !== "ready" && state !== "succeeded") {
           setStatus("loading");
-          setMessage("Model hazırlanıyor...");
+          setMessage("Preparing model...");
           return;
         }
 
@@ -288,7 +288,7 @@ function Inline3DViewport({
           null;
         if (!targetUrl) {
           setStatus("loading");
-          setMessage("3D içerik henüz hazır değil.");
+          setMessage("3D content is not ready yet.");
           return;
         }
 
@@ -315,7 +315,7 @@ function Inline3DViewport({
       } catch (error: unknown) {
         if (cancelled) return;
         setStatus("error");
-        setMessage(error instanceof Error ? error.message : "Model yüklenemedi.");
+        setMessage(error instanceof Error ? error.message : "The model could not be loaded.");
       }
     };
 
@@ -381,7 +381,7 @@ function Inline2DViewport({ fileId }: { fileId: string }) {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [kind, setKind] = useState<"dxf" | "pdf" | "image" | "unknown">("unknown");
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-  const [message, setMessage] = useState("2D içerik hazırlanıyor...");
+  const [message, setMessage] = useState("Preparing 2D content...");
   const sourceUrlRef = useRef<string | null>(null);
   const objectUrlRef = useRef<string | null>(null);
 
@@ -396,7 +396,7 @@ function Inline2DViewport({ fileId }: { fileId: string }) {
         const state = (file.status || "").toLowerCase();
         if (state === "failed") {
           setStatus("error");
-          setMessage(file.error || "2D içerik dönüştürülemedi.");
+          setMessage(file.error || "The 2D content could not be converted.");
           return;
         }
 
@@ -404,7 +404,7 @@ function Inline2DViewport({ fileId }: { fileId: string }) {
         if (lower.endsWith(".dxf")) {
           if (state !== "ready" && state !== "succeeded") {
             setStatus("loading");
-            setMessage("2D çizim hazırlanıyor...");
+            setMessage("Preparing 2D drawing...");
             return;
           }
           setKind("dxf");
@@ -414,14 +414,14 @@ function Inline2DViewport({ fileId }: { fileId: string }) {
 
         if (state !== "ready" && state !== "succeeded") {
           setStatus("loading");
-          setMessage("2D içerik hazırlanıyor...");
+          setMessage("Preparing 2D content...");
           return;
         }
 
         const targetUrl = file.original_url || file.preview_url || null;
         if (!targetUrl) {
           setStatus("loading");
-          setMessage("2D içerik henüz hazır değil.");
+          setMessage("2D content is not ready yet.");
           return;
         }
 
@@ -457,7 +457,7 @@ function Inline2DViewport({ fileId }: { fileId: string }) {
       } catch (error: unknown) {
         if (cancelled) return;
         setStatus("error");
-        setMessage(error instanceof Error ? error.message : "2D içerik yüklenemedi.");
+        setMessage(error instanceof Error ? error.message : "The 2D content could not be loaded.");
       }
     };
 
@@ -494,7 +494,7 @@ function Inline2DViewport({ fileId }: { fileId: string }) {
   }
 
   if (!blobUrl) {
-    return <div className="grid h-full place-items-center bg-white p-6 text-sm text-[#64748b]">2D içerik hazırlanıyor...</div>;
+    return <div className="grid h-full place-items-center bg-white p-6 text-sm text-[#64748b]">Preparing 2D content...</div>;
   }
 
   if (kind === "pdf") {
@@ -503,7 +503,7 @@ function Inline2DViewport({ fileId }: { fileId: string }) {
 
   return (
     <div className="grid h-full place-items-center bg-white p-2">
-      <img src={blobUrl} alt="2D Önizleme" className="max-h-full w-auto object-contain" />
+      <img src={blobUrl} alt="2D preview" className="max-h-full w-auto object-contain" />
     </div>
   );
 }
@@ -522,7 +522,7 @@ export function HomeSurface() {
       if (!file) return;
       setPickedFileName(file.name);
       setBusy(true);
-      setStatus("Dosya yükleniyor...");
+      setStatus("Uploading file...");
       setError(null);
 
       try {
@@ -537,7 +537,7 @@ export function HomeSurface() {
           projectId: DEFAULT_PROJECT_ID,
           projectName: DEFAULT_PROJECT_NAME,
         });
-        setStatus("Yükleme tamamlandı. Dosya projeye eklendi.");
+        setStatus("Upload completed. The file was added to the project.");
 
         const params = new URLSearchParams({
           file: saved.fileId,
@@ -545,7 +545,7 @@ export function HomeSurface() {
         });
         router.push(`${mode === "2d" ? "/app/2d" : "/app/3d"}?${params.toString()}`);
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Yükleme başarısız.");
+        setError(err instanceof Error ? err.message : "Upload failed.");
       } finally {
         setBusy(false);
       }
@@ -607,8 +607,8 @@ export function HomeSurface() {
           <div className="relative z-10 flex h-full flex-col justify-between p-6">
             <div className="max-w-2xl">
               <h1 className="text-[42px] font-semibold tracking-[-0.03em] text-[#0f172a]">STELLCODEX</h1>
-              <p className="mt-2 text-3xl font-semibold text-[#0f172a]">2D ve 3D mühendislik görüntüleyicisi</p>
-              <p className="mt-3 text-xl text-[#3b536d]">Dosyanızı sürükleyin veya alana tıklayarak yüklemeye başlayın.</p>
+              <p className="mt-2 text-3xl font-semibold text-[#0f172a]">2D and 3D engineering workspace</p>
+              <p className="mt-3 text-xl text-[#3b536d]">Drag your file here or click the surface to start uploading.</p>
             </div>
 
             <div className="flex items-end justify-between gap-3">
@@ -621,12 +621,12 @@ export function HomeSurface() {
                 }}
                 className="inline-flex h-10 items-center rounded-xl border border-[#cbd5e1] bg-white px-4 text-sm font-medium text-[#1e293b] hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {busy ? "Yükleniyor..." : "Dosya Yükle"}
+                {busy ? "Uploading..." : "Upload File"}
               </button>
               {pickedFileName ? (
-                <p className="max-w-[60%] truncate text-sm text-[#334155]">Seçilen dosya: {pickedFileName}</p>
+                <p className="max-w-[60%] truncate text-sm text-[#334155]">Selected file: {pickedFileName}</p>
               ) : (
-                <p className="text-sm text-[#64748b]">Sürükle-bırak desteklenir</p>
+                <p className="text-sm text-[#64748b]">Drag and drop is supported</p>
               )}
             </div>
           </div>
@@ -658,16 +658,16 @@ export function HomeSurface() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-[34px] font-semibold tracking-[-0.02em] text-[#0f172a]">Son Dosyalarım</h2>
+        <h2 className="mb-3 text-[34px] font-semibold tracking-[-0.02em] text-[#0f172a]">Recent Files</h2>
         <div className="rounded-2xl border border-[#dce3ee] bg-white p-5 shadow-[0_2px_6px_rgba(15,23,42,0.05)]">
-          <h3 className="text-2xl font-semibold text-[#0f172a]">Henüz dosya yok</h3>
-          <p className="mt-2 text-base text-[#58677a]">Henüz dosya yok. Dosya yükleyerek başlayın.</p>
+          <h3 className="text-2xl font-semibold text-[#0f172a]">No files yet</h3>
+          <p className="mt-2 text-base text-[#58677a]">Start by uploading your first file.</p>
           <div className="mt-4">
             <Link
               href="/dashboard"
               className="inline-flex h-10 items-center rounded-xl border border-[#cbd5e1] bg-white px-4 text-sm font-medium text-[#1e293b] hover:bg-[#f8fafc]"
             >
-              Panele Git
+              Open Dashboard
             </Link>
           </div>
         </div>
@@ -690,7 +690,7 @@ export function ViewerModuleSurface({
   const viewerMinHeight = useViewerMinHeight();
   const tools = viewerToolsByVariant(variant);
   const selected = useResolvedWorkspaceFile(variant, fileId, fileName);
-  const [activeTool, setActiveTool] = useState<string>(variant === "explode" ? "Patlat" : tools[0] || "");
+  const [activeTool, setActiveTool] = useState<string>(variant === "explode" ? "Explode" : tools[0] || "");
   const [treeQuery, setTreeQuery] = useState("");
   const [leftTab, setLeftTab] = useState<"assembly" | "display" | "section">("assembly");
   const [leftPaneMode, setLeftPaneMode] = useState<LeftPaneMode>("normal");
@@ -736,7 +736,7 @@ export function ViewerModuleSurface({
   useEffect(() => {
     if (variant === "explode") {
       setExplodeEnabled(true);
-      setActiveTool("Patlat");
+      setActiveTool("Explode");
       return;
     }
     setExplodeEnabled(false);
@@ -755,35 +755,35 @@ export function ViewerModuleSurface({
     (action: string) => {
       setActiveTool(action);
 
-      if (action === "Döndür") {
+      if (action === "Rotate") {
         setInteractionMode("rotate");
         return;
       }
-      if (action === "Kaydır") {
+      if (action === "Pan") {
         setInteractionMode("pan");
         return;
       }
-      if (action === "Yakınlaştır") {
+      if (action === "Zoom In") {
         triggerZoom("in");
         return;
       }
-      if (action === "Uzaklaştır") {
+      if (action === "Zoom Out") {
         triggerZoom("out");
         return;
       }
-      if (action === "Sığdır" || action === "Odak" || action === "Sıfırla") {
+      if (action === "Fit" || action === "Focus" || action === "Reset") {
         triggerFit();
         return;
       }
-      if (action === "Kesit") {
+      if (action === "Section") {
         setClipEnabled((prev) => !prev);
         return;
       }
-      if (action === "Patlat" || action === "Adım") {
+      if (action === "Explode" || action === "Step") {
         setExplodeEnabled(true);
         return;
       }
-      if (action === "Topla") {
+      if (action === "Collapse") {
         setExplodeEnabled(false);
       }
     },
@@ -792,11 +792,11 @@ export function ViewerModuleSurface({
 
   const isToolActive = useCallback(
     (action: string) => {
-      if (action === "Döndür") return interactionMode === "rotate";
-      if (action === "Kaydır") return interactionMode === "pan";
-      if (action === "Kesit") return clipEnabled;
-      if (action === "Patlat") return explodeEnabled;
-      if (action === "Topla") return !explodeEnabled;
+      if (action === "Rotate") return interactionMode === "rotate";
+      if (action === "Pan") return interactionMode === "pan";
+      if (action === "Section") return clipEnabled;
+      if (action === "Explode") return explodeEnabled;
+      if (action === "Collapse") return !explodeEnabled;
       return activeTool === action;
     },
     [activeTool, clipEnabled, explodeEnabled, interactionMode]
@@ -833,7 +833,7 @@ export function ViewerModuleSurface({
             onClick={() => setLeftPaneMode((prev) => (prev === "hidden" ? "normal" : "hidden"))}
             className="inline-flex h-9 items-center rounded-lg border border-[#d1dae6] bg-white px-3 text-xs font-medium text-[#334155] hover:bg-[#f8fafc]"
           >
-            {leftPaneMode === "hidden" ? "Panel Aç" : "Panel Gizle"}
+            {leftPaneMode === "hidden" ? "Open Panel" : "Hide Panel"}
           </button>
           <button
             type="button"
@@ -857,14 +857,14 @@ export function ViewerModuleSurface({
                 : "border-[#d1dae6] bg-white text-[#334155] hover:bg-[#f8fafc]",
             ].join(" ")}
           >
-            Geniş
+            Wide
           </button>
           {selected ? (
             <Link
               href={`/view/${selected.fileId}`}
               className="inline-flex h-9 items-center rounded-lg border border-[#d1dae6] bg-white px-3 text-xs font-medium text-[#1f2937] hover:bg-[#f8fafc]"
             >
-              Tam Görünüm
+              Full View
             </Link>
           ) : null}
         </div>
@@ -902,7 +902,7 @@ export function ViewerModuleSurface({
               type="search"
               value={treeQuery}
               onChange={(event) => setTreeQuery(event.target.value)}
-              placeholder="Ağaçta ara..."
+              placeholder="Search the tree..."
               className="mt-3 h-10 w-full rounded-lg border border-[#d1dae6] bg-white px-3 text-sm text-[#1f2937] outline-none focus:border-[#7aa2e3]"
             />
 
@@ -916,13 +916,13 @@ export function ViewerModuleSurface({
                       onClick={() => toggleRowVisibility(row)}
                       className="inline-flex h-6 items-center rounded-md border border-[#d1dae6] bg-white px-2 text-[11px] text-[#334155] hover:bg-[#f8fafc]"
                     >
-                      Gizle
+                      Hide
                     </button>
                   </div>
                 ))
               ) : (
                 <div className="rounded-md border border-dashed border-[#d1dae6] px-3 py-4 text-center text-xs text-[#64748b]">
-                  Sonuç bulunamadı.
+                  No results found.
                 </div>
               )}
             </div>
@@ -974,7 +974,7 @@ export function ViewerModuleSurface({
           </ViewerFrame>
 
           <p className="mt-2 text-xs text-[#64748b]">
-            {selected ? `${selected.originalFilename} görüntüleniyor.` : `${title} için görüntüleyici iskeleti`}
+            {selected ? `Viewing ${selected.originalFilename}.` : `Viewer placeholder for ${title}`}
           </p>
         </div>
       </div>
@@ -990,11 +990,11 @@ export function RenderSurface({ fileId, fileName }: { fileId?: string; fileName?
     <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
       <section className="rounded-2xl border border-[#dce3ee] bg-white p-4 shadow-[0_2px_8px_rgba(15,23,42,0.06)]">
         <div className="mb-3 flex items-center justify-between gap-2">
-          <h3 className="text-base font-semibold text-[#0f172a]">Render Önizleme</h3>
+          <h3 className="text-base font-semibold text-[#0f172a]">Render Preview</h3>
           <select className="h-10 rounded-lg border border-[#d1dae6] bg-white px-3 text-sm text-[#1f2937]">
-            <option>Yüksek Kalite</option>
-            <option>Sunum</option>
-            <option>Taslak</option>
+            <option>High Quality</option>
+            <option>Presentation</option>
+            <option>Draft</option>
           </select>
         </div>
 
@@ -1002,13 +1002,13 @@ export function RenderSurface({ fileId, fileName }: { fileId?: string; fileName?
           <div className="relative h-full w-full overflow-hidden rounded-xl border border-dashed border-[#cfd8e3] bg-[#f8fafd] text-sm text-[#64748b]">
             {selected ? (
               <iframe
-                title="Render kaynak görüntü"
+                title="Render source view"
                 src={`/view/${selected.fileId}`}
                 className="h-full min-h-[inherit] w-full border-0"
                 loading="lazy"
               />
             ) : (
-              <div className="grid h-full place-items-center p-6">Render önizleme alanı</div>
+              <div className="grid h-full place-items-center p-6">Render preview area</div>
             )}
           </div>
         </ViewerFrame>
@@ -1017,8 +1017,8 @@ export function RenderSurface({ fileId, fileName }: { fileId?: string; fileName?
       <aside className="space-y-4">
         <SelectedFileCard selected={selected} variant="render" />
         <div className="rounded-2xl border border-[#dce3ee] bg-white p-4 shadow-[0_2px_8px_rgba(15,23,42,0.06)]">
-          <h3 className="text-base font-semibold text-[#0f172a]">Render İşlemi</h3>
-          <p className="mt-2 text-sm text-[#475569]">Preset, çözünürlük ve kalite değerlerini seçerek işlemi başlatın.</p>
+          <h3 className="text-base font-semibold text-[#0f172a]">Render Job</h3>
+          <p className="mt-2 text-sm text-[#475569]">Select the preset, resolution, and quality before starting the job.</p>
           <div className="mt-4 space-y-2">
             <div className="h-10 rounded-lg border border-[#dce3ee] bg-[#f8fafc]" />
             <div className="h-10 rounded-lg border border-[#dce3ee] bg-[#f8fafc]" />
@@ -1027,7 +1027,7 @@ export function RenderSurface({ fileId, fileName }: { fileId?: string; fileName?
             type="button"
             className="mt-4 inline-flex h-10 w-full items-center justify-center rounded-xl border border-[#1d4ed8] bg-[#2563eb] px-4 text-sm font-semibold text-white hover:bg-[#1d4ed8]"
           >
-            Render Başlat
+            Start Render
           </button>
         </div>
       </aside>
@@ -1039,9 +1039,9 @@ export function MoldCodesSurface() {
   return (
     <div className="grid gap-4 xl:grid-cols-[320px_1fr_320px]">
       <section className="rounded-2xl border border-[#dce3ee] bg-white p-4 shadow-[0_2px_8px_rgba(15,23,42,0.06)]">
-        <h3 className="text-base font-semibold text-[#0f172a]">Kategoriler</h3>
+        <h3 className="text-base font-semibold text-[#0f172a]">Categories</h3>
         <ul className="mt-3 space-y-2 text-sm text-[#334155]">
-          {["Yolluk Bileşenleri", "İtici Elemanlar", "Kılavuz Burçlar", "Standart Plakalar", "Bağlantı Elemanları"].map((item) => (
+          {["Runner Components", "Ejector Elements", "Guide Bushings", "Standard Plates", "Fasteners"].map((item) => (
             <li key={item} className="rounded-lg border border-[#dce3ee] px-3 py-2">
               {item}
             </li>
@@ -1051,10 +1051,10 @@ export function MoldCodesSurface() {
 
       <section className="rounded-2xl border border-[#dce3ee] bg-white p-4 shadow-[0_2px_8px_rgba(15,23,42,0.06)]">
         <div className="flex flex-wrap items-center gap-3">
-          <h3 className="text-base font-semibold text-[#0f172a]">Sonuçlar</h3>
+          <h3 className="text-base font-semibold text-[#0f172a]">Results</h3>
           <input
             type="search"
-            placeholder="Eleman kodu ara..."
+            placeholder="Search component code..."
             className="ml-auto h-10 rounded-lg border border-[#d1dae6] bg-white px-3 text-sm text-[#1f2937] outline-none focus:border-[#7aa2e3]"
           />
         </div>
@@ -1063,16 +1063,16 @@ export function MoldCodesSurface() {
           {Array.from({ length: 10 }).map((_, index) => (
             <div key={index} className="flex items-center justify-between rounded-lg border border-[#dce3ee] px-3 py-2 text-sm text-[#334155]">
               <span>MC-{(index + 1).toString().padStart(4, "0")}</span>
-              <span className="text-xs text-[#64748b]">Standart Eleman</span>
+              <span className="text-xs text-[#64748b]">Standard Component</span>
             </div>
           ))}
         </div>
       </section>
 
       <aside className="rounded-2xl border border-[#dce3ee] bg-white p-4 shadow-[0_2px_8px_rgba(15,23,42,0.06)]">
-        <h3 className="text-base font-semibold text-[#0f172a]">Teknik Özet</h3>
+        <h3 className="text-base font-semibold text-[#0f172a]">Technical Summary</h3>
         <div className="mt-3 space-y-3">
-          {["Çap", "Uzunluk", "Malzeme", "Sertlik", "Tolerans"].map((field) => (
+          {["Diameter", "Length", "Material", "Hardness", "Tolerance"].map((field) => (
             <div key={field} className="rounded-lg border border-[#dce3ee] px-3 py-2 text-sm text-[#475569]">
               {field}
             </div>
@@ -1088,12 +1088,12 @@ export function LibrarySurface({
 }: {
   source: "tum" | "paylasilanlar" | "sablonlar" | "indirilenler";
 }) {
-  const chips = ["Tümü", "3D Model", "2D Çizim", "Render", "Patlatma"];
+  const chips = ["All", "3D Model", "2D Drawing", "Render", "Exploded View"];
   const badgeMap: Record<typeof source, string> = {
-    tum: "Kütüphane Akışı",
-    paylasilanlar: "Paylaşılanlar",
-    sablonlar: "Şablonlar",
-    indirilenler: "İndirilenler",
+    tum: "Library Feed",
+    paylasilanlar: "Shared",
+    sablonlar: "Templates",
+    indirilenler: "Downloads",
   };
 
   return (
@@ -1122,12 +1122,12 @@ export function LibrarySurface({
           {Array.from({ length: 12 }).map((_, index) => (
             <article key={index} className="rounded-xl border border-[#dce3ee] bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
               <div className="h-24 rounded-lg border border-dashed border-[#cad5e2] bg-[#f8fafd]" />
-              <h3 className="mt-3 text-sm font-semibold text-[#0f172a]">Dosya-{index + 1}.step</h3>
-              <p className="mt-1 text-xs text-[#64748b]">STEP · kullanıcı · 11.02.2026</p>
+              <h3 className="mt-3 text-sm font-semibold text-[#0f172a]">File-{index + 1}.step</h3>
+              <p className="mt-1 text-xs text-[#64748b]">STEP · user · 11.02.2026</p>
               <div className="mt-2 flex items-center gap-3 text-xs text-[#64748b]">
-                <span>Beğeni</span>
-                <span>Görüntüleme</span>
-                <span>Yorum</span>
+                <span>Likes</span>
+                <span>Views</span>
+                <span>Comments</span>
               </div>
             </article>
           ))}

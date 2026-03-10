@@ -15,9 +15,9 @@ export function assertRoutePermissionsComplete(): void {
   const missing = listMissingRoutePermissions();
   if (missing.length) {
     throw new Error(
-      "RBAC rota eşlemesi eksik. Eksik izin anahtarları: " +
+      "RBAC route mapping is incomplete. Missing permission keys: " +
         missing.join(", ") +
-        ". frontend/src/security/route-permissions.json dosyasını güncelleyin."
+        ". Update frontend/src/security/route-permissions.json."
     );
   }
 }

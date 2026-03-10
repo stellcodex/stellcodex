@@ -7,16 +7,16 @@ type AiInsightsPanelProps = {
 };
 
 const adminInsights = [
-  "Render kuyruğunda hata artışı var",
-  "Blender işleri ortalamaya göre yavaşladı",
-  "DXF içe aktarmada katman ayrıştırma gecikiyor",
-  "Depolama senkronunda birikim tespit edildi",
+  "Render queue failures are increasing",
+  "Blender jobs are slower than the recent average",
+  "Layer extraction is delayed on DXF imports",
+  "A backlog was detected in storage synchronization",
 ];
 
 const userInsights = [
-  "Güncel revizyonlar için Render deneyin",
-  "DXF katman incelemesi için 2D’yi açın",
-  "Montaj denetimi için Patlatma modunu kullanın",
+  "Try Render for the latest revisions",
+  "Open 2D mode for DXF layer inspection",
+  "Use Exploded View for assembly review",
 ];
 
 export function AiInsightsPanel({ mode }: AiInsightsPanelProps) {
@@ -25,9 +25,9 @@ export function AiInsightsPanel({ mode }: AiInsightsPanelProps) {
 
   return (
     <div className="flex flex-col gap-sp2 rounded-r2 border-soft bg-surface px-cardPad py-cardPad">
-      <div className="text-fs1 font-semibold">AI Önerileri</div>
+      <div className="text-fs1 font-semibold">AI Insights</div>
       <div className="text-fs0 text-muted">
-        {mode === "admin" ? "Operasyon sinyalleri" : `${user.name} için`}
+        {mode === "admin" ? "Operational signals" : `For ${user.name}`}
       </div>
       <ul className="flex flex-col gap-sp1 text-fs1 text-text">
         {items.map((item) => (

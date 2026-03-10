@@ -18,8 +18,8 @@ export type WorkspaceProjectSummary = {
 };
 
 const WORKSPACE_CACHE_SLOT = "scx_workspace_files_v1";
-export const DEFAULT_PROJECT_ID = "genel-proje";
-export const DEFAULT_PROJECT_NAME = "Genel Proje";
+export const DEFAULT_PROJECT_ID = "default-project";
+export const DEFAULT_PROJECT_NAME = "Default Project";
 const WORKSPACE_UPDATED_EVENT = "scx-workspace-updated";
 
 const MODE_2D_EXTENSIONS = new Set([
@@ -148,7 +148,7 @@ export function formatWorkspaceDate(iso: string): string {
   if (!iso) return "-";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("tr-TR", {
+  return new Intl.DateTimeFormat("en-US", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

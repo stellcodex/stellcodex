@@ -22,7 +22,7 @@ export function AdminGuard({ children }: { children: ReactNode }) {
     const token = getUserToken();
     if (!token) {
       setState("denied");
-      setNotice("Yönetici erişimi için kullanıcı oturumu gerekli.");
+      setNotice("A user session is required for admin access.");
       return;
     }
     getMe()
@@ -30,26 +30,25 @@ export function AdminGuard({ children }: { children: ReactNode }) {
         if (me?.role === "admin") setState("allowed");
         else {
           setState("denied");
-          setNotice("Yetkin yok.");
+          setNotice("Access denied.");
           router.replace("/");
         }
       })
       .catch(() => {
         setState("denied");
-        setNotice("Yetkin yok.");
+        setNotice("Access denied.");
         router.replace("/");
       });
   }, [router]);
 
   if (state === "allowed") return <>{children}</>;
   if (state === "denied") {
-    return <EmptyState title="Yetkin yok" description={notice || "Yetkin yok."} />;
+    return <EmptyState title="Access denied" description={notice || "Access denied."} />;
   }
-  return <EmptyState title="Kontrol ediliyor" description="Yetki kontrolü yapılıyor." />;
+  return <EmptyState title="Checking access" description="Permissions are being verified." />;
 }
 
 export function UserGuard({ children }: { children: ReactNode }) {
-  // Session UX: dashboard token girişi istemez, tek oturum hissi verir.
+  // Session UX: the dashboard does not prompt for a token and keeps a single-session feel.
   return <>{children}</>;
 }
-

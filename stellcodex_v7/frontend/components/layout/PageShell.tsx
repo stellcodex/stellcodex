@@ -20,7 +20,7 @@ export function PageShell(props: {
         </div>
 
         <div className="rounded-2xl border border-[#d7d3c8] bg-white/90 p-5 shadow-sm">
-          {props.children ?? <div className="text-sm text-[#4f6f6b]">İçerik hazır.</div>}
+          {props.children ?? <div className="text-sm text-[#4f6f6b]">Content is ready.</div>}
         </div>
       </div>
     </div>

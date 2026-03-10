@@ -32,7 +32,7 @@ export function WorkspaceOpenRoute({ fileId }: { fileId: string }) {
   if (!appId) {
     return (
       <div className="grid min-h-screen place-items-center bg-[var(--platform-bg)] px-6 text-center text-sm text-slate-400">
-        Dosya rotasi hazirlaniyor...
+        Preparing the file route...
       </div>
     );
   }

@@ -49,7 +49,7 @@ export default function AdminSystemPage() {
       })
       .catch((e: any) => {
         if (!active) return;
-        setError(e?.message || "Yönetim verisi alınamadı.");
+        setError(e?.message || "Admin data could not be loaded.");
       });
     return () => {
       active = false;
@@ -59,46 +59,46 @@ export default function AdminSystemPage() {
   return (
     <main className="py-6 sm:py-8">
       <Container>
-        <PageHeader title="Yönetim" subtitle="Sistem" />
+        <PageHeader title="Admin" subtitle="System" />
         {error ? (
-          <EmptyState title="Yönetim verisi alınamadı" description={error} />
+          <EmptyState title="Admin data could not be loaded" description={error} />
         ) : (
           <div className="mt-6 grid gap-4 lg:grid-cols-3">
             <Card className="p-4">
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Sağlık</div>
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Health</div>
               {health ? (
                 <div className="mt-3 space-y-1 text-sm text-slate-700">
                   <div>API: {health.api}</div>
                   <div>DB: {health.db}</div>
                   <div>Redis: {health.redis}</div>
                   <div>RQ: {health.rq}</div>
-                  {health.storage ? <div>Depolama: {health.storage}</div> : null}
+                  {health.storage ? <div>Storage: {health.storage}</div> : null}
                 </div>
               ) : (
-                <div className="mt-3 text-sm text-slate-500">Veri yok.</div>
+                <div className="mt-3 text-sm text-slate-500">No data available.</div>
               )}
             </Card>
 
             <Card className="p-4">
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Kuyruklar</div>
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Queues</div>
               {queues.length ? (
                 <div className="mt-3 space-y-2 text-sm text-slate-700">
                   {queues.map((q) => (
                     <div key={q.name} className="rounded-lg border border-slate-100 p-2">
                       <div className="font-medium">{q.name}</div>
                       <div className="text-xs text-slate-500">
-                        bekleyen: {q.queued_count} · başlayan: {q.started_count} · başarısız: {q.failed_count}
+                        queued: {q.queued_count} · started: {q.started_count} · failed: {q.failed_count}
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="mt-3 text-sm text-slate-500">Kuyruk verisi yok.</div>
+                <div className="mt-3 text-sm text-slate-500">No queue data is available.</div>
               )}
             </Card>
 
             <Card className="p-4">
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Hatalar</div>
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Errors</div>
               {failures.length ? (
                 <div className="mt-3 space-y-2 text-xs text-slate-700">
                   {failures.map((f) => (
@@ -110,7 +110,7 @@ export default function AdminSystemPage() {
                   ))}
                 </div>
               ) : (
-                <div className="mt-3 text-sm text-slate-500">Hata yok.</div>
+                <div className="mt-3 text-sm text-slate-500">No errors were reported.</div>
               )}
             </Card>
           </div>

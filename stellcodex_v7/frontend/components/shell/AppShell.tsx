@@ -44,8 +44,8 @@ type SidebarItem = {
 };
 
 const coreItems: SidebarItem[] = [
-  { label: "Yeni Sohbet", href: "/chat", icon: "S" },
-  { label: "Dosyalar", href: "/files", icon: "D" },
+  { label: "New Chat", href: "/chat", icon: "S" },
+  { label: "Files", href: "/files", icon: "D" },
   { label: "Apps", href: "/apps", icon: "A" },
 ];
 
@@ -56,9 +56,9 @@ const appItems: SidebarItem[] = appRegistry.map((item) => ({
 }));
 
 const libraryItems: SidebarItem[] = [
-  { label: "Paylaşılanlar", href: "/library/shared", icon: "P" },
-  { label: "Şablonlar", href: "/library/templates", icon: "S" },
-  { label: "İndirilenler", href: "/library/downloads", icon: "I" },
+  { label: "Shared", href: "/library/shared", icon: "P" },
+  { label: "Templates", href: "/library/templates", icon: "S" },
+  { label: "Downloads", href: "/library/downloads", icon: "I" },
 ];
 
 function isActive(pathname: string, href: string) {
@@ -215,13 +215,13 @@ export function AppShell({
                 type="button"
                 className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#dbe3ec] bg-white text-[#314152] lg:hidden"
                 onClick={() => setMobileOpenPath((prev) => (prev === pathname ? null : pathname))}
-                aria-label="Menü"
+                aria-label="Menu"
               >
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" aria-hidden>
                   <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
                 </svg>
               </button>
-              <Link href="/" className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg" aria-label="Ana sayfa">
+              <Link href="/" className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg" aria-label="Home page">
                 <Image
                   src="/assets/branding/sc-logo.png"
                   alt="Logo"
@@ -243,7 +243,7 @@ export function AppShell({
                   className="hidden h-9 items-center rounded-lg border border-[#dbe3ec] bg-white px-3 text-xs font-medium text-[#314152] xl:inline-flex"
                   onClick={toggleChatPanel}
                 >
-                  {effectiveChatPanelOpen ? "Sohbeti Gizle" : "Sohbeti Aç"}
+                  {effectiveChatPanelOpen ? "Hide Chat" : "Open Chat"}
                 </button>
               ) : null}
               <button
@@ -251,7 +251,7 @@ export function AppShell({
                 className="hidden h-9 items-center rounded-lg border border-[#dbe3ec] bg-white px-3 text-xs font-medium text-[#314152] lg:inline-flex"
                 onClick={toggleFullMode}
               >
-                {fullMode ? "Standart Görünüm" : "Tam Sayfa"}
+                {fullMode ? "Standard View" : "Full Screen"}
               </button>
             </div>
           </div>
@@ -267,7 +267,7 @@ export function AppShell({
           >
             <div className="flex items-center justify-between px-2 py-2">
               {!effectiveCollapsed ? (
-                <span className="px-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#64748b]">Menü</span>
+                <span className="px-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#64748b]">Menu</span>
               ) : (
                 <span />
               )}
@@ -275,9 +275,9 @@ export function AppShell({
                 type="button"
                 className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#dbe3ec] text-[#314152] disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={() => setCollapsed((prev) => !prev)}
-                aria-label="Sidebar daralt"
+                aria-label="Collapse sidebar"
                 disabled={focusMode}
-                title={focusMode ? "Odak modunda sidebar sabit daraltılır" : undefined}
+                title={focusMode ? "The sidebar stays collapsed while focus mode is active." : undefined}
               >
                 {effectiveCollapsed ? ">" : "<"}
               </button>
@@ -298,7 +298,7 @@ export function AppShell({
 
               <div>
                 {!effectiveCollapsed ? (
-                  <div className="px-2 pb-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#64748b]">Uygulamalar</div>
+                  <div className="px-2 pb-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#64748b]">Applications</div>
                 ) : null}
                 <div className="space-y-1">
                   {appItems.map((item) => (
@@ -315,7 +315,7 @@ export function AppShell({
 
               <div>
                 {!effectiveCollapsed ? (
-                  <div className="px-2 pb-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#64748b]">Kütüphane</div>
+                  <div className="px-2 pb-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#64748b]">Library</div>
                 ) : null}
                 <div className="space-y-1">
                   {libraryItems.map((item) => (
@@ -358,7 +358,7 @@ export function AppShell({
                     className="inline-flex h-9 w-full items-center justify-center rounded-lg border border-[#dbe3ec] text-sm text-[#314152]"
                     onClick={() => setMobileOpenPath(null)}
                   >
-                    Menüyü Kapat
+                    Close Menu
                   </button>
                 </div>
                 <div className="space-y-1">
@@ -395,21 +395,21 @@ export function AppShell({
           {effectiveChatPanelOpen ? (
             <aside className="fixed right-0 top-16 z-[60] hidden h-[calc(100vh-64px)] w-[320px] border-l border-[#e2e8f0] bg-white p-3 xl:flex xl:flex-col">
               <div className="flex items-center justify-between border-b border-[#eef2f7] pb-2">
-                <h2 className="truncate text-sm font-semibold text-[#1f2937]">Sohbet Paneli</h2>
+                <h2 className="truncate text-sm font-semibold text-[#1f2937]">Chat Panel</h2>
                 <button
                   type="button"
                   onClick={toggleChatPanel}
                   className="inline-flex h-7 items-center rounded-md border border-[#dbe3ec] px-2 text-xs text-[#314152]"
                 >
-                  Gizle
+                  Hide
                 </button>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto py-3">
                 <p className="text-sm text-[#475569]">
-                  Hızlı erişim için sohbet paneli açık. Tüm mesaj akışı için sohbet sayfasını kullanın.
+                  The chat panel is open for quick access. Use the full chat page for the complete conversation flow.
                 </p>
                 <div className="mt-3 space-y-2">
-                  {["Dosya yükleme adımları", "3D görünüm kontrolleri", "Render hazırlığı", "Proje akışı"].map((item) => (
+                  {["File upload steps", "3D view controls", "Render setup", "Project workflow"].map((item) => (
                     <button
                       key={item}
                       type="button"
@@ -424,7 +424,7 @@ export function AppShell({
                 href="/chat"
                 className="inline-flex h-10 items-center justify-center rounded-lg border border-[#1d4ed8] bg-[#2563eb] px-3 text-sm font-semibold text-white hover:bg-[#1d4ed8]"
               >
-                Sohbet Sayfasına Git
+                Open Chat Page
               </Link>
             </aside>
           ) : null}

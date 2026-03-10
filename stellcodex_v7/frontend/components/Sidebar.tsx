@@ -16,8 +16,8 @@ type NavLinkItem = {
 };
 
 const navItems: NavLinkItem[] = [
-  { label: "Yeni Sohbet", href: "/", icon: IconChat },
-  { label: "Genel Arama", href: "/", icon: IconSearch },
+  { label: "New Chat", href: "/", icon: IconChat },
+  { label: "Global Search", href: "/", icon: IconSearch },
 ];
 
 const appItems: NavLinkItem[] = appRegistry.map((item) => ({
@@ -36,15 +36,15 @@ const appItems: NavLinkItem[] = appRegistry.map((item) => ({
 }));
 
 const userItems: NavLinkItem[] = [
-  { label: "Dosyalarım", href: "/dashboard/files", icon: IconFiles, requiresAuth: true },
+  { label: "My Files", href: "/dashboard/files", icon: IconFiles, requiresAuth: true },
 ];
 
 const footerItems: NavLinkItem[] = [
-  { label: "Ayarlar", href: "/dashboard/settings", icon: IconSettings, requiresAuth: true },
+  { label: "Settings", href: "/dashboard/settings", icon: IconSettings, requiresAuth: true },
 ];
 
 const mobileItems: NavLinkItem[] = [
-  { label: "Ana Sayfa", href: "/", icon: IconHome },
+  { label: "Home", href: "/", icon: IconHome },
   ...appItems,
   ...userItems,
   ...footerItems,
@@ -84,7 +84,7 @@ export default function Sidebar() {
 
           <div className="mt-6">
             <div className="px-3 text-xs font-semibold uppercase tracking-[0.2em] text-[#6B7280]">
-              Uygulamalar
+              Applications
             </div>
             <div className="mt-3 space-y-2">
               {appItems.map((item) => (
@@ -101,7 +101,7 @@ export default function Sidebar() {
 
           <div className="mt-6">
             <div className="px-3 text-xs font-semibold uppercase tracking-[0.2em] text-[#6B7280]">
-              Kullanıcı Alanı
+              User Area
             </div>
             <div className="mt-3 space-y-2">
               {userItems.map((item) => (

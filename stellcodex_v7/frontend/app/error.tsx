@@ -28,13 +28,13 @@ export default function GlobalError({ error, reset }: { error: Error; reset: () 
   }, [chunkError]);
 
   const message = chunkError
-    ? "Yeni sürüm yayına alınmış olabilir. Sayfa yenileniyor; düzelmezse tarayıcı önbelleğini temizleyip tekrar deneyin."
-    : error?.message || "Beklenmeyen hata.";
+    ? "A newer release may have been deployed. The page is reloading; if the issue persists, clear the browser cache and try again."
+    : error?.message || "Unexpected error.";
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-8">
       <ErrorState
-        title="Bir şeyler ters gitti"
+        title="Something went wrong"
         description={message}
         action={
           <Button
@@ -50,7 +50,7 @@ export default function GlobalError({ error, reset }: { error: Error; reset: () 
               reset();
             }}
           >
-            {chunkError ? "Sayfayı yenile" : "Yeniden dene"}
+            {chunkError ? "Reload page" : "Try again"}
           </Button>
         }
       />

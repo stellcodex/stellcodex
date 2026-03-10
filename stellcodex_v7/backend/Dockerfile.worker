@@ -43,7 +43,7 @@ RUN python3 -m pip install --no-cache-dir -r /app/requirements.txt
 
 COPY app /app/app
 
-# Redis hazır olmadan worker connection refused döngüsünü temizler
+# Wait for Redis before starting the worker process.
 CMD ["sh", "-lc", "\
   echo 'Waiting for redis:6379...' && until nc -z redis 6379; do sleep 1; done; \
   echo 'Starting RQ worker...' && \

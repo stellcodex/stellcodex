@@ -22,13 +22,13 @@ type MockDb = {
   shares: ShareLinkRecord[];
 };
 
-const PROJECT_DEFAULT_NAME = "Genel";
+const PROJECT_DEFAULT_NAME = "General";
 const SYSTEM_FOLDERS = [
-  { name: "3D Modeller", systemKey: "MODELS_3D" },
-  { name: "2D Çizimler", systemKey: "DRAWINGS_2D" },
-  { name: "Dokümanlar", systemKey: "DOCUMENTS" },
-  { name: "Görseller", systemKey: "IMAGES" },
-  { name: "Arşiv", systemKey: "ARCHIVE" },
+  { name: "3D Models", systemKey: "MODELS_3D" },
+  { name: "2D Drawings", systemKey: "DRAWINGS_2D" },
+  { name: "Documents", systemKey: "DOCUMENTS" },
+  { name: "Images", systemKey: "IMAGES" },
+  { name: "Archive", systemKey: "ARCHIVE" },
 ] as const;
 
 declare global {
@@ -144,13 +144,13 @@ function seedDb(): MockDb {
 
   const byKey = (key: string) => folders.find((f) => f.systemKey === key)!;
   const files: FileRecord[] = [
-    makeFile(projectId, byKey("MODELS_3D").id, "ornek-parca.step", 2_400_000),
-    makeFile(projectId, byKey("MODELS_3D").id, "kutu.stl", 680_000),
-    makeFile(projectId, byKey("DRAWINGS_2D").id, "yerlesim.dxf", 214_000),
-    makeFile(projectId, byKey("DOCUMENTS").id, "teklif.pdf", 540_000),
-    makeFile(projectId, byKey("DOCUMENTS").id, "kontrol-listesi.docx", 120_000),
-    makeFile(projectId, byKey("IMAGES").id, "urun.png", 800_000),
-    makeFile(projectId, byKey("ARCHIVE").id, "paket.zip", 4_100_000, {
+    makeFile(projectId, byKey("MODELS_3D").id, "sample-part.step", 2_400_000),
+    makeFile(projectId, byKey("MODELS_3D").id, "enclosure.stl", 680_000),
+    makeFile(projectId, byKey("DRAWINGS_2D").id, "layout.dxf", 214_000),
+    makeFile(projectId, byKey("DOCUMENTS").id, "quote.pdf", 540_000),
+    makeFile(projectId, byKey("DOCUMENTS").id, "checklist.docx", 120_000),
+    makeFile(projectId, byKey("IMAGES").id, "product.png", 800_000),
+    makeFile(projectId, byKey("ARCHIVE").id, "package.zip", 4_100_000, {
       archiveEntries: [
         { path: "docs/readme.pdf", sizeBytes: 54_000, kind: "pdf" },
         { path: "models/bracket.step", sizeBytes: 900_000, kind: "3d" },
@@ -265,7 +265,7 @@ export function createFolder(input: { projectId: string; parentId?: string | nul
     id: nanoid(10),
     projectId: input.projectId,
     parentId: input.parentId ?? null,
-    name: input.name.trim() || "Yeni Klasör",
+    name: input.name.trim() || "New Folder",
     isSystem: false,
     systemKey: null,
     createdAt: nowIso(),
@@ -410,4 +410,3 @@ export function adminSnapshot() {
     },
   };
 }
-

@@ -34,20 +34,20 @@ export default function HomeClient() {
                 <div className="max-w-2xl space-y-3">
                   <div style={tokens.typography.h1} className="text-[#0c2a2a]">STELLCODEX</div>
                   <div style={tokens.typography.h2} className="text-[#0c2a2a]">
-                    2D ve 3D mühendislik görüntüleyicisi
+                    2D and 3D engineering workspace
                   </div>
                   <div style={tokens.typography.body} className="text-[#4f6f6b]">
-                    Yükle → Görüntüle → İncele → Render al → Paylaş
+                    Upload -> Review -> Inspect -> Render -> Share
                   </div>
                 </div>
                 <div>
-                  <PrimaryButton href="/dashboard">Panele Git</PrimaryButton>
+                  <PrimaryButton href="/dashboard">Open dashboard</PrimaryButton>
                 </div>
               </div>
             </div>
           </Card>
 
-          <Section title="Modlar">
+          <Section title="Modes">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               {applications.map((app) => (
                 <Link key={app.key} href={cardHref(app.href)} className="block">
@@ -67,7 +67,7 @@ export default function HomeClient() {
             </div>
           </Section>
 
-          <Section title="Son Dosyalarım">
+          <Section title="Recent Files">
             {recentFiles.length ? (
               <div className="grid gap-3">
                 {recentFiles.map((file) => (
@@ -83,9 +83,9 @@ export default function HomeClient() {
               </div>
             ) : (
               <EmptyState
-                title="Henüz dosya yok"
-                description="Henüz dosya yok. Dosya yükleyerek başlayın."
-                action={<SecondaryButton href="/dashboard">Panele Git</SecondaryButton>}
+                title="No files yet"
+                description="Start by uploading your first file."
+                action={<SecondaryButton href="/dashboard">Open dashboard</SecondaryButton>}
               />
             )}
           </Section>

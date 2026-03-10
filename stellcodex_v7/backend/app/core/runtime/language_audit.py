@@ -15,6 +15,7 @@ BACKEND_ROOT = Path(__file__).resolve().parents[3]
 SCAN_ROOTS = ("app", "docs", "tests", "scripts", "alembic", "../infrastructure")
 ALLOWED_MULTILINGUAL_FILES = {
     "app/core/runtime/message_mode.py": "multilingual message classification keywords",
+    "app/core/runtime/repo_language_audit.py": "repo language audit keyword patterns",
     "app/stellai/agents.py": "multilingual tool inference keywords",
     "app/stellai/channel_runtime.py": "multilingual async routing keywords",
 }

@@ -69,7 +69,7 @@ export function ViewWorkspace({ initialFileId }: { initialFileId?: string }) {
         router.replace(`/view?file=${routeFileId}`);
       } catch (e) {
         if (!cancelled) {
-          setLoading({ kind: "error", message: e instanceof Error ? e.message : "Viewer açılamadı." });
+          setLoading({ kind: "error", message: e instanceof Error ? e.message : "The viewer could not be opened." });
         }
       }
     }
@@ -98,9 +98,9 @@ export function ViewWorkspace({ initialFileId }: { initialFileId?: string }) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-lg font-semibold text-slate-900">StellView</h1>
-            <p className="text-sm text-slate-600">Motor backend/mock tarafından belirlenir. Paylaşım bu ekranda yok.</p>
+            <p className="text-sm text-slate-600">The engine is resolved by the backend or mock layer. Sharing is not handled on this screen.</p>
           </div>
-          <Button href="/dashboard">Panel&apos;e dön</Button>
+          <Button href="/dashboard">Back to Dashboard</Button>
         </div>
       </div>
 
@@ -108,8 +108,8 @@ export function ViewWorkspace({ initialFileId }: { initialFileId?: string }) {
         <ProcessingScreen
           stage={loading.stage}
           progress={loading.progress}
-          title="Hazırlanıyor"
-          subtitle={`${loading.fileName || "Dosya"} işleniyor. Viewer hazır olmadan gösterilmeyecek.`}
+          title="Preparing"
+          subtitle={`${loading.fileName || "File"} is being processed. It will not be shown before the viewer is ready.`}
         />
       ) : null}
 
@@ -136,10 +136,10 @@ export function ViewWorkspace({ initialFileId }: { initialFileId?: string }) {
           ) : (
             <div className="grid min-h-[420px] place-items-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
               <div>
-                <div className="text-sm font-medium text-slate-800">Açık dosya yok</div>
-                <div className="mt-1 text-sm text-slate-500">StellShare üzerinden bir dosya açın veya Home ekranından yükleyin.</div>
+                <div className="text-sm font-medium text-slate-800">No file is open</div>
+                <div className="mt-1 text-sm text-slate-500">Open a file from StellShare or upload one from the Home screen.</div>
                 <div className="mt-4 flex justify-center gap-2">
-                  <Button href="/dashboard">Panel</Button>
+                  <Button href="/dashboard">Dashboard</Button>
                   <Button href="/" variant="primary">
                     Home
                   </Button>
@@ -152,4 +152,3 @@ export function ViewWorkspace({ initialFileId }: { initialFileId?: string }) {
     </div>
   );
 }
-

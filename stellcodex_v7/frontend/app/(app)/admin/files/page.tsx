@@ -29,7 +29,7 @@ export default function AdminFilesPage() {
       })
       .catch((e: any) => {
         if (!active) return;
-        setError(e?.message || "Dosyalar alınamadı.");
+        setError(e?.message || "Files could not be loaded.");
       });
     return () => {
       active = false;
@@ -39,15 +39,15 @@ export default function AdminFilesPage() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Dosyalar"
-        description="Görünürlük ve arşiv kontrolleri."
-        crumbs={[{ label: "Yönetim", href: "/admin" }, { label: "Dosyalar" }]}
+        title="Files"
+        description="Visibility and archive controls."
+        crumbs={[{ label: "Admin", href: "/admin" }, { label: "Files" }]}
       />
       {error ? (
-        <EmptyState title="Dosya verisi yok" description={error} />
+        <EmptyState title="No file data" description={error} />
       ) : (
         <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <div className="text-sm font-semibold text-slate-900">Son dosyalar</div>
+          <div className="text-sm font-semibold text-slate-900">Recent files</div>
           <div className="mt-3 space-y-2 text-sm text-slate-700">
             {files.length ? (
               files.map((f) => (
@@ -59,7 +59,7 @@ export default function AdminFilesPage() {
                 </div>
               ))
             ) : (
-              <div className="text-sm text-slate-500">Dosya yok.</div>
+              <div className="text-sm text-slate-500">No files are available.</div>
             )}
           </div>
         </div>

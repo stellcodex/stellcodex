@@ -41,18 +41,18 @@ export function ShareDialog({
       const absolute = typeof window !== "undefined" ? new URL(result.shareUrl, window.location.origin).toString() : result.shareUrl;
       setShareUrl(absolute);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Paylaşım linki üretilemedi.");
+      setError(e instanceof Error ? e.message : "The share link could not be created.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <Modal open={open} title="Paylaşım Oluştur" onClose={onClose}>
+    <Modal open={open} title="Create Share Link" onClose={onClose}>
       <div className="grid gap-4">
         <label className="flex items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" checked={canView} onChange={(e) => setCanView(e.target.checked)} />
-          Görüntüleme izni
+          Allow viewing
         </label>
         <label className="flex items-center gap-2 text-sm text-slate-700">
           <input
@@ -60,19 +60,19 @@ export function ShareDialog({
             checked={canDownload}
             onChange={(e) => setCanDownload(e.target.checked)}
           />
-          İndirme izni
+          Allow download
         </label>
         <label className="grid gap-1 text-sm">
-          <span className="text-slate-600">Şifre (opsiyonel)</span>
+          <span className="text-slate-600">Password (optional)</span>
           <input
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="h-10 rounded-xl border border-slate-200 px-3"
-            placeholder="İsteğe bağlı"
+            placeholder="Optional"
           />
         </label>
         <label className="grid gap-1 text-sm">
-          <span className="text-slate-600">Süre / saat (opsiyonel)</span>
+          <span className="text-slate-600">Expiry in hours (optional)</span>
           <input
             value={expiryHours}
             onChange={(e) => setExpiryHours(e.target.value)}
@@ -84,7 +84,7 @@ export function ShareDialog({
 
         <div className="flex gap-2">
           <Button variant="primary" onClick={handleGenerate} disabled={loading}>
-            {loading ? "Üretiliyor..." : "Link Üret"}
+            {loading ? "Creating..." : "Generate Link"}
           </Button>
           {shareUrl ? (
             <Button
@@ -92,7 +92,7 @@ export function ShareDialog({
                 await navigator.clipboard.writeText(shareUrl);
               }}
             >
-              Linki Kopyala
+              Copy Link
             </Button>
           ) : null}
         </div>
@@ -105,4 +105,3 @@ export function ShareDialog({
     </Modal>
   );
 }
-

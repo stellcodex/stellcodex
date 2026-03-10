@@ -247,7 +247,7 @@ function normalizeFileItem(input: unknown): FileItem {
   const originalName =
     (typeof data.original_name === "string" && data.original_name.trim()) ||
     (typeof data.original_filename === "string" && data.original_filename.trim()) ||
-    "isimsiz";
+    "untitled";
   const contentType = typeof data.content_type === "string" ? data.content_type : "application/octet-stream";
   const sizeBytes = typeof data.size_bytes === "number" ? data.size_bytes : 0;
   const status = typeof data.status === "string" ? data.status : "queued";
@@ -313,12 +313,12 @@ async function ensureGuestToken(): Promise<string> {
 
   const res = await apiFetch("/auth/guest", { method: "POST" });
   if (!res.ok) {
-    throw new Error("Misafir token alınamadı.");
+    throw new Error("The guest token could not be created.");
   }
   const data = await res.json();
   const token = data?.access_token as string;
   if (!token || typeof token !== "string") {
-    throw new Error("Misafir token yanıtı geçersiz.");
+    throw new Error("The guest token response is invalid.");
   }
   if (typeof window !== "undefined") {
     window.localStorage.setItem(getGuestTokenKey(), token);
@@ -346,7 +346,7 @@ async function authFetch(
   try {
     const userToken = getUserToken();
     if (options?.requireUser && !userToken) {
-      throw new Error("Kullanıcı tokenı gerekli.");
+      throw new Error("A user token is required.");
     }
 
     let token = userToken || (await ensureGuestToken());
@@ -369,7 +369,7 @@ async function authFetch(
     }
     return res;
   } catch (error) {
-    throw normalizeTransportError(error, "API isteği başarısız.");
+    throw normalizeTransportError(error, "The API request failed.");
   }
 }
 
@@ -399,7 +399,7 @@ function normalizeTransportError(error: unknown, fallback: string): Error {
   if (error instanceof Error) {
     const message = (error.message || "").toLowerCase();
     if (message.includes("failed to fetch") || message.includes("networkerror") || message.includes("load failed")) {
-      return new Error("Sunucuya erişilemedi. API yönlendirmesi veya ağ bağlantısını kontrol edin.");
+      return new Error("The server could not be reached. Check the API routing or network connection.");
     }
     return error;
   }
@@ -409,19 +409,19 @@ function normalizeTransportError(error: unknown, fallback: string): Error {
 async function throwHttpError(res: Response, fallback: string): Promise<never> {
   const err = await res.json().catch(() => null);
   if (res.status === 401) {
-    throw new ApiHttpError(401, "Yetkisiz / token alınamadı.");
+    throw new ApiHttpError(401, "Unauthorized or token could not be issued.");
   }
   if (res.status === 403) {
-    throw new ApiHttpError(403, "Erişim yok.");
+    throw new ApiHttpError(403, "Access denied.");
   }
   if (res.status === 404) {
-    throw new ApiHttpError(404, "Bulunamadı.");
+    throw new ApiHttpError(404, "Not found.");
   }
   if (res.status === 410) {
-    throw new ApiHttpError(410, "Paylaşım süresi doldu.");
+    throw new ApiHttpError(410, "The share link has expired.");
   }
   if (res.status === 429) {
-    throw new ApiHttpError(429, "Çok fazla istek gönderildi.");
+    throw new ApiHttpError(429, "Too many requests were sent.");
   }
   throw new ApiHttpError(res.status, readErrorDetail(err, `${fallback} (${res.status})`));
 }
@@ -430,7 +430,7 @@ export async function fetchAuthedBlobUrl(url: string): Promise<string> {
   const res = await authFetch(url);
   if (!res.ok) {
     const err = await res.json().catch(() => null);
-    throw new Error(err?.detail || "İçerik yüklenemedi.");
+    throw new Error(err?.detail || "Content could not be loaded.");
   }
   const blob = await res.blob();
   return URL.createObjectURL(blob);
@@ -440,7 +440,7 @@ export async function getDxfManifest(fileId: string): Promise<DxfManifest> {
   const res = await authFetch(`${API_BASE}/files/${fileId}/dxf/manifest`);
   if (!res.ok) {
     const err = await res.json().catch(() => null);
-    throw new Error(err?.detail || "DXF manifesti yüklenemedi.");
+    throw new Error(err?.detail || "The DXF manifest could not be loaded.");
   }
   return res.json();
 }
@@ -450,7 +450,7 @@ export async function getDxfRender(fileId: string, layers: string[]): Promise<st
   const res = await authFetch(`${API_BASE}/files/${fileId}/dxf/render${params}`);
   if (!res.ok) {
     const err = await res.json().catch(() => null);
-    throw new Error(err?.detail || "DXF çizimi üretilemedi.");
+    throw new Error(err?.detail || "The DXF drawing could not be rendered.");
   }
   const blob = await res.blob();
   return URL.createObjectURL(blob);
@@ -458,7 +458,7 @@ export async function getDxfRender(fileId: string, layers: string[]): Promise<st
 
 export async function listFiles(): Promise<FileItem[]> {
   const res = await authFetch(`${API_BASE}/files`);
-  if (!res.ok) await throwHttpError(res, "Dosyalar yüklenemedi.");
+  if (!res.ok) await throwHttpError(res, "Files could not be loaded.");
   const data = await res.json().catch(() => null);
   if (!data || typeof data !== "object") return [];
   const rawItems = (data as { items?: unknown }).items;
@@ -468,7 +468,7 @@ export async function listFiles(): Promise<FileItem[]> {
 
 export async function getExplorerTree(projectId = "default"): Promise<ExplorerTreeResponse> {
   const res = await authFetch(`${API_BASE}/explorer/tree?project_id=${encodeURIComponent(projectId)}`);
-  if (!res.ok) await throwHttpError(res, "Explorer ağacı yüklenemedi.");
+  if (!res.ok) await throwHttpError(res, "The explorer tree could not be loaded.");
   const data = (await res.json().catch(() => null)) as ExplorerTreeResponse | null;
   return data || { project_id: projectId, folders: [] };
 }
@@ -487,21 +487,21 @@ export async function getExplorerList(params: {
   if (params.sort) query.set("sort", params.sort);
   if (params.filter) query.set("filter", params.filter);
   const res = await authFetch(`${API_BASE}/explorer/list?${query.toString()}`);
-  if (!res.ok) await throwHttpError(res, "Explorer liste yüklenemedi.");
+  if (!res.ok) await throwHttpError(res, "The explorer list could not be loaded.");
   const data = (await res.json().catch(() => null)) as ExplorerListResponse | null;
   return data || { project_id: params.projectId || "default", folder_key: params.folderKey || null, total: 0, items: [] };
 }
 
 export async function getFormatsRegistry() {
   const res = await apiFetch(`${API_BASE}/formats`);
-  if (!res.ok) await throwHttpError(res, "Format listesi alınamadı.");
+  if (!res.ok) await throwHttpError(res, "The format list could not be loaded.");
   return res.json();
 }
 
 export async function listRecentFiles(limit = 8): Promise<RecentFileItem[]> {
   const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(20, Math.floor(limit))) : 8;
   const res = await authFetch(`${API_BASE}/files?recent=1&limit=${safeLimit}`);
-  if (!res.ok) await throwHttpError(res, "Son yüklenen dosyalar alınamadı.");
+  if (!res.ok) await throwHttpError(res, "Recent files could not be loaded.");
   const data = await res.json().catch(() => null);
   if (data && typeof data === "object" && Array.isArray((data as { items?: unknown }).items)) {
     return (data as { items: RecentFileItem[] }).items;
@@ -511,7 +511,7 @@ export async function listRecentFiles(limit = 8): Promise<RecentFileItem[]> {
 
 export async function getFile(fileId: string): Promise<FileDetail> {
   const res = await authFetch(`${API_BASE}/files/${fileId}`);
-  if (!res.ok) await throwHttpError(res, "Dosya yüklenemedi.");
+  if (!res.ok) await throwHttpError(res, "The file could not be loaded.");
   const data = await res.json().catch(() => null);
   return normalizeFileDetail(data);
 }
@@ -545,26 +545,26 @@ export async function getFileStatus(fileId: string) {
     };
   }
 
-  await throwHttpError(res, "Durum yüklenemedi.");
+  await throwHttpError(res, "Status could not be loaded.");
 }
 
 export async function getFileDecisionJson(fileId: string): Promise<DecisionJsonResponse> {
   const res = await authFetch(`${API_BASE}/files/${encodeURIComponent(fileId)}/decision_json`);
-  if (!res.ok) await throwHttpError(res, "Decision JSON yüklenemedi.");
+  if (!res.ok) await throwHttpError(res, "Decision JSON could not be loaded.");
   return res.json();
 }
 
 export async function listAppsCatalog(includeDisabled = false): Promise<AppsCatalogItem[]> {
   const suffix = includeDisabled ? "?include_disabled=true" : "";
   const res = await authFetch(`${API_BASE}/apps/catalog${suffix}`);
-  if (!res.ok) await throwHttpError(res, "Apps katalogu yüklenemedi.");
+  if (!res.ok) await throwHttpError(res, "The apps catalog could not be loaded.");
   const data = await res.json().catch(() => []);
   return Array.isArray(data) ? (data as AppsCatalogItem[]) : [];
 }
 
 export async function getAppManifest(slug: string): Promise<AppManifestResponse> {
   const res = await authFetch(`${API_BASE}/apps/${encodeURIComponent(slug)}/manifest`);
-  if (!res.ok) await throwHttpError(res, "App manifesti yüklenemedi.");
+  if (!res.ok) await throwHttpError(res, "The app manifest could not be loaded.");
   return res.json();
 }
 
@@ -587,14 +587,14 @@ export async function uploadDirect(file: File, projectId?: string): Promise<Uplo
     data = await res.json().catch(() => null);
   } catch (error: unknown) {
     if (error instanceof Error && error.name === "AbortError") {
-      throw new Error("Yükleme zaman aşımına uğradı. Lütfen tekrar deneyin.");
+      throw new Error("The upload timed out. Please try again.");
     }
     throw error;
   } finally {
     clearTimeout(timeoutId);
   }
   if (!res.ok) {
-    throw new Error(readErrorDetail(data, "Yükleme başarısız."));
+    throw new Error(readErrorDetail(data, "Upload failed."));
   }
   const parsedFileId = (() => {
     if (typeof data !== "object" || data === null) return null;
@@ -605,7 +605,7 @@ export async function uploadDirect(file: File, projectId?: string): Promise<Uplo
     return typeof candidate === "string" && candidate.trim().length > 0 ? candidate : null;
   })();
   if (!parsedFileId) {
-    throw new Error("Yükleme yanıtı geçersiz: file_id bulunamadı.");
+    throw new Error("The upload response is invalid: file_id is missing.");
   }
   return { file_id: parsedFileId };
 }
@@ -617,14 +617,14 @@ export async function createShare(fileId: string, expiresInSeconds?: number): Pr
   const res = await authFetch(`${API_BASE}/files/${fileId}/share`, { method: "POST", body });
   if (!res.ok) {
     const err = await res.json().catch(() => null);
-    throw new Error(err?.detail || "Paylaşım oluşturulamadı.");
+    throw new Error(err?.detail || "The share could not be created.");
   }
   return res.json();
 }
 
 export async function resolveShare(token: string): Promise<ShareResolveResult> {
   const res = await apiFetch(`${API_BASE}/shares/${encodeURIComponent(token)}`);
-  if (!res.ok) await throwHttpError(res, "Paylaşım geçersiz.");
+  if (!res.ok) await throwHttpError(res, "The share link is invalid.");
   return res.json();
 }
 
@@ -633,7 +633,7 @@ export async function setVisibility(fileId: string, visibility: "private" | "pub
   const res = await authFetch(`${API_BASE}/files/${fileId}/visibility`, { method: "PATCH", body });
   if (!res.ok) {
     const err = await res.json().catch(() => null);
-    throw new Error(err?.detail || "Görünürlük güncellenemedi.");
+    throw new Error(err?.detail || "Visibility could not be updated.");
   }
   return res.json();
 }
@@ -642,7 +642,7 @@ export async function getFileManifest(fileId: string): Promise<FileManifest> {
   const res = await authFetch(`${API_BASE}/files/${fileId}/manifest`);
   if (!res.ok) {
     const err = await res.json().catch(() => null);
-    throw new Error(err?.detail || "Manifest yüklenemedi.");
+    throw new Error(err?.detail || "The manifest could not be loaded.");
   }
   return res.json();
 }
@@ -651,14 +651,14 @@ export async function downloadScx(fileId: string): Promise<Blob> {
   const res = await authFetch(`${API_BASE}/files/${fileId}/scx`);
   if (!res.ok) {
     const err = await res.json().catch(() => null);
-    throw new Error(err?.detail || "SCX indirilemedi.");
+    throw new Error(err?.detail || "The SCX package could not be downloaded.");
   }
   return res.blob();
 }
 
 export async function getMe() {
   const res = await userFetch(`${API_BASE}/me`);
-  if (!res.ok) throw new Error("Yetkisiz.");
+  if (!res.ok) throw new Error("Unauthorized.");
   return res.json();
 }
 
@@ -667,7 +667,7 @@ export async function requestRenderPreset(fileId: string, preset: string) {
   const res = await authFetch(`${API_BASE}/files/${fileId}/render`, { method: "POST", body });
   if (!res.ok) {
     const err = await res.json().catch(() => null);
-    throw new Error(err?.detail || "Render isteği başarısız.");
+    throw new Error(err?.detail || "The render request failed.");
   }
   return res.json();
 }
@@ -683,7 +683,7 @@ export async function publishLibraryItem(input: {
     method: "POST",
     body: JSON.stringify(input),
   });
-  if (!res.ok) await throwHttpError(res, "Publish başarısız.");
+  if (!res.ok) await throwHttpError(res, "Publish failed.");
   return res.json();
 }
 
@@ -695,7 +695,7 @@ export async function updateLibraryItem(
     method: "PATCH",
     body: JSON.stringify(input),
   });
-  if (!res.ok) await throwHttpError(res, "Library item güncellenemedi.");
+  if (!res.ok) await throwHttpError(res, "The library item could not be updated.");
   return res.json();
 }
 
@@ -704,7 +704,7 @@ export async function unpublishLibraryItem(itemId: string): Promise<void> {
     method: "POST",
     body: JSON.stringify({ item_id: itemId }),
   });
-  if (!res.ok) await throwHttpError(res, "Unpublish başarısız.");
+  if (!res.ok) await throwHttpError(res, "Unpublish failed.");
 }
 
 export async function getLibraryFeed(params?: { q?: string; sort?: "new" | "old"; page?: number; page_size?: number }): Promise<LibraryFeedResponse> {
@@ -716,25 +716,25 @@ export async function getLibraryFeed(params?: { q?: string; sort?: "new" | "old"
   const suffix = query.toString();
   const path = `${API_BASE}/library/feed${suffix ? `?${suffix}` : ""}`;
   const res = await apiFetch(path);
-  if (!res.ok) await throwHttpError(res, "Library feed alınamadı.");
+  if (!res.ok) await throwHttpError(res, "The library feed could not be loaded.");
   return res.json();
 }
 
 export async function getLibraryItem(slug: string): Promise<LibraryItem> {
   const res = await apiFetch(`${API_BASE}/library/item/${encodeURIComponent(slug)}`);
-  if (!res.ok) await throwHttpError(res, "Library item alınamadı.");
+  if (!res.ok) await throwHttpError(res, "The library item could not be loaded.");
   return res.json();
 }
 
 export async function logoutMe() {
   const res = await authFetch(`${API_BASE}/auth/logout`, { method: "POST" });
-  if (!res.ok) await throwHttpError(res, "Oturum kapatilamadi.");
+  if (!res.ok) await throwHttpError(res, "The session could not be closed.");
   return res.json();
 }
 
 export async function listProjects(): Promise<ProjectSummary[]> {
   const res = await authFetch(`${API_BASE}/projects`);
-  if (!res.ok) await throwHttpError(res, "Projeler yuklenemedi.");
+  if (!res.ok) await throwHttpError(res, "Projects could not be loaded.");
   const data = await res.json().catch(() => []);
   return Array.isArray(data) ? (data as ProjectSummary[]) : [];
 }
@@ -744,19 +744,19 @@ export async function createProject(name: string): Promise<ProjectSummary> {
     method: "POST",
     body: JSON.stringify({ name }),
   });
-  if (!res.ok) await throwHttpError(res, "Proje olusturulamadi.");
+  if (!res.ok) await throwHttpError(res, "The project could not be created.");
   return res.json();
 }
 
 export async function getProject(projectId: string): Promise<ProjectSummary> {
   const res = await authFetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}`);
-  if (!res.ok) await throwHttpError(res, "Proje yuklenemedi.");
+  if (!res.ok) await throwHttpError(res, "The project could not be loaded.");
   return res.json();
 }
 
 export async function downloadFileText(fileId: string): Promise<string> {
   const res = await authFetch(`${API_BASE}/files/${encodeURIComponent(fileId)}/download`);
-  if (!res.ok) await throwHttpError(res, "Dosya indirilemedi.");
+  if (!res.ok) await throwHttpError(res, "The file could not be downloaded.");
   return res.text();
 }
 
@@ -765,7 +765,7 @@ export async function enqueueConvert(fileId: string): Promise<JobStatus> {
     method: "POST",
     body: JSON.stringify({ file_id: fileId }),
   });
-  if (!res.ok) await throwHttpError(res, "Convert isi baslatilamadi.");
+  if (!res.ok) await throwHttpError(res, "The conversion job could not be started.");
   const data = await res.json();
   return { job_id: data.job_id, status: "queued" };
 }
@@ -775,7 +775,7 @@ export async function enqueueMesh2d3d(fileId: string): Promise<JobStatus> {
     method: "POST",
     body: JSON.stringify({ file_id: fileId }),
   });
-  if (!res.ok) await throwHttpError(res, "Mesh2D3D isi baslatilamadi.");
+  if (!res.ok) await throwHttpError(res, "The Mesh2D3D job could not be started.");
   const data = await res.json();
   return { job_id: data.job_id, status: "queued" };
 }
@@ -790,13 +790,13 @@ export async function enqueueMoldcodesExport(input: {
     method: "POST",
     body: JSON.stringify(input),
   });
-  if (!res.ok) await throwHttpError(res, "MoldCodes export isi baslatilamadi.");
+  if (!res.ok) await throwHttpError(res, "The MoldCodes export job could not be started.");
   const data = await res.json();
   return { job_id: data.job_id, status: "queued" };
 }
 
 export async function getJob(jobId: string): Promise<JobStatus> {
   const res = await authFetch(`${API_BASE}/jobs/${encodeURIComponent(jobId)}`);
-  if (!res.ok) await throwHttpError(res, "Job durumu yuklenemedi.");
+  if (!res.ok) await throwHttpError(res, "The job status could not be loaded.");
   return res.json();
 }

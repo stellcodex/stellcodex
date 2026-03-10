@@ -29,7 +29,7 @@ export function AppsMarketplacePageClient() {
         setError(null);
       } catch (err) {
         if (!active) return;
-        setError(err instanceof Error ? err.message : "Apps katalogu alınamadı.");
+        setError(err instanceof Error ? err.message : "The apps catalog could not be loaded.");
       } finally {
         if (active) setLoading(false);
       }
@@ -64,11 +64,11 @@ export function AppsMarketplacePageClient() {
         <div className="rounded-2xl border border-[#dbe3ec] bg-white p-5">
           <h1 className="text-2xl font-semibold text-[#10243e]">Apps Marketplace</h1>
           <p className="mt-2 text-sm text-[#4a6076]">
-            Tüm modüller aynı Stellcodex ürün kabuğu altında çalışır. Ayrı deploy veya ayrı ürün yoktur.
+            All modules run inside the same Stellcodex product shell. There is no separate deploy or separate product.
           </p>
         </div>
 
-        {loading ? <div className="rounded-2xl border border-[#dbe3ec] bg-white p-4 text-sm">Yükleniyor...</div> : null}
+        {loading ? <div className="rounded-2xl border border-[#dbe3ec] bg-white p-4 text-sm">Loading...</div> : null}
         {error ? <div className="rounded-2xl border border-[#ef9a9a] bg-[#fff4f4] p-4 text-sm text-[#8a1f1f]">{error}</div> : null}
 
         {grouped.map(([category, rows]) => (

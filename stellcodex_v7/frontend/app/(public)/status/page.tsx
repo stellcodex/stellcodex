@@ -36,14 +36,14 @@ export default function StatusPage() {
     if (effectiveMode === "api") {
       setState("loading");
       apiFetchJson<StatusPayload>("/status", undefined, {
-        fallbackMessage: "Durum servisi yanıt vermedi",
+        fallbackMessage: "The status service did not respond",
       })
         .then((payload) => {
           setData(payload);
           setState("ready");
         })
         .catch((err) => {
-          setError(err?.message || "Durum bilgisi alınamadı");
+          setError(err?.message || "Status data could not be loaded");
           setState("error");
         });
       return;
@@ -55,38 +55,38 @@ export default function StatusPage() {
     <main className="mx-auto max-w-6xl px-6 py-6 sm:py-8">
       <header className="max-w-2xl">
         <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-          Durum
+          Status
         </div>
         <h1 className="mt-4 text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
-          Sistem durumu
+          System status
         </h1>
         <p className="mt-3 text-sm text-slate-600">
-          Genel durum akışı. Veri kaynağı erişim kontrol dosyasından yönetilir.
+          High-level service health. The data source is controlled by the access-control file.
         </p>
       </header>
 
       <section className="mt-8 grid gap-4">
         {effectiveMode === "unset" ? (
           <EmptyState
-            title="Durum akışı yapılandırılmadı"
-            description="access-control.source.json dosyasında veri kaynağı modunu seçin."
+            title="Status feed is not configured"
+            description="Select the data source mode in access-control.source.json."
           />
         ) : null}
         {state === "loading" ? <LoadingState lines={4} /> : null}
-        {state === "error" ? <ErrorState title="Yüklenemedi" description={error || ""} /> : null}
+        {state === "error" ? <ErrorState title="Could not load" description={error || ""} /> : null}
 
         {state === "ready" && data ? (
           <>
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="text-sm font-semibold text-slate-900">Genel durum</div>
-              <p className="mt-2 text-sm text-slate-600">{data.summary || "Özet bilgisi yok."}</p>
+              <div className="text-sm font-semibold text-slate-900">Overall status</div>
+              <p className="mt-2 text-sm text-slate-600">{data.summary || "No summary available."}</p>
               <div className="mt-2 text-xs text-slate-500">
-                Durum: {data.overall || "bilinmiyor"}
+                Status: {data.overall || "unknown"}
               </div>
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="text-sm font-semibold text-slate-900">Bileşenler</div>
+              <div className="text-sm font-semibold text-slate-900">Components</div>
               {data.components && data.components.length > 0 ? (
                 <ul className="mt-3 grid gap-2 text-sm text-slate-600">
                   {data.components.map((component) => (
@@ -96,22 +96,22 @@ export default function StatusPage() {
                   ))}
                 </ul>
               ) : (
-                <p className="mt-2 text-sm text-slate-600">Henüz bileşen verisi yok.</p>
+                <p className="mt-2 text-sm text-slate-600">No component data is available yet.</p>
               )}
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="text-sm font-semibold text-slate-900">Olay geçmişi</div>
+              <div className="text-sm font-semibold text-slate-900">Incident history</div>
               {data.incidents && data.incidents.length > 0 ? (
                 <ul className="mt-3 grid gap-2 text-sm text-slate-600">
                   {data.incidents.map((incident, idx) => (
                     <li key={incident.id || idx}>
-                      {incident.summary || "Olay"} — {incident.status || "bilinmiyor"}
+                      {incident.summary || "Incident"} — {incident.status || "unknown"}
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="mt-2 text-sm text-slate-600">Bildirilmiş olay yok.</p>
+                <p className="mt-2 text-sm text-slate-600">No incidents have been reported.</p>
               )}
             </div>
           </>
