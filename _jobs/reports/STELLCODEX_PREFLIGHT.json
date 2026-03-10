@@ -1,0 +1,74 @@
+{
+  "generated_at": "2026-03-10T10:17:41.597259Z",
+  "repository": {
+    "branch": "master",
+    "head": "454e68fc8b5e2f630fcfa47eca42a64d13fbdf0d",
+    "remote_origin": "https://github.com/stellcodex/stellcodex.git",
+    "latest_commit": "454e68f chore: remove stale evidence and dataset placeholders",
+    "git_sync_evidence": "/root/workspace/_jobs/reports/stellcodex_git_sync_latest.json",
+    "worktree_dirty": true
+  },
+  "runtime": {
+    "backend_health_http": 200,
+    "orchestrator_health_http": 200,
+    "postgres": "healthy",
+    "redis": "healthy",
+    "minio": "healthy",
+    "nginx_proxy": "not_in_scope_for_local_compose",
+    "container_evidence": "/root/workspace/_jobs/reports/STELLCODEX_SYSTEM_STATE_REPORT.json"
+  },
+  "database": {
+    "uploaded_files": 203,
+    "shares": 17,
+    "orchestrator_sessions": 203,
+    "rule_configs": 17,
+    "audit_events": 1759,
+    "schema_check_evidence": "/root/workspace/evidence/preflight_schema_20260310T091237Z/db_schema_check.txt"
+  },
+  "pipeline": {
+    "contract_tests_evidence": "/root/workspace/evidence/preflight_contracts_20260310T091237Z/contract_tests.log",
+    "smoke_evidence": "/root/workspace/evidence/preflight_smoke_execfix_20260310T092348Z/smoke/summary.json",
+    "leak_check_evidence": "/root/workspace/evidence/preflight_smoke_execfix_20260310T092348Z/leak_check.txt",
+    "backup_evidence": "/root/workspace/evidence/preflight_backup_20260310T092634Z/backups/backup_20260310T092634Z.txt",
+    "restore_evidence": "/root/workspace/evidence/preflight_backup_20260310T092634Z/restore_verify.txt"
+  },
+  "findings": [
+    {
+      "id": "BLOCKER-COMPOSE-EXEC-HANG",
+      "classification": "BLOCKER",
+      "status": "resolved",
+      "title": "deploy automation scripts selected compose exec paths that hang on this host",
+      "evidence": [
+        "/root/workspace/stellcodex_v7/infrastructure/deploy/scripts/_common.sh",
+        "/root/workspace/evidence/preflight_smoke_retry_20260310T091524Z"
+      ],
+      "resolution": "Replaced hanging compose exec usage with docker exec-backed compose_exec helpers and reordered compose selection to prefer native docker-compose before the legacy wrapper."
+    },
+    {
+      "id": "BLOCKER-AI-PYTHON38-COMPAT",
+      "classification": "BLOCKER",
+      "status": "resolved",
+      "title": "host default Python 3.8 could not resolve required AI packages",
+      "evidence": [
+        "/root/workspace/AI/logs/pip_install.log",
+        "/root/workspace/AI_ENV_SYSTEM_REQUIREMENTS.md"
+      ],
+      "resolution": "Installed Python 3.9 and build-essential, recreated AI/.venv on 3.9, and regenerated requirements.lock after successful install."
+    },
+    {
+      "id": "MAJOR-DIRTY-WORKTREE",
+      "classification": "MAJOR",
+      "status": "open",
+      "title": "live workspace is dirty so git sync guard skips in-place apply",
+      "evidence": [
+        "/root/workspace/_jobs/reports/stellcodex_git_sync_latest.json"
+      ],
+      "resolution": "Will verify the runtime from a clean commit snapshot rather than mutating the dirty live tree."
+    }
+  ],
+  "counts": {
+    "BLOCKER": 2,
+    "MAJOR": 1,
+    "MINOR": 0
+  }
+}

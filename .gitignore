@@ -9,6 +9,10 @@ _truth/
 handoff/
 live_services/
 AI/.venv/
+AI/.venv*.bak_*/
+AI/logs/
+_models/
+_vector_store/
 **/__pycache__/
 **/*.pyc
 ops/orchestra/.env

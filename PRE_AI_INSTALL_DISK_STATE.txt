@@ -1,0 +1,25 @@
+$ df -h /root/workspace
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/vda5        56G   18G   36G  33% /
+
+
+$ df -i /root/workspace
+Filesystem      Inodes  IUsed   IFree IUse% Mounted on
+/dev/vda5      3719168 342213 3376955   10% /
+
+
+$ du -sh /root/workspace/evidence 2>/dev/null || true
+27M	/root/workspace/evidence
+
+
+$ du -sh /root/workspace/_jobs/logs 2>/dev/null || true
+156K	/root/workspace/_jobs/logs
+
+
+$ docker system df
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          11        9         7.69GB    1.31GB (17%)
+Containers      10        10        6.327MB   0B (0%)
+Local Volumes   9         5         1.303GB   174.4MB (13%)
+Build Cache     0         0         0B        0B
+

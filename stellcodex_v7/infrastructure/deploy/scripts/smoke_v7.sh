@@ -227,7 +227,7 @@ if ! jq -e '.shrinkage_warnings|type=="array"' "${DFM_RAW}" >/dev/null; then
   exit 1
 fi
 DFM_PERSIST_SQL="SELECT COUNT(*) FROM uploaded_files WHERE file_id='${CANONICAL_FILE_ID}' AND jsonb_typeof(metadata::jsonb->'dfm_report_json')='object' AND jsonb_typeof(metadata::jsonb->'dfm_report_json'->'recommendations')='array';"
-DFM_PERSIST_COUNT="$(compose exec -T postgres psql -U stellcodex -d stellcodex -Atc "${DFM_PERSIST_SQL}")"
+DFM_PERSIST_COUNT="$(compose_exec postgres psql -U stellcodex -d stellcodex -Atc "${DFM_PERSIST_SQL}")"
 if [[ "${DFM_PERSIST_COUNT}" != "1" ]]; then
   echo "dfm report persistence contract failed (dfm_report_json not persisted)" >&2
   exit 1
@@ -305,7 +305,7 @@ fi
 
 set_proof_status() {
   local next_status="$1"
-  compose exec -T postgres psql -U stellcodex -d stellcodex -c \
+  compose_exec postgres psql -U stellcodex -d stellcodex -c \
     "UPDATE uploaded_files SET status='${next_status}', decision_json='{}'::jsonb, metadata=((COALESCE(metadata::jsonb,'{}'::jsonb) - 'approval_override' - 'decision_json')::json) WHERE file_id='${PROOF_FILE_ID}';
      UPDATE orchestrator_sessions SET decision_json='{}'::jsonb WHERE file_id='${PROOF_FILE_ID}';" >/dev/null
 }
@@ -339,7 +339,7 @@ set_proof_status "ready"
 capture_proof_state "s5_awaiting_approval" "S5"
 
 set_proof_manual_approval() {
-  compose exec -T postgres psql -U stellcodex -d stellcodex -c \
+  compose_exec postgres psql -U stellcodex -d stellcodex -c \
     "UPDATE uploaded_files
         SET status='ready',
             decision_json='{}'::jsonb,
@@ -391,7 +391,7 @@ curl -sS "${AUTH_HEADER[@]}" \
   "${API_BASE}/files/${CANONICAL_FILE_ID}/share" > "${EXPIRED_RAW}"
 EXPIRED_TOKEN="$(jq -r '.token' "${EXPIRED_RAW}")"
 EXPIRED_ID="$(jq -r '.id' "${EXPIRED_RAW}")"
-compose exec -T postgres psql -U stellcodex -d stellcodex -c "UPDATE shares SET expires_at = NOW() - INTERVAL '5 minutes' WHERE id = '${EXPIRED_ID}';" >/dev/null
+compose_exec postgres psql -U stellcodex -d stellcodex -c "UPDATE shares SET expires_at = NOW() - INTERVAL '5 minutes' WHERE id = '${EXPIRED_ID}';" >/dev/null
 SHARE_410_BODY="${SMOKE_DIR}/share_expired_410.json"
 SHARE_410_CODE="$(curl -sS -o "${SHARE_410_BODY}" -w '%{http_code}' "${API_ORIGIN}/s/${EXPIRED_TOKEN}")"
 if [[ "${SHARE_410_CODE}" != "410" ]]; then
@@ -425,8 +425,8 @@ WINDOW_BUCKET="$(( $(date -u +%s) / 60 ))"
 # Guard against minute-boundary races: seed current and next bucket.
 for BUCKET in "${WINDOW_BUCKET}" "$((WINDOW_BUCKET + 1))"; do
   RATE_KEY="stell:share:rate:${RATE_ID}:9.9.9.9:${BUCKET}"
-  compose exec -T redis redis-cli SET "${RATE_KEY}" 121 >/dev/null
-  compose exec -T redis redis-cli EXPIRE "${RATE_KEY}" 120 >/dev/null
+  compose_exec redis redis-cli SET "${RATE_KEY}" 121 >/dev/null
+  compose_exec redis redis-cli EXPIRE "${RATE_KEY}" 120 >/dev/null
 done
 SHARE_429_BODY="${SMOKE_DIR}/share_rate_429.json"
 SHARE_429_CODE="$(curl -sS -o "${SHARE_429_BODY}" -w '%{http_code}' -H 'X-Forwarded-For: 9.9.9.9' "${API_ORIGIN}/s/${RATE_TOKEN}")"
@@ -440,8 +440,8 @@ INVALID_HASH="$(printf '%s' "${INVALID_TOKEN}" | sha256sum | awk '{print $1}' | 
 INVALID_BUCKET="$(( $(date -u +%s) / 60 ))"
 for BUCKET in "${INVALID_BUCKET}" "$((INVALID_BUCKET + 1))"; do
   INVALID_RATE_KEY="stell:share:token_probe:8.8.8.8:${INVALID_HASH}:${BUCKET}"
-  compose exec -T redis redis-cli SET "${INVALID_RATE_KEY}" 31 >/dev/null
-  compose exec -T redis redis-cli EXPIRE "${INVALID_RATE_KEY}" 120 >/dev/null
+  compose_exec redis redis-cli SET "${INVALID_RATE_KEY}" 31 >/dev/null
+  compose_exec redis redis-cli EXPIRE "${INVALID_RATE_KEY}" 120 >/dev/null
 done
 SHARE_INVALID_429_BODY="${SMOKE_DIR}/share_invalid_token_429.json"
 SHARE_INVALID_429_CODE="$(curl -sS -o "${SHARE_INVALID_429_BODY}" -w '%{http_code}' -H 'X-Forwarded-For: 8.8.8.8' "${API_ORIGIN}/s/${INVALID_TOKEN}")"
@@ -450,7 +450,7 @@ if [[ "${SHARE_INVALID_429_CODE}" != "429" ]]; then
   exit 1
 fi
 
-compose exec -T postgres psql -U stellcodex -d stellcodex -c \
+compose_exec postgres psql -U stellcodex -d stellcodex -c \
   "UPDATE uploaded_files SET metadata = ((COALESCE(metadata::jsonb,'{}'::jsonb) - 'assembly_meta_key' - 'assembly_meta')::json) WHERE file_id = '${LEGACY_FILE_ID}';" >/dev/null
 BROKEN_STATUS_BODY="${SMOKE_DIR}/ready_without_assembly_status.json"
 curl -sS "${AUTH_HEADER[@]}" "${API_BASE}/files/${LEGACY_FILE_ID}/status" > "${BROKEN_STATUS_BODY}"
@@ -458,17 +458,17 @@ if ! jq -e '.state=="failed"' "${BROKEN_STATUS_BODY}" >/dev/null; then
   echo "assembly_meta enforce contract failed (ready file stayed non-failed)" >&2
   exit 1
 fi
-BROKEN_DB_STATUS="$(compose exec -T postgres psql -U stellcodex -d stellcodex -Atc "SELECT status FROM uploaded_files WHERE file_id='${LEGACY_FILE_ID}' LIMIT 1;")"
+BROKEN_DB_STATUS="$(compose_exec postgres psql -U stellcodex -d stellcodex -Atc "SELECT status FROM uploaded_files WHERE file_id='${LEGACY_FILE_ID}' LIMIT 1;")"
 if [[ "${BROKEN_DB_STATUS}" != "failed" ]]; then
   echo "assembly_meta enforce contract failed (db status did not persist to failed)" >&2
   exit 1
 fi
 
 AUDIT_FILE="${SMOKE_DIR}/audit_events_share.txt"
-compose exec -T postgres psql -U stellcodex -d stellcodex -P pager=off -c \
+compose_exec postgres psql -U stellcodex -d stellcodex -P pager=off -c \
   "SELECT event_type, COUNT(*) FROM audit_events WHERE event_type LIKE 'share.%' OR event_type LIKE 'approval.%' GROUP BY event_type ORDER BY event_type;" \
   > "${AUDIT_FILE}"
-AUDIT_COUNT="$(compose exec -T postgres psql -U stellcodex -d stellcodex -Atc "SELECT COUNT(*) FROM audit_events WHERE event_type IN ('share.created','share.resolved','share.access_denied','share.rate_limited','approval.approved','approval.rejected');")"
+AUDIT_COUNT="$(compose_exec postgres psql -U stellcodex -d stellcodex -Atc "SELECT COUNT(*) FROM audit_events WHERE event_type IN ('share.created','share.resolved','share.access_denied','share.rate_limited','approval.approved','approval.rejected');")"
 if [[ -z "${AUDIT_COUNT}" || "${AUDIT_COUNT}" == "0" ]]; then
   echo "audit contract failed (expected share/approval audit events)" >&2
   exit 1

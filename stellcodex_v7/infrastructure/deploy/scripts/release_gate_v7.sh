@@ -20,9 +20,9 @@ LOG_FILE="${EVIDENCE_DIR}/release_gate.log"
   wait_backend
 
   echo "[gate] alembic upgrade head"
-  if ! compose exec -T backend sh -lc 'cd /app && alembic upgrade head'; then
+  if ! compose_exec backend sh -lc 'cd /app && alembic upgrade head'; then
     echo "[gate] alembic upgrade failed, applying stamp head fallback"
-    compose exec -T backend sh -lc 'cd /app && alembic stamp head'
+    compose_exec backend sh -lc 'cd /app && alembic stamp head'
   fi
 
   echo "[gate] schema check"

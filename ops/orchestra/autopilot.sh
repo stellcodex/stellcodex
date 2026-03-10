@@ -10,6 +10,19 @@ PID_FILE="${LOG_DIR}/watchdog.pid"
 BASE_URL="${BASE_URL:-http://localhost:7010}"
 COMPOSE_FILE="${ROOT_DIR}/docker-compose.yml"
 
+compose_cmd() {
+  if docker compose version >/dev/null 2>&1; then
+    docker compose "$@"
+  elif command -v docker-compose >/dev/null 2>&1; then
+    docker-compose "$@"
+  elif [[ -x "${ROOT_DIR}/docker-compose" ]]; then
+    "${ROOT_DIR}/docker-compose" "$@"
+  else
+    echo "missing docker compose implementation" >&2
+    return 127
+  fi
+}
+
 ensure_jobs() {
   mkdir -p \
     "${JOBS_ROOT}/inbox" \
@@ -63,18 +76,18 @@ case "${ACTION}" in
   start)
     ensure_jobs
     "${ROOT_DIR}/preflight.sh" "${JOBS_ROOT}" >/tmp/orchestra_autopilot_preflight.log 2>&1
-    docker-compose -f "${COMPOSE_FILE}" up -d --build ollama litellm orchestrator autopilot stellai >/tmp/orchestra_autopilot_up.log 2>&1
+    compose_cmd -f "${COMPOSE_FILE}" up -d --build ollama litellm orchestrator autopilot stellai >/tmp/orchestra_autopilot_up.log 2>&1
     wait_state 90 2 || true
     start_watchdog
     echo "AUTOPILOT_STARTED jobs_root=${JOBS_ROOT}"
     ;;
   stop)
     stop_watchdog
-    docker-compose -f "${COMPOSE_FILE}" stop autopilot >/tmp/orchestra_autopilot_stop.log 2>&1 || true
+    compose_cmd -f "${COMPOSE_FILE}" stop autopilot >/tmp/orchestra_autopilot_stop.log 2>&1 || true
     echo "AUTOPILOT_STOPPED"
     ;;
   status)
-    docker-compose -f "${COMPOSE_FILE}" ps
+    compose_cmd -f "${COMPOSE_FILE}" ps
     if [[ -f "${PID_FILE}" ]]; then
       echo "watchdog_pid=$(cat "${PID_FILE}")"
     else
@@ -82,7 +95,7 @@ case "${ACTION}" in
     fi
     ;;
   tail)
-    docker-compose -f "${COMPOSE_FILE}" logs -f --tail=200 autopilot orchestrator litellm
+    compose_cmd -f "${COMPOSE_FILE}" logs -f --tail=200 autopilot orchestrator litellm
     ;;
   *)
     echo "Usage: ./autopilot.sh {start|status|stop|tail} [jobs_root]"

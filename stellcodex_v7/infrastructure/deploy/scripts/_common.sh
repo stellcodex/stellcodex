@@ -34,11 +34,57 @@ compose() {
     docker compose -f "${COMPOSE_FILE}" "$@"
     return
   fi
+  if command -v docker-compose >/dev/null 2>&1; then
+    docker-compose -f "${COMPOSE_FILE}" "$@"
+    return
+  fi
   if [[ -x /root/workspace/ops/orchestra/docker-compose ]]; then
     /root/workspace/ops/orchestra/docker-compose -f "${COMPOSE_FILE}" "$@"
     return
   fi
-  docker-compose -f "${COMPOSE_FILE}" "$@"
+  echo "missing docker compose implementation" >&2
+  return 127
+}
+
+compose_container_id() {
+  local service="$1"
+  local container_id=""
+  local project_name
+
+  container_id="$(compose ps -q "${service}" 2>/dev/null | head -n1 || true)"
+  if [[ -n "${container_id}" ]]; then
+    printf '%s\n' "${container_id}"
+    return 0
+  fi
+
+  project_name="$(basename "$(dirname "${COMPOSE_FILE}")")"
+  container_id="$(docker ps \
+    --filter "label=com.docker.compose.project=${project_name}" \
+    --filter "label=com.docker.compose.service=${service}" \
+    --format '{{.ID}}' | head -n1)"
+  if [[ -n "${container_id}" ]]; then
+    printf '%s\n' "${container_id}"
+    return 0
+  fi
+
+  echo "compose service container not found: ${service}" >&2
+  return 1
+}
+
+compose_exec() {
+  local service="$1"
+  shift
+  local container_id
+  container_id="$(compose_container_id "${service}")" || return 1
+  docker exec "${container_id}" "$@"
+}
+
+compose_exec_i() {
+  local service="$1"
+  shift
+  local container_id
+  container_id="$(compose_container_id "${service}")" || return 1
+  docker exec -i "${container_id}" "$@"
 }
 
 require_cmd() {

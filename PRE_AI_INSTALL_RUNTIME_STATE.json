@@ -1,0 +1,127 @@
+{
+  "generated_at": "2026-03-10T09:36:09.105302Z",
+  "git_commit": "454e68fc8b5e2f630fcfa47eca42a64d13fbdf0d",
+  "docker_ps": {
+    "cmd": "docker ps --format \"table {{.Names}}\\t{{.Status}}\\t{{.Ports}}\"",
+    "exit_code": 0,
+    "stdout": "NAMES                      STATUS                  PORTS\norchestra_autopilot_1      Up About an hour        \norchestra_orchestrator_1   Up About an hour        0.0.0.0:7010->7010/tcp, :::7010->7010/tcp\ndeploy_backend_1           Up 40 hours (healthy)   0.0.0.0:18000->8000/tcp, :::18000->8000/tcp\ndeploy_worker_1            Up 40 hours             \ndeploy_minio_1             Up 40 hours (healthy)   0.0.0.0:19000->9000/tcp, :::19000->9000/tcp, 0.0.0.0:19001->9001/tcp, :::19001->9001/tcp\ndeploy_postgres_1          Up 40 hours (healthy)   0.0.0.0:15432->5432/tcp, :::15432->5432/tcp\ndeploy_redis_1             Up 40 hours (healthy)   0.0.0.0:16379->6379/tcp, :::16379->6379/tcp\norchestra_litellm_1        Up 40 hours             0.0.0.0:4000->4000/tcp, :::4000->4000/tcp\norchestra_ollama           Up 40 hours             11434/tcp\norchestra_stellai_1        Up 40 hours             0.0.0.0:7020->7020/tcp, :::7020->7020/tcp\n",
+    "stderr": ""
+  },
+  "service_health": {
+    "backend": {
+      "cmd": "curl -sS -o /tmp/pre_ai_backend.json -w \"%{http_code}\" http://127.0.0.1:18000/api/v1/health || true",
+      "exit_code": 0,
+      "stdout": "200",
+      "stderr": ""
+    },
+    "orchestra": {
+      "cmd": "curl -sS -o /tmp/pre_ai_orch.json -w \"%{http_code}\" http://127.0.0.1:7010/health || true",
+      "exit_code": 0,
+      "stdout": "200",
+      "stderr": ""
+    },
+    "minio": {
+      "cmd": "curl -sS -o /tmp/pre_ai_minio.out -w \"%{http_code}\" http://127.0.0.1:19000/minio/health/live || true",
+      "exit_code": 0,
+      "stdout": "200",
+      "stderr": ""
+    },
+    "redis": {
+      "cmd": "docker exec deploy_redis_1 redis-cli PING",
+      "exit_code": 0,
+      "stdout": "PONG\n",
+      "stderr": ""
+    },
+    "postgres": {
+      "cmd": "docker exec deploy_postgres_1 pg_isready -U stellcodex -d stellcodex",
+      "exit_code": 0,
+      "stdout": "/var/run/postgresql:5432 - accepting connections\n",
+      "stderr": ""
+    }
+  },
+  "systemd_units": {
+    "orchestra-autopilot.service": {
+      "cmd": "systemctl status orchestra-autopilot.service --no-pager -l || true",
+      "exit_code": 0,
+      "stdout": "\u25cf orchestra-autopilot.service - Stellcodex Orchestra Autopilot Stack\n     Loaded: loaded (/etc/systemd/system/orchestra-autopilot.service; enabled; vendor preset: enabled)\n     Active: active (exited) since Tue 2026-03-10 11:09:38 +03; 1h 26min ago\n    Process: 1820350 ExecStart=/root/workspace/ops/orchestra/autopilot.sh start /root/workspace/_jobs (code=exited, status=0/SUCCESS)\n   Main PID: 1820350 (code=exited, status=0/SUCCESS)\n      Tasks: 2 (limit: 4624)\n     Memory: 2.8M\n     CGroup: /system.slice/orchestra-autopilot.service\n             \u251c\u25001823009 bash /root/workspace/ops/orchestra/watchdog.sh\n             \u2514\u25001903255 sleep 60\n\nMar 10 11:07:45 ns1.localhost.com systemd[1]: Starting Stellcodex Orchestra Autopilot Stack...\nMar 10 11:09:38 ns1.localhost.com autopilot.sh[1820350]: AUTOPILOT_STARTED jobs_root=/root/workspace/_jobs\nMar 10 11:09:38 ns1.localhost.com systemd[1]: Finished Stellcodex Orchestra Autopilot Stack.\n",
+      "stderr": ""
+    },
+    "orchestra-watchdog.timer": {
+      "cmd": "systemctl status orchestra-watchdog.timer --no-pager -l || true",
+      "exit_code": 0,
+      "stdout": "\u25cf orchestra-watchdog.timer - Run orchestra watchdog check every minute\n     Loaded: loaded (/etc/systemd/system/orchestra-watchdog.timer; enabled; vendor preset: enabled)\n     Active: active (waiting) since Tue 2026-03-10 11:07:45 +03; 1h 28min ago\n    Trigger: Tue 2026-03-10 12:36:30 +03; 19s left\n   Triggers: \u25cf orchestra-watchdog.service\n\nMar 10 11:07:45 ns1.localhost.com systemd[1]: Started Run orchestra watchdog check every minute.\n",
+      "stderr": ""
+    },
+    "stellcodex-git-sync.timer": {
+      "cmd": "systemctl status stellcodex-git-sync.timer --no-pager -l || true",
+      "exit_code": 0,
+      "stdout": "\u25cf stellcodex-git-sync.timer - Run STELLCODEX GitHub sync guard every 30 minutes\n     Loaded: loaded (/etc/systemd/system/stellcodex-git-sync.timer; enabled; vendor preset: enabled)\n     Active: active (waiting) since Tue 2026-03-10 11:07:45 +03; 1h 28min ago\n    Trigger: Tue 2026-03-10 12:39:40 +03; 3min 29s left\n   Triggers: \u25cf stellcodex-git-sync.service\n\nMar 10 11:07:45 ns1.localhost.com systemd[1]: Started Run STELLCODEX GitHub sync guard every 30 minutes.\n",
+      "stderr": ""
+    },
+    "stellcodex-backup.timer": {
+      "cmd": "systemctl status stellcodex-backup.timer --no-pager -l || true",
+      "exit_code": 0,
+      "stdout": "\u25cf stellcodex-backup.timer - Run STELLCODEX stateless backup guard every 30 minutes\n     Loaded: loaded (/etc/systemd/system/stellcodex-backup.timer; enabled; vendor preset: enabled)\n     Active: active (waiting) since Sun 2026-03-08 21:00:40 +03; 1 day 15h ago\n    Trigger: Tue 2026-03-10 12:46:16 +03; 10min left\n   Triggers: \u25cf stellcodex-backup.service\n\nMar 08 21:00:40 ns1.localhost.com systemd[1]: Started Run STELLCODEX backup daily.\n",
+      "stderr": ""
+    },
+    "stellcodex-247.service": {
+      "cmd": "systemctl status stellcodex-247.service --no-pager -l || true",
+      "exit_code": 0,
+      "stdout": "\u25cf stellcodex-247.service - Stellcodex 7/24 Orchestrator Runner\n     Loaded: loaded (/etc/systemd/system/stellcodex-247.service; enabled; vendor preset: enabled)\n     Active: active (running) since Sun 2026-03-08 21:00:54 +03; 1 day 15h ago\n   Main PID: 1944 (bash)\n      Tasks: 2 (limit: 4624)\n     Memory: 19.0M\n     CGroup: /system.slice/stellcodex-247.service\n             \u251c\u2500   1944 /bin/bash -lc while true; do python3 /root/workspace/ops/orchestra/stellcodex_247_orchestrator.py; sleep 3600; done\n             \u2514\u25001890699 sleep 3600\n\nMar 08 21:00:54 ns1.localhost.com systemd[1]: Started Stellcodex 7/24 Orchestrator Runner.\nMar 10 09:40:59 ns1.localhost.com bash[1944]: /bin/bash: line 1: 1706696 Killed                  sleep 3600\n",
+      "stderr": ""
+    },
+    "stellcodex-247-watchdog.timer": {
+      "cmd": "systemctl status stellcodex-247-watchdog.timer --no-pager -l || true",
+      "exit_code": 0,
+      "stdout": "\u25cf stellcodex-247-watchdog.timer - Run Stellcodex 7/24 watchdog every hour\n     Loaded: loaded (/etc/systemd/system/stellcodex-247-watchdog.timer; enabled; vendor preset: enabled)\n     Active: active (waiting) since Sun 2026-03-08 21:00:40 +03; 1 day 15h ago\n    Trigger: Tue 2026-03-10 13:03:09 +03; 26min left\n   Triggers: \u25cf stellcodex-247-watchdog.service\n\nMar 08 21:00:40 ns1.localhost.com systemd[1]: Started Run Stellcodex 7/24 watchdog every hour.\n",
+      "stderr": ""
+    }
+  },
+  "masked_env": {
+    "/root/workspace/.env": [
+      "UPSTASH_REDIS_REST_URL=<redacted>",
+      "UPSTASH_REDIS_REST_TOKEN=<redacted>"
+    ],
+    "/root/workspace/stellcodex_v7/backend/.env": [
+      "GOOGLE_API_KEY=<redacted>",
+      "RESEND_API_KEY=<redacted>",
+      "EMAIL_FROM=<redacted>"
+    ],
+    "/root/workspace/stellcodex_v7/infrastructure/deploy/.env": [
+      "DATABASE_URL=<redacted>",
+      "REDIS_URL=<redacted>",
+      "RABBITMQ_URL=<redacted>",
+      "JWT_SECRET=<redacted>",
+      "STELLCODEX_S3_ENDPOINT_URL=<redacted>",
+      "STELLCODEX_S3_ACCESS_KEY_ID=<redacted>",
+      "STELLCODEX_S3_SECRET_ACCESS_KEY=<redacted>",
+      "STELLCODEX_S3_REGION=<redacted>",
+      "STELLCODEX_S3_BUCKET=<redacted>",
+      "FEATURE_FILES=<redacted>",
+      "MAX_UPLOAD_BYTES=<redacted>",
+      "ALLOWED_CONTENT_TYPES=<redacted>",
+      "RATE_LIMIT_PER_HOUR=<redacted>",
+      "REFRESH_TOKEN_DAYS=<redacted>",
+      "JWT_ALG=<redacted>",
+      "ACCESS_TOKEN_MINUTES=<redacted>",
+      "PUBLIC_S3_BASE_URL=<redacted>"
+    ],
+    "/root/workspace/ops/orchestra/.env": [
+      "OPENAI_API_KEY=<redacted>",
+      "ANTHROPIC_API_KEY=<redacted>",
+      "GEMINI_API_KEY=<redacted>",
+      "ABACUSAI_API_KEY=<redacted>",
+      "ENABLE_OLLAMA=<redacted>",
+      "OLLAMA_BASE_URL=<redacted>",
+      "OLLAMA_IMAGE=<redacted>",
+      "LLM_BASE_URL=<redacted>",
+      "LLM_API_KEY=<redacted>",
+      "HTTP_TIMEOUT_SECONDS=<redacted>",
+      "LLM_MAX_TOKENS=<redacted>",
+      "LOCAL_MAX_TOKENS=<redacted>",
+      "PAID_CALL_TIMEOUT_SECONDS=<redacted>",
+      "LOCAL_CALL_TIMEOUT_SECONDS=<redacted>",
+      "SCHEDULER_INTERVAL_SECONDS=<redacted>"
+    ]
+  }
+}

@@ -20,13 +20,13 @@ SHA_FILE="${BACKUP_DIR}/postgres_${STAMP}.sha256"
   echo "dump_file=${DUMP_FILE}"
 } | tee "${META_FILE}"
 
-compose exec -T postgres pg_dump -U stellcodex -d stellcodex -Fc > "${DUMP_FILE}"
+compose_exec postgres pg_dump -U stellcodex -d stellcodex -Fc > "${DUMP_FILE}"
 sha256sum "${DUMP_FILE}" | tee "${SHA_FILE}" | tee -a "${META_FILE}"
 
 {
   echo
   echo "-- table counts"
-  compose exec -T postgres psql -U stellcodex -d stellcodex -P pager=off -c "SELECT 'uploaded_files' AS table, COUNT(*) FROM uploaded_files UNION ALL SELECT 'orchestrator_sessions', COUNT(*) FROM orchestrator_sessions UNION ALL SELECT 'rule_configs', COUNT(*) FROM rule_configs UNION ALL SELECT 'audit_events', COUNT(*) FROM audit_events;"
+  compose_exec postgres psql -U stellcodex -d stellcodex -P pager=off -c "SELECT 'uploaded_files' AS table, COUNT(*) FROM uploaded_files UNION ALL SELECT 'orchestrator_sessions', COUNT(*) FROM orchestrator_sessions UNION ALL SELECT 'rule_configs', COUNT(*) FROM rule_configs UNION ALL SELECT 'audit_events', COUNT(*) FROM audit_events;"
   echo "[backup] completed"
 } >> "${META_FILE}"
 

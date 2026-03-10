@@ -1,0 +1,22 @@
+{
+  "record_id": "mem_20260310_0001",
+  "record_type": "decision_trace",
+  "title": "Share expiry enforcement proof",
+  "source_uri": "scx://evidence/preflight_smoke_execfix/share_expired_410.json",
+  "hash_sha256": "54fb47ae1f8c5029bc75757b4f4b0c1523ff77a36bf94bbaafde75dd2af619d5",
+  "tenant_id": "default",
+  "project_id": "stellcodex-core",
+  "security_class": "internal",
+  "time_start": "2026-03-10T09:23:48Z",
+  "time_end": "2026-03-10T09:25:11Z",
+  "tags": [
+    "share",
+    "contract",
+    "evidence"
+  ],
+  "text": "Expired share tokens return HTTP 410 and revoked tokens return HTTP 403 in the verified smoke pipeline.",
+  "metadata": {
+    "http_status": 410,
+    "evidence_dir": "/root/workspace/evidence/preflight_smoke_execfix_20260310T092348Z/smoke"
+  }
+}

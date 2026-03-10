@@ -10,10 +10,13 @@ FAILFAST_PIN='{"gemini":"acceptance_failfast","codex":"codex_executor","claude":
 compose_cmd() {
   if docker compose version >/dev/null 2>&1; then
     docker compose "$@"
+  elif command -v docker-compose >/dev/null 2>&1; then
+    docker-compose "$@"
   elif [[ -x "${WORKDIR}/docker-compose" ]]; then
     "${WORKDIR}/docker-compose" "$@"
   else
-    docker-compose "$@"
+    echo "missing docker compose implementation" >&2
+    return 127
   fi
 }
 

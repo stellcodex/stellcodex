@@ -29,10 +29,13 @@ log_line() {
 compose_cmd() {
   if docker compose version >/dev/null 2>&1; then
     docker compose "$@"
+  elif command -v docker-compose >/dev/null 2>&1; then
+    docker-compose "$@"
   elif [[ -x "${ROOT_DIR}/docker-compose" ]]; then
     "${ROOT_DIR}/docker-compose" "$@"
   else
-    docker-compose "$@"
+    echo "missing docker compose implementation" >&2
+    return 127
   fi
 }
 

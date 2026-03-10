@@ -10,7 +10,7 @@ LOG_FILE="${EVIDENCE_DIR}/contract_tests.log"
 
 {
   echo "[contract] started $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  compose exec -T backend sh -lc 'cd /app && python -m unittest -v \
+  compose_exec backend sh -lc 'cd /app && python -m unittest -v \
     tests.test_guest_token_identity \
     tests.test_format_registry_contract \
     tests.test_hybrid_v1_geometry_merge_policy \
