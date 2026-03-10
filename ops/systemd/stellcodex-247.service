@@ -1,0 +1,15 @@
+[Unit]
+Description=Stellcodex 7/24 Orchestrator Runner
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/workspace/ops/orchestra
+ExecStart=/usr/bin/python3 /root/workspace/ops/orchestra/stellcodex_247_orchestrator.py --loop --interval-seconds 3600
+Restart=always
+RestartSec=20
+Environment=TZ=Europe/Istanbul
+
+[Install]
+WantedBy=multi-user.target

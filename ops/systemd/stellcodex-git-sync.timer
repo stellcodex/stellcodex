@@ -1,0 +1,12 @@
+[Unit]
+Description=Run STELLCODEX GitHub sync guard every 30 minutes
+
+[Timer]
+OnBootSec=15m
+OnUnitActiveSec=30m
+AccuracySec=1min
+Persistent=true
+Unit=stellcodex-git-sync.service
+
+[Install]
+WantedBy=timers.target

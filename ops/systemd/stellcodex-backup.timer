@@ -1,0 +1,12 @@
+[Unit]
+Description=Run STELLCODEX stateless backup guard every 30 minutes
+
+[Timer]
+OnBootSec=10m
+OnUnitActiveSec=30m
+AccuracySec=1min
+Persistent=true
+Unit=stellcodex-backup.service
+
+[Install]
+WantedBy=timers.target

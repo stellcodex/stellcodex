@@ -1,0 +1,12 @@
+[Unit]
+Description=Run STELLCODEX artifact cleanup every 30 minutes
+
+[Timer]
+OnBootSec=15m
+OnUnitActiveSec=30m
+AccuracySec=1min
+Persistent=true
+Unit=stellcodex-tmp-cleanup.service
+
+[Install]
+WantedBy=timers.target

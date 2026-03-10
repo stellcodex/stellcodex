@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Stellcodex 7/24 watchdog every hour
+
+[Timer]
+OnBootSec=2m
+OnUnitActiveSec=1h
+AccuracySec=1min
+Unit=stellcodex-247-watchdog.service
+
+[Install]
+WantedBy=timers.target

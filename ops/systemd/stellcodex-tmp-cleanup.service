@@ -1,0 +1,8 @@
+[Unit]
+Description=STELLCODEX artifact cleanup (>24h)
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/root/workspace/scripts/stellcodex_artifact_cleanup.sh
