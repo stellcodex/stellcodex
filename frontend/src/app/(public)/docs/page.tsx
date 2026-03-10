@@ -41,7 +41,7 @@ export default function DocsPage() {
 
       <section className="mt-8 rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
         <div className="text-sm font-semibold text-[#0c2a2a]">Getting Started</div>
-        <p className="mt-2 text-sm text-[#2c4b49]">Upload -> Route -> Review -> Share.</p>
+        <p className="mt-2 text-sm text-[#2c4b49]">Upload to route to review to share.</p>
       </section>
 
       <section className="mt-6 rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">

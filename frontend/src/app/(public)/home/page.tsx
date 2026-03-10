@@ -113,7 +113,7 @@ export default function HomePage() {
             </h2>
           </div>
           <Link className="text-sm font-semibold text-[#1d5a57] hover:text-[#0c2a2a]" href="/docs">
-            Help center ->
+            Help center
           </Link>
         </div>
 
