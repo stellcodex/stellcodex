@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@/context/UserContext";
-import { getPlatformApp, getVisiblePlatformApps } from "@/data/platformCatalog";
+import { getPlatformApp, getVisiblePlatformApps, type PlatformSurface } from "@/data/platformCatalog";
 import { loadLatestRecords, saveRecordFile, type PersistedRecord } from "@/lib/fileRecords";
 import {
   appendSessionMessage,
@@ -76,16 +76,12 @@ type WorkspaceData = {
   refresh: () => Promise<void>;
 };
 
-type RunnerTab = "Overview" | "Inputs" | "Run" | "Progress" | "Output";
-
 type PublishDocument = {
   filename: string;
   title: string;
   html: string;
   expiresInSeconds?: number;
 };
-
-const RUNNER_TABS: RunnerTab[] = ["Overview", "Inputs", "Run", "Progress", "Output"];
 const SOCIAL_OAUTH_BLOCKERS = ["META_APP_ID", "META_APP_SECRET"] as const;
 
 type MoldFamilyConfig = {
@@ -273,6 +269,40 @@ function extractOutputFileId(job?: JobStatus | null) {
 
 function appForFile(file: { original_filename?: string | null; content_type?: string | null }) {
   return classifyWorkspaceApp(file);
+}
+
+function viewerSurfaceContent(surface: PlatformSurface) {
+  if (surface === "viewer2d") {
+    return {
+      label: "2D Drawing Workspace",
+      description: "Focused on technical drawings, DXF review, layers, and clean document handoff.",
+      stageTitle: "2D Drawing Stage",
+      stageDescription: "Use this surface for drawings and flat technical layouts. Viewer actions stay limited to the essentials.",
+      emptyTitle: "Select a drawing file",
+      emptyDescription: "Choose a DXF or drawing-oriented file to open the dedicated 2D review surface.",
+      tips: ["Drawing-first layout", "DXF-ready file routing", "Minimal review actions"],
+    };
+  }
+  if (surface === "docviewer") {
+    return {
+      label: "Document Workspace",
+      description: "Focused on PDF and document review, file status, and controlled download or share actions.",
+      stageTitle: "Document Stage",
+      stageDescription: "Use this surface for project documents, PDFs, images, and office artifacts.",
+      emptyTitle: "Select a document file",
+      emptyDescription: "Choose a PDF or document artifact to open the document review surface.",
+      tips: ["Document-first layout", "Clear metadata and status", "No viewer tool clutter"],
+    };
+  }
+  return {
+    label: "3D Review Workspace",
+    description: "Focused on part and assembly review, viewer status, and direct handoff into the deep-link viewer.",
+    stageTitle: "3D Review Stage",
+    stageDescription: "Use this surface for STEP, STL, OBJ, GLB, and other 3D-oriented files.",
+    emptyTitle: "Select a 3D file",
+    emptyDescription: "Choose a model file to open the dedicated 3D review surface.",
+    tips: ["3D-first layout", "Large viewer stage", "Short action rail"],
+  };
 }
 
 function formatBytes(size?: number | null) {
@@ -997,25 +1027,27 @@ function ViewerScreen({ fileId }: { fileId: string }) {
 
   const ready = file?.status === "ready" || status === "succeeded" || status === "ready";
   const appId = file ? appForFile(file) : "viewer3d";
+  const viewerCopy = viewerSurfaceContent(appId);
 
   return (
-    <PlatformLayout title={file?.original_filename || "Viewer"} subtitle={`Deep link for ${fileId}`}>
+    <PlatformLayout title={file?.original_filename || viewerCopy.label} subtitle={viewerCopy.description}>
       <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-6 px-4 py-6 lg:px-8">
         {error ? <EmptyPanel title="Viewer unavailable" description={error} /> : null}
         {!error && !ready ? (
-          <SectionCard title="Processing" description="Viewer opens as soon as the backend marks the file ready.">
+          <SectionCard title="Processing" description={viewerCopy.stageDescription}>
             <div className="text-sm text-white/60">Current state: {status}</div>
           </SectionCard>
         ) : null}
         {ready ? (
-          <SectionCard title="Embedded Viewer" description="Deep-linked into the workspace viewer context.">
+          <SectionCard title={viewerCopy.stageTitle} description="Deep-linked into the workspace viewer context.">
             <div className="overflow-hidden rounded-[28px] border border-white/10 bg-black/20">
               <iframe src={`/view/${fileId}`} className="h-[760px] w-full bg-[#111]" title="STELLCODEX viewer" />
             </div>
-            <div className="mt-4">
+            <div className="mt-4 flex flex-wrap gap-3">
               <Link href={resolveAppHref(workspaceId, appId, fileId)} className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/70 hover:bg-white/8">
                 Open same file in application runner
               </Link>
+              <span className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/45">{viewerCopy.label}</span>
             </div>
           </SectionCard>
         ) : null}
@@ -1264,7 +1296,6 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
   const workspace = useWorkspaceData();
   const { user } = useUser();
   const app = getPlatformApp(appId);
-  const [activeTab, setActiveTab] = useState<RunnerTab>("Overview");
   const [selectedProjectId, setSelectedProjectId] = useState("default");
   const searchFileId = searchParams.get("file_id") || "";
   const [selectedFileId, setSelectedFileId] = useState(fileId || searchFileId);
@@ -1333,7 +1364,7 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
         }
       } catch (err) {
         if (!mounted) return;
-        setError(err instanceof Error ? err.message : "Job durumu alinamadi.");
+        setError(err instanceof Error ? err.message : "The job status could not be loaded.");
       }
     }
     void poll();
@@ -1358,6 +1389,7 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
 
   const projectOptions = workspace.projects.length > 0 ? workspace.projects : [{ id: "default", name: "Default Project", file_count: 0 }];
   const selectedProject = projectOptions.find((project) => project.id === selectedProjectId) || projectOptions[0];
+  const surface = app.surface;
   const relevantFiles = workspace.files.filter((file) => {
     if (app.id === "viewer2d") return appForFile(file) === "viewer2d";
     if (app.id === "docviewer") return appForFile(file) === "docviewer";
@@ -1367,11 +1399,12 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
   const familyConfig = getMoldFamilyConfig(moldCategory, moldFamily);
   const moldConfigId = `${moldCategory}-${moldFamily}-${moldWidth}x${moldHeight}-${moldThickness}-${moldMaterial}`.toLowerCase();
   const outputFileId = extractOutputFileId(job);
+  const viewerCopy = viewerSurfaceContent(surface);
+  const readyViewerFileId = outputFileId || selectedFileId;
 
   async function onRun() {
     setError(null);
     setShareUrl(null);
-    setActiveTab("Progress");
     try {
       if (app.id === "convert" && selectedFileId) {
         const next = await enqueueConvert(selectedFileId);
@@ -1429,7 +1462,6 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
         return;
       }
       if (["viewer3d", "viewer2d", "docviewer"].includes(app.id) && selectedFileId) {
-        setActiveTab("Output");
         return;
       }
       if (app.id === "library") {
@@ -1469,6 +1501,59 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
     } catch (err) {
       setError(err instanceof Error ? err.message : "Download failed.");
     }
+  }
+
+  function renderProjectSelector(description: string) {
+    return (
+      <SectionCard title="Project Context" description={description}>
+        <label className="block">
+          <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/35">Project</div>
+          <select value={selectedProject.id} onChange={(event) => setSelectedProjectId(event.target.value)} className="h-12 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none">
+            {projectOptions.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="mt-4 rounded-[20px] border border-white/10 bg-black/10 p-4">
+          <div className="text-sm font-semibold text-white">{selectedProject.name}</div>
+          <div className="mt-1 text-xs text-white/40">{selectedProject.id}</div>
+          <div className="mt-3 text-xs text-white/55">{selectedProject.file_count || 0} linked files in the current project scope.</div>
+        </div>
+      </SectionCard>
+    );
+  }
+
+  function renderFileSelector(title: string, description: string) {
+    return (
+      <SectionCard title={title} description={description}>
+        <label className="block">
+          <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/35">Source file</div>
+          <select value={selectedFileId} onChange={(event) => setSelectedFileId(event.target.value)} className="h-12 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none">
+            <option value="">Select file</option>
+            {relevantFiles.map((file) => (
+              <option key={file.file_id} value={file.file_id}>
+                {file.original_filename}
+              </option>
+            ))}
+          </select>
+        </label>
+        {selectedFile ? (
+          <div className="mt-4 rounded-[20px] border border-white/10 bg-black/10 p-4">
+            <div className="truncate text-sm font-semibold text-white">{selectedFile.original_filename}</div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <StatusBadge label={selectedFile.status || "unknown"} />
+              <span className="rounded-full border border-white/10 px-2.5 py-1 text-xs text-white/55">{titleCase(selectedFile.kind || "file")}</span>
+              <span className="rounded-full border border-white/10 px-2.5 py-1 text-xs text-white/55">{titleCase(selectedFile.mode || "default")}</span>
+            </div>
+            <div className="mt-3 text-xs text-white/40">file_id: {selectedFile.file_id}</div>
+          </div>
+        ) : (
+          <div className="mt-4 text-sm text-white/45">Only files that match this application surface are listed here.</div>
+        )}
+      </SectionCard>
+    );
   }
 
   function renderOverview() {
@@ -1566,7 +1651,7 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
           />
           <EmptyPanel
             title="Inputs are saved through record workspaces"
-            description="Use the Output tab to store draft accounts and scheduler records without exposing non-working OAuth actions."
+            description="Use the records section below to store draft accounts and scheduler records without exposing non-working OAuth actions."
           />
         </>
       );
@@ -1576,45 +1661,16 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
       return (
         <EmptyPanel
           title="Inputs are saved through record workspaces"
-          description="Use the Output tab to edit and persist records into project-backed JSON artifacts."
+          description="Use the records section below to edit and persist records into project-backed JSON artifacts."
         />
       );
     }
 
     return (
-      <SectionCard title="Inputs" description="Select the project and source file when the app operates on file-backed workflows.">
-        <div className="grid gap-4 lg:grid-cols-2">
-          <label className="block">
-            <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/35">Project</div>
-            <select value={selectedProject.id} onChange={(event) => setSelectedProjectId(event.target.value)} className="h-12 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none">
-              {projectOptions.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <div className="mb-2 text-xs uppercase tracking-[0.2em] text-white/35">Source file</div>
-            <select value={selectedFileId} onChange={(event) => setSelectedFileId(event.target.value)} className="h-12 w-full rounded-2xl border border-white/10 bg-black/10 px-4 text-sm text-white outline-none">
-              <option value="">Select file</option>
-              {relevantFiles.map((file) => (
-                <option key={file.file_id} value={file.file_id}>
-                  {file.original_filename}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        {selectedFile ? (
-          <div className="mt-4 rounded-[24px] border border-white/10 bg-black/10 p-4">
-            <div className="text-sm font-semibold text-white">{selectedFile.original_filename}</div>
-            <div className="mt-1 text-xs text-white/40">
-              {selectedFile.kind} / {selectedFile.mode || "default"} / {selectedFile.status}
-            </div>
-          </div>
-        ) : null}
-      </SectionCard>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {renderProjectSelector("Keep every run attached to a real project scope.")}
+        {renderFileSelector("Source File", "Pick the exact source file that this application should process.")}
+      </div>
     );
   }
 
@@ -1635,7 +1691,7 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
       return (
         <SectionCard title="Run" description="These MVP apps persist records directly; no worker execution is required.">
           <div className="text-sm text-white/55">
-            Use the Output tab to create or update persisted records.
+            Use the records section below to create or update persisted records.
             {["webbuilder", "cms"].includes(app.id) ? " Web apps can also publish a real /s token link from the current draft." : ""}
           </div>
         </SectionCard>
@@ -1645,7 +1701,7 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
       <SectionCard title="Run" description="Only working actions are exposed.">
         <div className="flex flex-wrap gap-3">
           <button type="button" onClick={() => void onRun()} className="rounded-2xl bg-white px-5 py-3 text-sm font-medium text-black hover:bg-white/90">
-            {["viewer3d", "viewer2d", "docviewer"].includes(app.id) ? "Open output" : "Run"}
+            {["viewer3d", "viewer2d", "docviewer"].includes(app.id) ? "Open viewer" : "Run"}
           </button>
           {selectedFileId ? (
             <button type="button" onClick={() => void onCreateShare()} className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-white/75 hover:bg-white/8">
@@ -1869,30 +1925,123 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
     return <EmptyPanel title="No output yet" description="Run the app or select a source file to populate output." />;
   }
 
-  return (
-    <PlatformLayout title={app.name} subtitle={app.summary}>
-      <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-6 px-4 py-6 lg:px-8">
-        <div className="flex flex-wrap gap-2">
-          {RUNNER_TABS.map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setActiveTab(tab)}
-              className={`rounded-full px-4 py-2 text-sm ${
-                activeTab === tab ? "bg-white text-black" : "border border-white/10 text-white/65 hover:bg-white/8"
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
+  function renderViewerSurface() {
+    return (
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_360px]">
+        <div className="space-y-6">
+          <SectionCard title={viewerCopy.label} description={viewerCopy.description}>
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full border border-white/10 px-3 py-1 text-xs tracking-[0.16em] text-white/55">{app.name}</span>
+              <span className="rounded-full border border-white/10 px-3 py-1 text-xs tracking-[0.16em] text-white/55">{selectedProject.name}</span>
+              {selectedFile ? <StatusBadge label={selectedFile.status || "unknown"} /> : null}
+            </div>
+            <div className="mt-5 overflow-hidden rounded-[28px] border border-white/10 bg-black/20">
+              {readyViewerFileId ? (
+                <iframe src={`/view/${readyViewerFileId}`} className="h-[760px] w-full bg-[#111]" title={`${app.name} workspace stage`} />
+              ) : (
+                <div className="grid h-[760px] place-items-center p-8">
+                  <EmptyPanel title={viewerCopy.emptyTitle} description={viewerCopy.emptyDescription} />
+                </div>
+              )}
+            </div>
+            <div className="mt-5 flex flex-wrap gap-3">
+              {readyViewerFileId ? (
+                <Link href={buildStandaloneViewerPath(readyViewerFileId)} className="rounded-2xl bg-white px-5 py-3 text-sm font-medium text-black hover:bg-white/90">
+                  Open deep link
+                </Link>
+              ) : null}
+              {selectedFileId ? (
+                <button type="button" onClick={() => void onCreateShare()} className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-white/75 hover:bg-white/8">
+                  Create share
+                </button>
+              ) : null}
+              {readyViewerFileId ? (
+                <button type="button" onClick={() => void onDownloadOutput(readyViewerFileId)} className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-white/75 hover:bg-white/8">
+                  Download file
+                </button>
+              ) : null}
+            </div>
+            {shareUrl ? <div className="mt-4 rounded-[20px] border border-emerald-500/20 bg-emerald-500/8 p-4 text-sm text-emerald-100">{shareUrl}</div> : null}
+            {error ? <div className="mt-4 text-sm text-red-200">{error}</div> : null}
+          </SectionCard>
         </div>
 
-        {activeTab === "Overview" ? renderOverview() : null}
-        {activeTab === "Inputs" ? renderInputs() : null}
-        {activeTab === "Run" ? renderRun() : null}
-        {activeTab === "Progress" ? renderProgress() : null}
-        {activeTab === "Output" ? renderOutput() : null}
+        <div className="space-y-6">
+          {renderProjectSelector(viewerCopy.stageDescription)}
+          {renderFileSelector("Viewer Source", "Only files that belong to this viewer type are listed here.")}
+          <SectionCard title="Review Notes" description="Each viewer surface keeps a short, task-specific explanation.">
+            <div className="space-y-3">
+              {viewerCopy.tips.map((tip) => (
+                <div key={tip} className="rounded-[20px] border border-white/10 bg-black/10 px-4 py-3 text-sm text-white/65">
+                  {tip}
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        </div>
       </div>
+    );
+  }
+
+  function renderJobSurface() {
+    return (
+      <div className="space-y-6">
+        {renderOverview()}
+        {renderInputs()}
+        {renderRun()}
+        {jobId || error ? renderProgress() : null}
+        {outputFileId || shareUrl ? renderOutput() : <EmptyPanel title="No output yet" description="Run the job to generate a worker result and output artifact." />}
+      </div>
+    );
+  }
+
+  function renderConfiguratorSurface() {
+    return (
+      <div className="space-y-6">
+        {renderOverview()}
+        {renderInputs()}
+        {renderRun()}
+        {jobId || error ? renderProgress() : null}
+        {renderOutput()}
+      </div>
+    );
+  }
+
+  function renderRecordSurface() {
+    return (
+      <div className="space-y-6">
+        {renderOverview()}
+        {renderProjectSelector("Records stay bound to one project so the saved artifacts remain easy to find later.")}
+        {renderOutput()}
+      </div>
+    );
+  }
+
+  function renderRouteSurface() {
+    return (
+      <div className="space-y-6">
+        {renderOverview()}
+        <SectionCard title="Route Handoff" description="This application is a focused entry point into another live platform route.">
+          <div className="text-sm text-white/60">
+            The live route card below is the only primary action on this surface. This keeps route-driven apps short and avoids duplicate buttons.
+          </div>
+        </SectionCard>
+        {renderOutput()}
+      </div>
+    );
+  }
+
+  function renderSurface() {
+    if (surface === "viewer3d" || surface === "viewer2d" || surface === "docviewer") return renderViewerSurface();
+    if (surface === "job") return renderJobSurface();
+    if (surface === "configurator") return renderConfiguratorSurface();
+    if (surface === "records") return renderRecordSurface();
+    return renderRouteSurface();
+  }
+
+  return (
+    <PlatformLayout title={app.name} subtitle={app.summary}>
+      <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-6 px-4 py-6 lg:px-8">{renderSurface()}</div>
     </PlatformLayout>
   );
 }

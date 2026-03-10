@@ -39,9 +39,8 @@ export function DxfViewer({
 
   const isPendingError = (value: string) => {
     const msg = value.toLowerCase();
-    // Accept legacy Turkish progress messages so the viewer stays resilient
-    // while public-facing copy remains English-first.
-    return msg.includes("not ready") || msg.includes("hazır değil") || msg.includes("hazirlaniyor") || msg.includes("hazırlanıyor");
+    // Keep legacy pending phrases mapped to the English-first viewer surface.
+    return msg.includes("not ready") || msg.includes("processing") || msg.includes("preparing") || msg.includes("hazir degil") || msg.includes("hazirlaniyor");
   };
 
   useEffect(() => {

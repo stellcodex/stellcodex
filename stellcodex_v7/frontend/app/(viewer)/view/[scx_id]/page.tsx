@@ -200,9 +200,8 @@ function classifyViewerError(error: unknown): ViewerError {
   }
   if (error instanceof Error) {
     const text = error.message.toLowerCase();
-    // Keep a narrow legacy Turkish match here so older transport errors still
-    // map into the English-first viewer error surface.
-    if (text.includes("sunucuya erişilemedi") || text.includes("network") || text.includes("timeout")) {
+    // Keep legacy transport phrases mapped to the English-first viewer surface.
+    if (text.includes("sunucuya erisilemedi") || text.includes("network") || text.includes("timeout")) {
       return { title: "Connection error", description: "The server could not be reached. Check the network and API routing." };
     }
     return { title: "Request failed", description: error.message };
