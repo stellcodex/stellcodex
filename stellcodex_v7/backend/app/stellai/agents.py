@@ -9,7 +9,16 @@ from sqlalchemy.orm import Session
 from app.stellai.memory import MemoryManager
 from app.stellai.retrieval import RetrievalEngine
 from app.stellai.tools import SafeToolExecutor, ToolCall
-from app.stellai.types import MemorySnapshot, PlanNode, RetrievalResult, RuntimeContext, RuntimeRequest, TaskGraph, ToolExecution
+from app.stellai.types import (
+    MemorySnapshot,
+    PlanNode,
+    RetrievalResult,
+    RuntimeContext,
+    RuntimeRequest,
+    SelfEvaluation,
+    TaskGraph,
+    ToolExecution,
+)
 
 
 RESEARCH_HINTS = {
@@ -202,6 +211,7 @@ class MemoryManagerAgent:
         reply_text: str,
         retrieval: RetrievalResult,
         tool_results: list[ToolExecution],
+        evaluation: dict[str, Any] | None = None,
     ) -> MemorySnapshot:
         self.manager.append_user_turn(context=context, text=user_text)
         memory_path = self.manager.append_assistant_turn(
@@ -211,9 +221,86 @@ class MemoryManagerAgent:
                 "retrieval_chunks": len(retrieval.chunks),
                 "top_score": retrieval.top_score,
                 "tool_results": [item.to_dict() for item in tool_results],
+                "evaluation": evaluation or {},
             },
         )
         snapshot = self.manager.load(context=context, query=user_text)
         if snapshot.long_term and memory_path is not None:
             snapshot.long_term[0]["memory_path"] = str(memory_path)
         return snapshot
+
+
+class SelfEvaluatorAgent:
+    def evaluate(
+        self,
+        *,
+        request: RuntimeRequest,
+        retrieval: RetrievalResult,
+        tool_results: list[ToolExecution],
+        reply: str,
+        context_bundle: dict[str, Any],
+        retried: bool = False,
+    ) -> SelfEvaluation:
+        issues: list[str] = []
+        actions: list[str] = []
+
+        successful_tools = [item for item in tool_results if item.status == "ok"]
+        failed_tools = [item for item in tool_results if item.status != "ok"]
+        provenance_refs = context_bundle.get("source_references") if isinstance(context_bundle, dict) else []
+
+        if not retrieval.chunks and not successful_tools:
+            issues.append("no_grounded_evidence")
+            actions.append("expand retrieval scope or provide file_ids")
+
+        if retrieval.chunks and retrieval.top_score < 0.18:
+            issues.append("weak_grounding_signal")
+            actions.append("retry retrieval with expanded query")
+
+        if retrieval.chunks and "Grounded context:" not in reply:
+            issues.append("missing_grounding_section")
+            actions.append("include grounded context in final answer")
+
+        if provenance_refs and "Knowledge provenance:" not in reply:
+            issues.append("missing_provenance_section")
+            actions.append("include source provenance in final answer")
+
+        if failed_tools:
+            issues.append("tool_failures_present")
+            actions.append("surface tool failure details and preserve partial result")
+
+        confidence = 0.25
+        if retrieval.chunks:
+            confidence += min(max(retrieval.top_score, 0.0), 0.45)
+        if successful_tools:
+            confidence += min(0.2, 0.07 * len(successful_tools))
+        if not failed_tools:
+            confidence += 0.1
+        confidence = max(0.0, min(confidence, 0.95))
+
+        retry_recommended = (
+            not retried
+            and (
+                "no_grounded_evidence" in issues
+                or "weak_grounding_signal" in issues
+            )
+        )
+
+        if not issues:
+            status = "pass"
+            actions.append("no_changes_required")
+        elif retried and confidence >= 0.45 and "no_grounded_evidence" not in issues:
+            status = "revised"
+            actions.append("retry_improved_answer")
+        else:
+            status = "needs_attention"
+            if retried:
+                actions.append("retry_completed_but_limit_reached")
+
+        return SelfEvaluation(
+            status=status,
+            confidence=confidence,
+            retry_recommended=retry_recommended,
+            revised=retried and status == "revised",
+            issues=issues,
+            actions=actions,
+        )

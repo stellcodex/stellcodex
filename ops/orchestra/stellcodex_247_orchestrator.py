@@ -781,8 +781,24 @@ class Stellcodex247Orchestrator:
 
     def _load_or_init_state(self, modules: List[ModuleSpec]) -> Dict[str, Any]:
         state = read_json(self.state_path, {})
-        if isinstance(state, dict) and isinstance(state.get("active_run"), dict):
-            return state
+        if isinstance(state, dict):
+            active_run = state.get("active_run")
+            if isinstance(active_run, dict) and active_run.get("status") == "running":
+                return state
+            next_run = state.get("next_run")
+            if isinstance(next_run, dict):
+                free = [module.slug for module in modules if module.tier == "free"]
+                paid = [module.slug for module in modules if module.tier != "free"]
+                state["active_run"] = {
+                    "id": str(next_run.get("id") or utc_now().strftime("run_%Y%m%d_%H%M%S")),
+                    "started_at": to_iso(),
+                    "phase": "free",
+                    "status": "running",
+                    "free_pending": free,
+                    "paid_pending": paid,
+                    "results": {},
+                }
+                return state
         free = [module.slug for module in modules if module.tier == "free"]
         paid = [module.slug for module in modules if module.tier != "free"]
         return {
@@ -792,10 +808,13 @@ class Stellcodex247Orchestrator:
                 "id": utc_now().strftime("run_%Y%m%d_%H%M%S"),
                 "started_at": to_iso(),
                 "phase": "free",
+                "status": "running",
                 "free_pending": free,
                 "paid_pending": paid,
                 "results": {},
             },
+            "last_completed_run": None,
+            "next_run": None,
             "history": [],
         }
 
@@ -818,6 +837,8 @@ class Stellcodex247Orchestrator:
         limit_state = self.load_limit_state()
         run_state = self._load_or_init_state(modules)
         active = run_state.get("active_run", {})
+        if isinstance(active, dict):
+            active["status"] = "running"
         module_by_slug = {module.slug: module for module in modules}
         planning_engine = self._planning_engine_snapshot(limit_state)
 
@@ -885,24 +906,41 @@ class Stellcodex247Orchestrator:
             planning_engine=planning_engine,
         )
 
+        finished_at = to_iso()
+        completed_run = {
+            "id": active.get("id"),
+            "started_at": active.get("started_at"),
+            "finished_at": finished_at,
+            "phase": "completed",
+            "status": "completed",
+            "run_completed": True,
+            "completed_free": completed_free,
+            "completed_paid": completed_paid,
+            "smoke_status": smoke_result.get("status"),
+            "free_pending": [],
+            "paid_pending": [],
+            "results": {},
+        }
         history = run_state.setdefault("history", [])
         history.append(
             {
-                "id": active.get("id"),
-                "started_at": active.get("started_at"),
-                "finished_at": to_iso(),
-                "completed_free": completed_free,
-                "completed_paid": completed_paid,
-                "smoke_status": smoke_result.get("status"),
+                "id": completed_run["id"],
+                "started_at": completed_run["started_at"],
+                "finished_at": completed_run["finished_at"],
+                "completed_free": completed_run["completed_free"],
+                "completed_paid": completed_run["completed_paid"],
+                "smoke_status": completed_run["smoke_status"],
             }
         )
-        run_state["active_run"] = {
+        run_state["last_completed_run"] = completed_run
+        run_state["active_run"] = completed_run
+        run_state["next_run"] = {
             "id": utc_now().strftime("run_%Y%m%d_%H%M%S"),
-            "started_at": to_iso(),
+            "scheduled_at": finished_at,
             "phase": "free",
+            "status": "scheduled",
             "free_pending": [module.slug for module in modules if module.tier == "free"],
             "paid_pending": [module.slug for module in modules if module.tier != "free"],
-            "results": {},
         }
         write_json(self.state_path, run_state)
         self.save_limit_state(limit_state)

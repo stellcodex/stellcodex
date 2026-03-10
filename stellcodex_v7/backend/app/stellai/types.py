@@ -158,6 +158,26 @@ class MemorySnapshot:
 
 
 @dataclass
+class SelfEvaluation:
+    status: str
+    confidence: float
+    retry_recommended: bool = False
+    revised: bool = False
+    issues: list[str] = field(default_factory=list)
+    actions: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "confidence": round(float(self.confidence), 6),
+            "retry_recommended": bool(self.retry_recommended),
+            "revised": bool(self.revised),
+            "issues": list(self.issues),
+            "actions": list(self.actions),
+        }
+
+
+@dataclass
 class RuntimeResponse:
     session_id: str
     trace_id: str
@@ -166,6 +186,7 @@ class RuntimeResponse:
     retrieval: RetrievalResult
     tool_results: list[ToolExecution]
     memory: MemorySnapshot
+    evaluation: SelfEvaluation
     events: list[RuntimeEvent]
 
     def to_dict(self) -> dict[str, Any]:
@@ -177,5 +198,6 @@ class RuntimeResponse:
             "retrieval": self.retrieval.to_dict(),
             "tool_results": [item.to_dict() for item in self.tool_results],
             "memory": self.memory.to_dict(),
+            "evaluation": self.evaluation.to_dict(),
             "events": [event.to_dict() for event in self.events],
         }

@@ -44,6 +44,7 @@ class RuntimeExecuteOut(BaseModel):
     retrieval: dict[str, Any]
     tool_results: list[dict[str, Any]]
     memory: dict[str, Any]
+    evaluation: dict[str, Any]
     events: list[dict[str, Any]]
 
 

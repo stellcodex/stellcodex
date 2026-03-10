@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from app.stellai.agents import ExecutorAgent, MemoryManagerAgent, PlannerAgent, ResearcherAgent, RetrieverAgent
+from app.stellai.agents import ExecutorAgent, MemoryManagerAgent, PlannerAgent, ResearcherAgent, RetrieverAgent, SelfEvaluatorAgent
 from app.stellai.memory import LongTermMemoryStore, MemoryManager, SessionMemoryStore, WorkingMemoryStore
 from app.stellai.retrieval import RetrievalEngine, SourceDocument
 from app.stellai.runtime import StellAIRuntime
@@ -242,7 +242,61 @@ class StellAIRuntimeTests(unittest.TestCase):
         result = runtime.run(request=request, db=None)
         self.assertIn("Grounded context:", result.reply)
         self.assertTrue(any(evt.agent == "planner" for evt in result.events))
+        self.assertTrue(any(evt.agent == "self_eval" for evt in result.events))
+        self.assertIn(result.evaluation.status, {"pass", "revised", "needs_attention"})
         self.assertGreaterEqual(len(result.memory.session), 2)
+
+    def test_self_evaluator_flags_missing_grounding(self) -> None:
+        evaluator = SelfEvaluatorAgent()
+        context = RuntimeContext(
+            tenant_id="1",
+            project_id="p1",
+            principal_type="guest",
+            principal_id="g1",
+            session_id="s1",
+            trace_id="t1",
+            allowed_tools=frozenset(),
+        )
+        request = RuntimeRequest(message="summarize current state", context=context, top_k=3)
+        retrieval = RetrievalResult(query="summarize current state", chunks=[], embedding_dim=128)
+        result = evaluator.evaluate(
+            request=request,
+            retrieval=retrieval,
+            tool_results=[],
+            reply="No grounded context was retrieved for this query.",
+            context_bundle={"source_references": []},
+            retried=False,
+        )
+        self.assertEqual(result.status, "needs_attention")
+        self.assertTrue(result.retry_recommended)
+        self.assertIn("no_grounded_evidence", result.issues)
+
+    def test_runtime_retry_re_evaluates_without_recommending_another_retry(self) -> None:
+        retrieval_engine = RetrievalEngine(sources=[_InMemorySource([])])
+        runtime = StellAIRuntime(
+            planner=PlannerAgent(),
+            retriever=RetrieverAgent(retrieval_engine),
+            researcher=ResearcherAgent(retrieval_engine),
+            executor=ExecutorAgent(SafeToolExecutor(allowlist=frozenset())),
+            memory_agent=MemoryManagerAgent(MemoryManager(long_term_store=LongTermMemoryStore(tempfile.mkdtemp()))),
+        )
+        context = RuntimeContext(
+            tenant_id="1",
+            project_id="p1",
+            principal_type="guest",
+            principal_id="g1",
+            session_id="s1",
+            trace_id="t1",
+            allowed_tools=frozenset(),
+        )
+        request = RuntimeRequest(message="summarize current state", context=context, top_k=2)
+        result = runtime.run(request=request, db=None)
+        self.assertFalse(result.evaluation.retry_recommended)
+        self.assertEqual(result.evaluation.status, "needs_attention")
+        self.assertIn("retry_completed_but_limit_reached", result.evaluation.actions)
+        event_types = [event.event_type for event in result.events if event.agent == "self_eval"]
+        self.assertIn("retry_considered", event_types)
+        self.assertIn("re_evaluated", event_types)
 
     def test_runtime_emits_events_to_phase2_bus(self) -> None:
         docs = [

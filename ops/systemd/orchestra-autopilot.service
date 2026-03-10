@@ -4,12 +4,13 @@ After=network-online.target docker.service
 Wants=network-online.target
 
 [Service]
-Type=simple
+Type=oneshot
+RemainAfterExit=yes
 WorkingDirectory=/root/workspace/ops/orchestra
 ExecStart=/root/workspace/ops/orchestra/autopilot.sh start /root/workspace/_jobs
 ExecStop=/root/workspace/ops/orchestra/autopilot.sh stop /root/workspace/_jobs
-Restart=always
-RestartSec=10
+TimeoutStartSec=180
+TimeoutStopSec=60
 Environment=TZ=Europe/Istanbul
 
 [Install]

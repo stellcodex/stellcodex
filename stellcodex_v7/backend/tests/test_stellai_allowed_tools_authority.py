@@ -64,6 +64,14 @@ class _CapturingRuntime:
             "retrieval": {"query": request.message, "chunks": []},
             "tool_results": tool_results,
             "memory": {},
+            "evaluation": {
+                "status": "pass",
+                "confidence": 0.9,
+                "retry_recommended": False,
+                "revised": False,
+                "issues": [],
+                "actions": ["no_changes_required"],
+            },
             "events": [],
         }
         return _DummyRuntimeResult(payload)

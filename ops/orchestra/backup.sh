@@ -26,11 +26,14 @@ copy_if_exists "/root/workspace/ops/systemd" "${TARGET}"
 copy_if_exists "/root/workspace/_jobs/logs" "${TARGET}"
 copy_if_exists "/root/workspace/_jobs/output" "${TARGET}"
 
+ORCHESTRA_BACKUP_DIR="${TARGET}/orchestra"
+
 if [[ -f /root/workspace/ops/orchestra/docker-compose.yml ]]; then
   cp /root/workspace/ops/orchestra/docker-compose.yml "${TARGET}/docker-compose.yml"
 fi
 if [[ -f /root/workspace/ops/orchestra/.env ]]; then
-  cp /root/workspace/ops/orchestra/.env "${TARGET}/.env"
+  rm -f "${ORCHESTRA_BACKUP_DIR}/.env"
+  sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1=<redacted>/p' /root/workspace/ops/orchestra/.env >"${ORCHESTRA_BACKUP_DIR}/.env.redacted"
 fi
 
 find "${TARGET}" -type f | sort >"${TARGET}/manifest_files.txt"

@@ -5,7 +5,14 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core.event_bus import EventBus, default_event_bus
-from app.stellai.agents import ExecutorAgent, MemoryManagerAgent, PlannerAgent, ResearcherAgent, RetrieverAgent
+from app.stellai.agents import (
+    ExecutorAgent,
+    MemoryManagerAgent,
+    PlannerAgent,
+    ResearcherAgent,
+    RetrieverAgent,
+    SelfEvaluatorAgent,
+)
 from app.stellai.events import RuntimeEventHub, phase2_event_sink
 from app.stellai.knowledge import get_context_bundle
 from app.stellai.memory import MemoryManager
@@ -23,6 +30,7 @@ class StellAIRuntime:
         researcher: ResearcherAgent | None = None,
         executor: ExecutorAgent | None = None,
         memory_agent: MemoryManagerAgent | None = None,
+        evaluator: SelfEvaluatorAgent | None = None,
         event_bus: EventBus | None = None,
     ) -> None:
         retrieval_engine = RetrievalEngine()
@@ -32,6 +40,7 @@ class StellAIRuntime:
         self.researcher = researcher or ResearcherAgent(retrieval_engine)
         self.executor = executor or ExecutorAgent(SafeToolExecutor(retrieval_engine=retrieval_engine))
         self.memory_agent = memory_agent or MemoryManagerAgent(memory_manager)
+        self.evaluator = evaluator or SelfEvaluatorAgent()
         self.event_bus = event_bus or default_event_bus()
 
     def run(self, *, request: RuntimeRequest, db: Session | None = None) -> RuntimeResponse:
@@ -123,12 +132,72 @@ class StellAIRuntime:
             tool_results=tool_results,
             context_bundle=context_bundle,
         )
+        evaluation = self.evaluator.evaluate(
+            request=request,
+            retrieval=retrieval,
+            tool_results=tool_results,
+            reply=reply,
+            context_bundle=context_bundle,
+            retried=False,
+        )
+        hub.emit(
+            RuntimeEvent(
+                event_type="evaluated",
+                agent="self_eval",
+                payload=evaluation.to_dict(),
+            )
+        )
+
+        if evaluation.retry_recommended:
+            retried_retrieval = self.researcher.expand_and_retrieve(request=request, base=retrieval, db=db)
+            improved = (
+                retried_retrieval.top_score > retrieval.top_score
+                or len(retried_retrieval.chunks) > len(retrieval.chunks)
+            )
+            hub.emit(
+                RuntimeEvent(
+                    event_type="retry_considered",
+                    agent="self_eval",
+                    payload={
+                        "improved": improved,
+                        "previous_top_score": retrieval.top_score,
+                        "retry_top_score": retried_retrieval.top_score,
+                        "previous_chunk_count": len(retrieval.chunks),
+                        "retry_chunk_count": len(retried_retrieval.chunks),
+                    },
+                )
+            )
+            if improved:
+                retrieval = retried_retrieval
+                reply = self._compose_reply(
+                    message=request.message,
+                    retrieval=retrieval,
+                    tool_results=tool_results,
+                    context_bundle=context_bundle,
+                )
+            evaluation = self.evaluator.evaluate(
+                request=request,
+                retrieval=retrieval,
+                tool_results=tool_results,
+                reply=reply,
+                context_bundle=context_bundle,
+                retried=True,
+            )
+            hub.emit(
+                RuntimeEvent(
+                    event_type="re_evaluated",
+                    agent="self_eval",
+                    payload=evaluation.to_dict(),
+                )
+            )
+
         memory_after = self.memory_agent.update(
             context=request.context,
             user_text=request.message,
             reply_text=reply,
             retrieval=retrieval,
             tool_results=tool_results,
+            evaluation=evaluation.to_dict(),
         )
         hub.emit(
             RuntimeEvent(
@@ -152,6 +221,7 @@ class StellAIRuntime:
             retrieval=retrieval,
             tool_results=tool_results,
             memory=memory_after,
+            evaluation=evaluation,
             events=hub.events,
         )
 
