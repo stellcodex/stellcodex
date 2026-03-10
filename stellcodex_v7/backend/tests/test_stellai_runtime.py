@@ -10,7 +10,7 @@ from app.stellai.memory import LongTermMemoryStore, MemoryManager, SessionMemory
 from app.stellai.retrieval import RetrievalEngine, SourceDocument
 from app.stellai.runtime import StellAIRuntime
 from app.stellai.tools import SafeToolExecutor, ToolCall
-from app.stellai.types import MemorySnapshot, RetrievalResult, RuntimeContext, RuntimeRequest
+from app.stellai.types import MemorySnapshot, RetrievalResult, RuntimeContext, RuntimeRequest, ToolExecution
 
 
 class _InMemorySource:
@@ -60,6 +60,24 @@ class StellAIRuntimeTests(unittest.TestCase):
         self.assertEqual(out.task_graph.nodes[0].kind, "retrieve")
         self.assertTrue(any(node.kind == "execute_tools" for node in out.task_graph.nodes))
         self.assertEqual(out.tool_calls[0].name, "upload.status")
+
+    def test_planner_routes_cost_and_plan_requests_to_engineering_precheck(self) -> None:
+        context = RuntimeContext(
+            tenant_id="1",
+            project_id="p1",
+            principal_type="guest",
+            principal_id="guest-1",
+            session_id="s1",
+            trace_id="t1",
+            file_ids=("scx_11111111-1111-1111-1111-111111111111",),
+            allowed_tools=frozenset({"dfm_precheck"}),
+        )
+        planner = PlannerAgent()
+        request = RuntimeRequest(message="bu parcanin maliyetini ve uretim planini analiz et", context=context, top_k=4)
+
+        out = planner.plan(request=request, memory=MemorySnapshot())
+
+        self.assertTrue(any(call.name == "dfm_precheck" for call in out.tool_calls))
 
     def test_retrieval_flow_applies_tenant_and_project_filters(self) -> None:
         docs = [
@@ -154,8 +172,8 @@ class StellAIRuntimeTests(unittest.TestCase):
                 trace_id="t2",
                 allowed_tools=frozenset(),
             )
-            manager.append_assistant_turn(context=c1, text="tenant one data")
-            manager.append_assistant_turn(context=c2, text="tenant two data")
+            manager.append_stell_turn(context=c1, text="tenant one data")
+            manager.append_stell_turn(context=c2, text="tenant two data")
             s1 = manager.load(context=c1, query="tenant data")
             s2 = manager.load(context=c2, query="tenant data")
             self.assertTrue(all(str(item.get("tenant_id")) == "1" for item in s1.long_term))
@@ -240,11 +258,37 @@ class StellAIRuntimeTests(unittest.TestCase):
             top_k=3,
         )
         result = runtime.run(request=request, db=None)
-        self.assertIn("Grounded context:", result.reply)
+        self.assertIn("STELL-AI", result.reply)
         self.assertTrue(any(evt.agent == "planner" for evt in result.events))
         self.assertTrue(any(evt.agent == "self_eval" for evt in result.events))
         self.assertIn(result.evaluation.status, {"pass", "revised", "needs_attention"})
         self.assertGreaterEqual(len(result.memory.session), 2)
+
+    def test_runtime_compose_reply_surfaces_engineering_summary(self) -> None:
+        runtime = StellAIRuntime()
+
+        reply = runtime._compose_reply(
+            message="maliyet ve dfm raporu ver",
+            retrieval=RetrievalResult(query="maliyet", chunks=[], embedding_dim=0),
+            tool_results=[
+                ToolExecution(
+                    tool_name="dfm_precheck",
+                    status="ok",
+                    reason=None,
+                    output={
+                        "recommended_process": "cnc_machining",
+                        "capability_status": "supported",
+                        "cost_estimate": {"estimated_unit_cost": 42.5, "currency": "EUR"},
+                        "dfm_report": {"risk_count": 2},
+                    },
+                )
+            ],
+            context_bundle={},
+        )
+
+        self.assertIn("Önerilen süreç: cnc_machining", reply)
+        self.assertIn("Tahmini birim maliyet: 42.5 EUR", reply)
+        self.assertIn("DFM risk sayısı: 2", reply)
 
     def test_self_evaluator_flags_missing_grounding(self) -> None:
         evaluator = SelfEvaluatorAgent()

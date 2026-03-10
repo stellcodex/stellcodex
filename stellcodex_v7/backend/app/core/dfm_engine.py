@@ -5,6 +5,8 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
+from app.core.engineering import build_engineering_dfm_report
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -197,26 +199,63 @@ def build_dfm_report(
         seen.add(key)
         dedup_recommendations.append(key)
 
-    report = {
-        "schema": "stellcodex.v7.dfm_report",
-        "version": "1.0",
-        "generated_at": _now_iso(),
-        "file_id": getattr(file_row, "file_id", None),
-        "mode": str(decision_json.get("mode") or "visual_only"),
-        "confidence": _as_float(decision_json.get("confidence"), 0.05),
-        "rule_version": str(decision_json.get("rule_version") or rules.get("rule_version") or "v7.0.0"),
-        "rule_explanations": [str(item) for item in (decision_json.get("rule_explanations") or [])],
-        "wall_risks": wall_risks,
-        "draft_risks": draft_risks,
-        "undercut_risks": undercut_risks,
-        "shrinkage_warnings": shrinkage_warnings,
-        "recommendations": dedup_recommendations,
-        "deterministic_rules": deterministic_rules or [],
+    engineering_report = meta.get("engineering_dfm_report") if isinstance(meta.get("engineering_dfm_report"), dict) else {}
+    engineering_geometry_metrics = meta.get("engineering_geometry_metrics") if isinstance(meta.get("engineering_geometry_metrics"), dict) else {}
+    engineering_feature_map = meta.get("engineering_feature_map") if isinstance(meta.get("engineering_feature_map"), dict) else {}
+    engineering_analysis = meta.get("engineering_analysis") if isinstance(meta.get("engineering_analysis"), dict) else {}
+    manufacturing_decision = engineering_analysis.get("manufacturing_decision") if isinstance(engineering_analysis.get("manufacturing_decision"), dict) else {}
+    engineering_risk_analysis = engineering_report.get("risk_analysis") if isinstance(engineering_report.get("risk_analysis"), list) else (
+        engineering_analysis.get("dfm_risk") if isinstance(engineering_analysis.get("dfm_risk"), list) else []
+    )
+    engineering_recommendations = engineering_report.get("recommended_changes") if isinstance(engineering_report.get("recommended_changes"), list) else (
+        engineering_analysis.get("recommendations") if isinstance(engineering_analysis.get("recommendations"), list) else []
+    )
+
+    report = build_engineering_dfm_report(
+        file_id=str(getattr(file_row, "file_id", None) or ""),
+        mode=str(decision_json.get("mode") or engineering_analysis.get("mode") or "visual_only"),
+        confidence=_as_float(decision_json.get("confidence"), _as_float(engineering_analysis.get("confidence"), 0.05)),
+        rule_version=str(decision_json.get("rule_version") or rules.get("rule_version") or "v7.0.0"),
+        rule_explanations=[str(item) for item in (decision_json.get("rule_explanations") or [])],
+        geometry_metrics=engineering_geometry_metrics,
+        feature_map=engineering_feature_map,
+        manufacturing_decision=manufacturing_decision,
+        risk_analysis=engineering_risk_analysis,
+        recommendations=engineering_recommendations,
+        capability_status=str(engineering_analysis.get("capability_status") or ""),
+        unavailable_reason=str(engineering_analysis.get("unavailable_reason") or "") or None,
+        deterministic_rules=deterministic_rules or [],
+    )
+    report["wall_risks"] = wall_risks + [item for item in (report.get("wall_risks") or []) if isinstance(item, dict)]
+    report["draft_risks"] = draft_risks + [item for item in (report.get("draft_risks") or []) if isinstance(item, dict)]
+    report["undercut_risks"] = undercut_risks + [item for item in (report.get("undercut_risks") or []) if isinstance(item, dict)]
+    report["shrinkage_warnings"] = shrinkage_warnings + [item for item in (report.get("shrinkage_warnings") or []) if isinstance(item, dict)]
+    report["recommendations"] = dedup_recommendations + [str(item) for item in (report.get("recommendations") or []) if str(item).strip()]
+    report["decision_json"] = sanitize_public_decision_json(decision_json)
+    report["legacy_geometry_summary"] = {
+        "wall_min_mm": wall_min,
+        "wall_max_mm": wall_max,
+        "draft_deg_min": draft_deg_min,
+        "undercut_count": undercut_count,
+        "shrinkage_pct": shrinkage_pct,
     }
+    report["risks"] = (
+        [item for item in report["wall_risks"] if isinstance(item, dict)]
+        + [item for item in report["draft_risks"] if isinstance(item, dict)]
+        + [item for item in report["undercut_risks"] if isinstance(item, dict)]
+        + [item for item in report["shrinkage_warnings"] if isinstance(item, dict)]
+        + [item for item in (report.get("risk_analysis") or []) if isinstance(item, dict)]
+    )
     report["report_hash"] = hashlib.sha256(
         json.dumps(report, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
     return report
+
+
+def sanitize_public_decision_json(decision_json: dict[str, Any]) -> dict[str, Any]:
+    payload = dict(decision_json or {})
+    forbidden = {"storage_key", "object_key", "bucket", "revision_id"}
+    return {key: value for key, value in payload.items() if key not in forbidden}
 
 
 def build_dfm_pdf(report: dict[str, Any]) -> bytes:

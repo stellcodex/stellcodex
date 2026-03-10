@@ -1,3 +1,9 @@
+"""Normalization helpers for tenant-scoped knowledge ingestion.
+
+Keep code comments and normalization rules in English so artifact indexing stays
+readable even when user-facing content is localized.
+"""
+
 from __future__ import annotations
 
 import hashlib
@@ -156,6 +162,12 @@ def normalize_dfm_report(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError("dfm_report payload must be an object")
     risks_raw = payload.get("risks")
+    if not isinstance(risks_raw, list):
+        risks_raw = []
+        for key in ("wall_risks", "draft_risks", "undercut_risks", "shrinkage_warnings", "risk_analysis"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                risks_raw.extend(item for item in value if isinstance(item, dict))
     risk_categories: list[str] = []
     severity: list[str] = []
     if isinstance(risks_raw, list):
@@ -168,8 +180,9 @@ def normalize_dfm_report(payload: dict[str, Any]) -> dict[str, Any]:
                 risk_categories.append(category)
             if sev:
                 severity.append(sev)
-    recommendations = _as_list_of_str(payload.get("recommendations"))
+    recommendations = _as_list_of_str(payload.get("recommended_changes")) or _as_list_of_str(payload.get("recommendations"))
     decision_json = payload.get("decision_json") if isinstance(payload.get("decision_json"), dict) else {}
+    manufacturing = payload.get("manufacturing_recommendation") if isinstance(payload.get("manufacturing_recommendation"), dict) else {}
     out = {
         "risk_categories": sorted(set(risk_categories)),
         "severity": sorted(set(severity)),
@@ -177,6 +190,7 @@ def normalize_dfm_report(payload: dict[str, Any]) -> dict[str, Any]:
         "mode": str(decision_json.get("mode") or payload.get("mode") or ""),
         "confidence": float(decision_json.get("confidence") or payload.get("confidence") or 0.0),
         "rule_version": str(decision_json.get("rule_version") or payload.get("rule_version") or ""),
+        "recommended_process": str(manufacturing.get("recommended_process") or payload.get("recommended_process") or ""),
     }
     text = json.dumps(out, ensure_ascii=False, sort_keys=True)
     return {
@@ -185,6 +199,38 @@ def normalize_dfm_report(payload: dict[str, Any]) -> dict[str, Any]:
         "summary": summarize_text(text),
         "metadata": out,
         "tags": ["dfm_report", "deterministic", *(_keywords(" ".join(out["risk_categories"])))],
+    }
+
+
+def normalize_engineering_report(payload: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise ValueError("engineering_report payload must be an object")
+    decision = payload.get("manufacturing_recommendation") if isinstance(payload.get("manufacturing_recommendation"), dict) else {}
+    plan = payload.get("manufacturing_plan") if isinstance(payload.get("manufacturing_plan"), dict) else {}
+    cost = payload.get("cost_estimate") if isinstance(payload.get("cost_estimate"), dict) else {}
+    dfm = payload.get("dfm_report") if isinstance(payload.get("dfm_report"), dict) else {}
+    out = {
+        "recommended_process": str(decision.get("recommended_process") or payload.get("recommended_process") or ""),
+        "capability_status": str(
+            payload.get("capability_status")
+            or decision.get("capability_status")
+            or cost.get("capability_status")
+            or ""
+        ),
+        "estimated_unit_cost": float(cost.get("estimated_unit_cost") or 0.0),
+        "currency": str(cost.get("currency") or "EUR"),
+        "risk_count": int(dfm.get("risk_count") or len(dfm.get("risks") or [])),
+        "process_sequence": _as_list_of_str(plan.get("process_sequence")),
+        "machine_requirements": _as_list_of_str(plan.get("machine_requirements")),
+        "design_improvements": _as_list_of_str(payload.get("design_improvements")),
+    }
+    text = json.dumps(out, ensure_ascii=False, sort_keys=True)
+    return {
+        "title": "Deterministic engineering report",
+        "text": text,
+        "summary": summarize_text(text),
+        "metadata": out,
+        "tags": ["engineering_report", "deterministic", *(_keywords(out["recommended_process"]))],
     }
 
 

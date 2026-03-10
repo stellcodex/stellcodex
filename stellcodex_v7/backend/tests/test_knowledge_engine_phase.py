@@ -16,7 +16,13 @@ from app.api.v1.routes.knowledge import (
 )
 from app.core.events import EventEnvelope
 from app.db.base import Base
-from app.knowledge.normalizers import canonical_record, normalize_assembly_meta, normalize_decision_json, normalize_dfm_report
+from app.knowledge.normalizers import (
+    canonical_record,
+    normalize_assembly_meta,
+    normalize_decision_json,
+    normalize_dfm_report,
+    normalize_engineering_report,
+)
 from app.knowledge.providers import BM25SparseProvider, HashEmbeddingProvider, InMemoryVectorIndexProvider
 from app.knowledge.service import KnowledgeService, get_knowledge_service
 from app.models.audit import AuditEvent
@@ -123,6 +129,27 @@ class KnowledgeEnginePhaseTests(unittest.TestCase):
             ],
             "decision_json": decision_1,
         }
+        engineering_report = {
+            "schema": "stellcodex.v1.engineering_report",
+            "manufacturing_recommendation": {
+                "recommended_process": "cnc_machining",
+                "capability_status": "supported",
+            },
+            "manufacturing_plan": {
+                "process_sequence": ["raw_material_preparation", "rough_machining", "inspection"],
+                "machine_requirements": ["3-axis CNC mill"],
+            },
+            "cost_estimate": {
+                "estimated_unit_cost": 42.5,
+                "currency": "EUR",
+                "capability_status": "supported",
+            },
+            "dfm_report": {
+                "risk_count": 2,
+            },
+            "design_improvements": ["Review thin sections", "Add draft where needed"],
+            "capability_status": "supported",
+        }
         assembly_meta = {
             "occurrences": [
                 {"occurrence_id": "root", "name": "MainBody", "part_id": "P-100"},
@@ -150,6 +177,7 @@ class KnowledgeEnginePhaseTests(unittest.TestCase):
                 "kind": "3d",
                 "mode": "brep",
                 "dfm_report_json": dfm_report,
+                "engineering_report": engineering_report,
                 "assembly_meta": assembly_meta,
                 "assembly_meta_key": "metadata/private/assembly_meta.json",
                 "production_package_key": "packages/private/package.zip",
@@ -275,6 +303,10 @@ class KnowledgeEnginePhaseTests(unittest.TestCase):
         self.assertIn("MainBody", assembly["metadata"]["component_names"])
         self.assertNotIn("MeshNode_01", assembly["metadata"]["component_names"])
 
+        engineering = normalize_engineering_report(self.file_1.meta["engineering_report"])
+        self.assertEqual(engineering["metadata"]["recommended_process"], "cnc_machining")
+        self.assertEqual(engineering["metadata"]["risk_count"], 2)
+
     def test_hash_idempotency_and_hybrid_ranking(self) -> None:
         rec1 = canonical_record(
             tenant_id=str(self.tenant_1),
@@ -315,6 +347,9 @@ class KnowledgeEnginePhaseTests(unittest.TestCase):
         )
         self.db.commit()
         self.assertGreater(summary["indexed"], 0)
+        self.assertTrue(
+            any(row.source_subtype == "engineering_report" for row in self.db.query(KnowledgeRecord).all())
+        )
 
         hits = self.service.search_knowledge(
             db=self.db,

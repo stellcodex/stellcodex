@@ -1,0 +1,7 @@
+# Optional B-Rep overlay. This stack is intentionally isolated so the mesh path
+# remains operational when the CAD kernel is unavailable in the active Python image.
+# Production baseline is CadQuery + OCP where the interpreter/runtime supports it.
+# pythonocc-core is intentionally excluded from the default stack and may be added
+# only after a concrete missing-capability proof.
+cadquery==2.3.1; python_version < "3.9"
+cadquery==2.5.2; python_version >= "3.9"

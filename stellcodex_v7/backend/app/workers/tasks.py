@@ -19,11 +19,18 @@ from rq import Retry
 
 from app.core.config import settings
 from app.core.dlq import PermanentStageError, TransientStageError
+from app.core.engineering_persistence import (
+    finalize_analysis_run,
+    geometry_hash_for_upload,
+    persist_engineering_analysis,
+    start_analysis_run,
+)
 from app.core.event_bus import default_event_bus
 from app.core.event_types import EventType, StageName
 from app.core.format_intelligence import extract_format_intelligence
 from app.core.format_registry import get_rule_for_filename
 from app.core.hybrid_v1_rules import run_hybrid_v1_step_pipeline
+from app.core.identity.stell_identity import ANALYSIS_UNAVAILABLE_TEXT, STELL_IDENTITY_NAME
 from app.core.memory_foundation import write_memory_payload
 from app.core.orchestrator import ensure_session_decision
 from app.core.read_model import upsert_projection
@@ -64,6 +71,17 @@ def _now() -> datetime:
 
 def _ext(name: str) -> str:
     return (Path(name or "").suffix or "").lower().lstrip(".")
+
+
+def _current_geometry_hash(file_row: UploadFile) -> str | None:
+    meta = file_row.meta if isinstance(file_row.meta, dict) else {}
+    existing = str(meta.get("geometry_hash") or "").strip()
+    if existing:
+        return existing
+    try:
+        return geometry_hash_for_upload(file_row)
+    except Exception:
+        return None
 
 
 def _run(cmd: list[str], timeout: int) -> None:
@@ -774,7 +792,7 @@ def _stage_convert(db, envelope, version_no: int) -> dict[str, Any]:
     if not isinstance(occurrence_count, int) or occurrence_count < 1:
         occurrence_count = 1 if kind == "3d" else None
 
-    f.meta = {
+    next_meta = {
         **meta,
         "kind": kind,
         "mode": mode,
@@ -794,6 +812,9 @@ def _stage_convert(db, envelope, version_no: int) -> dict[str, Any]:
         "progress_percent": 40,
         "progress": "convert.done",
     }
+    f.meta = next_meta
+    geometry_hash = _current_geometry_hash(f)
+    f.meta = {**next_meta, "geometry_hash": geometry_hash}
     f.folder_key = f.folder_key or f"project/{_memory_project_id(meta)}/{kind}/{mode}"
     f.status = "running"
     db.add(f)
@@ -803,6 +824,7 @@ def _stage_convert(db, envelope, version_no: int) -> dict[str, Any]:
         "version_no": int(version_no),
         "kind": kind,
         "mode": mode,
+        "geometry_hash": geometry_hash,
         "artifact_uri": str(result_payload.get("gltf_key") or result_payload.get("pdf_key") or result_payload.get("thumbnail_key") or ""),
     }
 
@@ -840,7 +862,7 @@ def _stage_assembly_meta(db, envelope, version_no: int) -> dict[str, Any]:
             "assembly_meta_key": assembly_key,
             "assembly_meta": assembly_payload,
         }
-    f.meta = {
+    next_meta = {
         **meta,
         "part_count": len((assembly_payload or {}).get("occurrences") or []) or int(meta.get("part_count") or 1),
         "occurrence_count": len((assembly_payload or {}).get("occurrences") or []) or int(meta.get("occurrence_count") or 1),
@@ -848,12 +870,16 @@ def _stage_assembly_meta(db, envelope, version_no: int) -> dict[str, Any]:
         "progress_percent": 52,
         "progress": "assembly.ready",
     }
+    f.meta = next_meta
+    geometry_hash = _current_geometry_hash(f)
+    f.meta = {**next_meta, "geometry_hash": geometry_hash}
     db.add(f)
     upsert_projection(db, f)
     return {
         "file_id": f.file_id,
         "version_no": int(version_no),
         "kind": kind,
+        "geometry_hash": geometry_hash,
         "artifact_uri": str(f.meta.get("assembly_meta_key") or ""),
     }
 
@@ -864,13 +890,16 @@ def _stage_rule_engine(db, envelope, version_no: int) -> dict[str, Any]:
     decision_json = build_decision_json(f, rules)
     f.decision_json = decision_json
     meta = f.meta if isinstance(f.meta, dict) else {}
-    f.meta = {
+    next_meta = {
         **meta,
         "decision_json": decision_json,
         "stage": StageName.RULE_ENGINE.value,
         "progress_percent": 64,
         "progress": "rule_engine.ready",
     }
+    f.meta = next_meta
+    geometry_hash = _current_geometry_hash(f)
+    f.meta = {**next_meta, "geometry_hash": geometry_hash}
     db.add(f)
     upsert_orchestrator_session(db, f, decision_json)
     upsert_projection(db, f)
@@ -893,6 +922,7 @@ def _stage_rule_engine(db, envelope, version_no: int) -> dict[str, Any]:
         "file_id": f.file_id,
         "version_no": int(version_no),
         "approval_required": bool(decision_json.get("approval_required")),
+        "geometry_hash": geometry_hash,
         "artifact_uri": f"scx://files/{f.file_id}/decision_json",
     }
 
@@ -903,12 +933,15 @@ def _stage_dfm(db, envelope, version_no: int) -> dict[str, Any]:
     f = _get_stage_file(db, f.file_id)
     meta = f.meta if isinstance(f.meta, dict) else {}
     dfm_report = meta.get("dfm_report_json") if isinstance(meta.get("dfm_report_json"), dict) else {}
-    f.meta = {
+    next_meta = {
         **meta,
         "stage": StageName.DFM.value,
         "progress_percent": 76,
         "progress": "dfm.ready",
     }
+    f.meta = next_meta
+    geometry_hash = _current_geometry_hash(f)
+    f.meta = {**next_meta, "geometry_hash": geometry_hash}
     db.add(f)
     upsert_projection(db, f)
     try:
@@ -930,6 +963,7 @@ def _stage_dfm(db, envelope, version_no: int) -> dict[str, Any]:
         "file_id": f.file_id,
         "version_no": int(version_no),
         "approval_required": bool(decision_json.get("approval_required")),
+        "geometry_hash": geometry_hash,
         "artifact_uri": f"scx://files/{f.file_id}/dfm_report",
     }
 
@@ -957,7 +991,7 @@ def _stage_report(db, envelope, version_no: int) -> dict[str, Any]:
     except Exception as exc:
         raise TransientStageError(str(exc), "REPORT_FAIL")
 
-    f.meta = {
+    next_meta = {
         **meta,
         "dfm_report_key": report_key,
         "dfm_report_pdf_key": pdf_key or None,
@@ -965,11 +999,15 @@ def _stage_report(db, envelope, version_no: int) -> dict[str, Any]:
         "progress_percent": 88,
         "progress": "report.ready",
     }
+    f.meta = next_meta
+    geometry_hash = _current_geometry_hash(f)
+    f.meta = {**next_meta, "geometry_hash": geometry_hash}
     db.add(f)
     upsert_projection(db, f)
     return {
         "file_id": f.file_id,
         "version_no": int(version_no),
+        "geometry_hash": geometry_hash,
         "artifact_uri": report_key,
     }
 
@@ -1007,7 +1045,7 @@ def _stage_pack(db, envelope, version_no: int) -> dict[str, Any]:
     decision_json = build_decision_json(f, rules)
     f.status = "ready"
     f.decision_json = decision_json
-    f.meta = {
+    next_meta = {
         **meta,
         "production_package_key": package_key,
         "stage": "ready",
@@ -1015,6 +1053,9 @@ def _stage_pack(db, envelope, version_no: int) -> dict[str, Any]:
         "progress": "ready",
         "decision_json": decision_json,
     }
+    f.meta = next_meta
+    geometry_hash = _current_geometry_hash(f)
+    f.meta = {**next_meta, "geometry_hash": geometry_hash}
     db.add(f)
     upsert_orchestrator_session(db, f, decision_json)
     upsert_projection(db, f)
@@ -1038,6 +1079,7 @@ def _stage_pack(db, envelope, version_no: int) -> dict[str, Any]:
         "file_id": f.file_id,
         "version_no": int(version_no),
         "approval_required": bool(decision_json.get("approval_required")),
+        "geometry_hash": geometry_hash,
         "artifact_uri": package_key,
     }
 
@@ -1362,7 +1404,7 @@ def moldcodes_export_job(
             "ISO-10303-21;\n"
             "HEADER;\n"
             "FILE_DESCRIPTION(('STELLCODEX MoldCodes export'),'2;1');\n"
-            f"FILE_NAME('{export_name}.step','{_now().isoformat()}',('STELLCODEX'),('STELLCODEX'),'Codex','STELLCODEX','');\n"
+            f"FILE_NAME('{export_name}.step','{_now().isoformat()}',('STELLCODEX'),('STELLCODEX'),'{STELL_IDENTITY_NAME}','STELLCODEX','');\n"
             "FILE_SCHEMA(('CONFIG_CONTROL_DESIGN'));\n"
             "ENDSEC;\n"
             "DATA;\n"
@@ -1473,6 +1515,134 @@ def ping_job():
     return {"status": "ok"}
 
 
+def _engineering_unavailable_result(file_id: str, reason: str) -> dict[str, Any]:
+    return {
+        "file_id": file_id,
+        "mode": "unsupported",
+        "confidence": 0.0,
+        "capability_status": "analysis_unavailable",
+        "volume": None,
+        "surface_area": None,
+        "bounding_box": None,
+        "feature_flags": {},
+        "dfm_risk": [],
+        "recommendations": [],
+        "rule_version": "engineering_dfm.v1",
+        "rule_explanations": [],
+        "unavailable_reason": reason,
+        "message": ANALYSIS_UNAVAILABLE_TEXT,
+    }
+
+
+def engineering_analysis_job(file_id: str) -> dict[str, Any]:
+    from app.stellai.engineering.analysis import analyze_upload
+
+    db = SessionLocal()
+    try:
+        row = db.query(UploadFile).filter(UploadFile.file_id == str(file_id)).first()
+        if row is None:
+            return _engineering_unavailable_result(str(file_id), "file_not_found")
+
+        job_id = None
+        try:
+            from rq import get_current_job
+
+            current_job = get_current_job()
+            if current_job is not None:
+                job_id = str(current_job.get_id())
+        except Exception:
+            job_id = None
+
+        analysis_run = start_analysis_run(
+            db,
+            row=row,
+            run_type="engineering_analysis",
+            session_id=job_id,
+            metrics={"job_id": job_id or ""},
+        )
+        db.flush()
+
+        error_code = None
+        try:
+            result = analyze_upload(row)
+        except Exception as exc:
+            error_code = str(getattr(exc, "code", "analysis_unavailable"))
+            result = _engineering_unavailable_result(row.file_id, error_code)
+
+        geometry_hash = persist_engineering_analysis(
+            db,
+            row=row,
+            result=result,
+            analysis_type="engineering_analysis",
+            session_id=job_id,
+        )
+
+        artifact_ref = None
+        try:
+            artifact_ref = write_memory_payload(
+                record_type="engineering_analysis",
+                title=f"Engineering analysis {row.file_id}",
+                source_uri=f"scx://files/{row.file_id}/engineering_analysis",
+                tenant_id=str(row.tenant_id),
+                project_id=str((row.meta or {}).get("project_id") or "default"),
+                tags=["phase2", "engineering", "stell_ai"],
+                text=json.dumps(result, ensure_ascii=False, sort_keys=True),
+                metadata={"file_id": row.file_id, "job_id": job_id or "", "capability_status": result.get("capability_status")},
+            )
+        except Exception:
+            artifact_ref = None
+
+        row.meta = {
+            **(row.meta or {}),
+            "engineering_analysis": result,
+            "engineering_geometry_metrics": result.get("geometry_metrics"),
+            "engineering_feature_map": result.get("feature_map"),
+            "engineering_dfm_report": result.get("dfm_report"),
+            "engineering_cost_estimate": result.get("cost_estimate"),
+            "engineering_manufacturing_plan": result.get("manufacturing_plan"),
+            "engineering_report": result.get("engineering_report"),
+            "engineering_analysis_job_id": job_id,
+            "engineering_geometry_hash": geometry_hash,
+            "engineering_analysis_record": str(artifact_ref) if artifact_ref is not None else None,
+        }
+        db.add(row)
+        upsert_projection(db, row)
+        event_type = (
+            "engineering.analysis.failed"
+            if result.get("unavailable_reason")
+            else "engineering.analysis.completed"
+        )
+        log_event(
+            db,
+            event_type,
+            actor_anon_sub=row.owner_anon_sub or row.owner_sub,
+            file_id=row.file_id,
+            data={
+                "tenant_id": str(row.tenant_id),
+                "project_id": str((row.meta or {}).get("project_id") or "default"),
+                "job_id": job_id or "",
+                "mode": str(result.get("mode") or ""),
+                "capability_status": str(result.get("capability_status") or ""),
+                "geometry_hash": geometry_hash,
+                "unavailable_reason": str(result.get("unavailable_reason") or ""),
+            },
+        )
+        finalize_analysis_run(
+            db,
+            analysis_run,
+            result=result,
+            geometry_hash=geometry_hash,
+            error_code=error_code,
+        )
+        db.commit()
+        if artifact_ref is not None:
+            result = {**result, "artifact_ref": str(artifact_ref)}
+        result = {**result, "geometry_hash": geometry_hash}
+        return result
+    finally:
+        db.close()
+
+
 def enqueue_convert_file(file_id: str) -> str:
     q = get_queue("cad")
     job = q.enqueue(
@@ -1573,6 +1743,19 @@ def enqueue_retention_purge() -> str:
         job_timeout=300,
         result_ttl=DEFAULT_RESULT_TTL_SECONDS,
         ttl=DEFAULT_JOB_TTL_SECONDS,
+    )
+    return job.get_id()
+
+
+def enqueue_engineering_analysis(file_id: str) -> str:
+    q = get_queue("cad")
+    job = q.enqueue(
+        engineering_analysis_job,
+        file_id,
+        job_timeout=int(os.getenv("STELLAI_ENGINEERING_TIMEOUT_SECONDS", "45") or "45") + 15,
+        result_ttl=DEFAULT_RESULT_TTL_SECONDS,
+        ttl=DEFAULT_JOB_TTL_SECONDS,
+        retry=Retry(max=1),
     )
     return job.get_id()
 

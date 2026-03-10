@@ -4,7 +4,13 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core.identity.stell_identity import (
+    GENERAL_FAILURE_TEXT,
+    PLANNER_UNAVAILABLE_TEXT,
+    TOOL_LAYER_UNAVAILABLE_TEXT,
+)
 from app.core.event_bus import EventBus, default_event_bus
+from app.core.runtime.response_guard import guard_text_or_default, guard_user_payload
 from app.stellai.agents import (
     ExecutorAgent,
     MemoryManagerAgent,
@@ -18,7 +24,15 @@ from app.stellai.knowledge import get_context_bundle
 from app.stellai.memory import MemoryManager
 from app.stellai.retrieval import RetrievalEngine
 from app.stellai.tools import SafeToolExecutor
-from app.stellai.types import RuntimeEvent, RuntimeRequest, RuntimeResponse
+from app.stellai.types import (
+    MemorySnapshot,
+    RetrievalResult,
+    RuntimeEvent,
+    RuntimeRequest,
+    RuntimeResponse,
+    SelfEvaluation,
+    TaskGraph,
+)
 
 
 class StellAIRuntime:
@@ -57,7 +71,10 @@ class StellAIRuntime:
                 },
             )
         )
-        memory_before = self.memory_agent.load(context=request.context, query=request.message)
+        try:
+            memory_before = self.memory_agent.load(context=request.context, query=request.message)
+        except Exception:
+            memory_before = MemorySnapshot()
         hub.emit(
             RuntimeEvent(
                 event_type="loaded",
@@ -66,10 +83,36 @@ class StellAIRuntime:
             )
         )
 
-        plan = self.planner.plan(request=request, memory=memory_before)
+        try:
+            plan = self.planner.plan(request=request, memory=memory_before)
+        except Exception:
+            hub.emit(
+                RuntimeEvent(
+                    event_type="planner_failed",
+                    agent="planner",
+                    payload={"reason": "planner_unavailable"},
+                )
+            )
+            return self._safe_response(
+                request=request,
+                reply=PLANNER_UNAVAILABLE_TEXT,
+                issue="planner_unavailable",
+                events=hub.events,
+                memory=memory_before,
+            )
         hub.emit(RuntimeEvent(event_type="planned", agent="planner", payload=plan.task_graph.to_dict()))
 
-        retrieval = self.retriever.retrieve(request=request, db=db)
+        try:
+            retrieval = self.retriever.retrieve(request=request, db=db)
+        except Exception:
+            retrieval = RetrievalResult(query=request.message, chunks=[], embedding_dim=0)
+            hub.emit(
+                RuntimeEvent(
+                    event_type="retriever_failed",
+                    agent="retriever",
+                    payload={"reason": "retriever_unavailable"},
+                )
+            )
         hub.emit(
             RuntimeEvent(
                 event_type="retrieved",
@@ -96,28 +139,55 @@ class StellAIRuntime:
                         },
                     )
                 )
-            except Exception as exc:
+            except Exception:
                 hub.emit(
                     RuntimeEvent(
                         event_type="bundle_failed",
                         agent="knowledge",
-                        payload={"error": str(exc)},
+                        payload={"reason": "knowledge_bundle_failed"},
                     )
                 )
 
         if plan.needs_research or retrieval.top_score < 0.2:
-            researched = self.researcher.expand_and_retrieve(request=request, base=retrieval, db=db)
-            if researched.top_score >= retrieval.top_score:
-                retrieval = researched
+            try:
+                researched = self.researcher.expand_and_retrieve(request=request, base=retrieval, db=db)
+                if researched.top_score >= retrieval.top_score:
+                    retrieval = researched
+                hub.emit(
+                    RuntimeEvent(
+                        event_type="expanded",
+                        agent="researcher",
+                        payload={"chunk_count": len(retrieval.chunks), "top_score": retrieval.top_score},
+                    )
+                )
+            except Exception:
+                hub.emit(
+                    RuntimeEvent(
+                        event_type="researcher_failed",
+                        agent="researcher",
+                        payload={"reason": "research_expansion_failed"},
+                    )
+                )
+
+        try:
+            tool_results = self.executor.execute(context=request.context, db=db, calls=plan.tool_calls)
+        except Exception:
             hub.emit(
                 RuntimeEvent(
-                    event_type="expanded",
-                    agent="researcher",
-                    payload={"chunk_count": len(retrieval.chunks), "top_score": retrieval.top_score},
+                    event_type="executor_failed",
+                    agent="executor",
+                    payload={"reason": "tool_layer_unavailable"},
                 )
             )
-
-        tool_results = self.executor.execute(context=request.context, db=db, calls=plan.tool_calls)
+            return self._safe_response(
+                request=request,
+                reply=TOOL_LAYER_UNAVAILABLE_TEXT,
+                issue="tool_layer_unavailable",
+                events=hub.events,
+                memory=memory_before,
+                plan=plan.task_graph,
+                retrieval=retrieval,
+            )
         hub.emit(
             RuntimeEvent(
                 event_type="executed",
@@ -126,20 +196,32 @@ class StellAIRuntime:
             )
         )
 
-        reply = self._compose_reply(
-            message=request.message,
-            retrieval=retrieval,
-            tool_results=tool_results,
-            context_bundle=context_bundle,
-        )
-        evaluation = self.evaluator.evaluate(
-            request=request,
-            retrieval=retrieval,
-            tool_results=tool_results,
-            reply=reply,
-            context_bundle=context_bundle,
-            retried=False,
-        )
+        try:
+            reply = self._compose_reply(
+                message=request.message,
+                retrieval=retrieval,
+                tool_results=tool_results,
+                context_bundle=context_bundle,
+            )
+            evaluation = self.evaluator.evaluate(
+                request=request,
+                retrieval=retrieval,
+                tool_results=tool_results,
+                reply=reply,
+                context_bundle=context_bundle,
+                retried=False,
+            )
+        except Exception:
+            return self._safe_response(
+                request=request,
+                reply=GENERAL_FAILURE_TEXT,
+                issue="reply_composition_failed",
+                events=hub.events,
+                memory=memory_before,
+                plan=plan.task_graph,
+                retrieval=retrieval,
+                tool_results=tool_results,
+            )
         hub.emit(
             RuntimeEvent(
                 event_type="evaluated",
@@ -149,56 +231,68 @@ class StellAIRuntime:
         )
 
         if evaluation.retry_recommended:
-            retried_retrieval = self.researcher.expand_and_retrieve(request=request, base=retrieval, db=db)
-            improved = (
-                retried_retrieval.top_score > retrieval.top_score
-                or len(retried_retrieval.chunks) > len(retrieval.chunks)
-            )
-            hub.emit(
-                RuntimeEvent(
-                    event_type="retry_considered",
-                    agent="self_eval",
-                    payload={
-                        "improved": improved,
-                        "previous_top_score": retrieval.top_score,
-                        "retry_top_score": retried_retrieval.top_score,
-                        "previous_chunk_count": len(retrieval.chunks),
-                        "retry_chunk_count": len(retried_retrieval.chunks),
-                    },
+            try:
+                retried_retrieval = self.researcher.expand_and_retrieve(request=request, base=retrieval, db=db)
+                improved = (
+                    retried_retrieval.top_score > retrieval.top_score
+                    or len(retried_retrieval.chunks) > len(retrieval.chunks)
                 )
-            )
-            if improved:
-                retrieval = retried_retrieval
-                reply = self._compose_reply(
-                    message=request.message,
+                hub.emit(
+                    RuntimeEvent(
+                        event_type="retry_considered",
+                        agent="self_eval",
+                        payload={
+                            "improved": improved,
+                            "previous_top_score": retrieval.top_score,
+                            "retry_top_score": retried_retrieval.top_score,
+                            "previous_chunk_count": len(retrieval.chunks),
+                            "retry_chunk_count": len(retried_retrieval.chunks),
+                        },
+                    )
+                )
+                if improved:
+                    retrieval = retried_retrieval
+                    reply = self._compose_reply(
+                        message=request.message,
+                        retrieval=retrieval,
+                        tool_results=tool_results,
+                        context_bundle=context_bundle,
+                    )
+                evaluation = self.evaluator.evaluate(
+                    request=request,
                     retrieval=retrieval,
                     tool_results=tool_results,
+                    reply=reply,
                     context_bundle=context_bundle,
+                    retried=True,
                 )
-            evaluation = self.evaluator.evaluate(
-                request=request,
+                hub.emit(
+                    RuntimeEvent(
+                        event_type="re_evaluated",
+                        agent="self_eval",
+                        payload=evaluation.to_dict(),
+                    )
+                )
+            except Exception:
+                hub.emit(
+                    RuntimeEvent(
+                        event_type="retry_skipped",
+                        agent="self_eval",
+                        payload={"reason": "retry_failed"},
+                    )
+                )
+
+        try:
+            memory_after = self.memory_agent.update(
+                context=request.context,
+                user_text=request.message,
+                reply_text=reply,
                 retrieval=retrieval,
                 tool_results=tool_results,
-                reply=reply,
-                context_bundle=context_bundle,
-                retried=True,
+                evaluation=evaluation.to_dict(),
             )
-            hub.emit(
-                RuntimeEvent(
-                    event_type="re_evaluated",
-                    agent="self_eval",
-                    payload=evaluation.to_dict(),
-                )
-            )
-
-        memory_after = self.memory_agent.update(
-            context=request.context,
-            user_text=request.message,
-            reply_text=reply,
-            retrieval=retrieval,
-            tool_results=tool_results,
-            evaluation=evaluation.to_dict(),
-        )
+        except Exception:
+            memory_after = memory_before
         hub.emit(
             RuntimeEvent(
                 event_type="updated",
@@ -216,7 +310,7 @@ class StellAIRuntime:
         return RuntimeResponse(
             session_id=request.context.session_id,
             trace_id=request.context.trace_id,
-            reply=reply,
+            reply=guard_text_or_default(reply, default=GENERAL_FAILURE_TEXT),
             plan=plan.task_graph,
             retrieval=retrieval,
             tool_results=tool_results,
@@ -226,38 +320,87 @@ class StellAIRuntime:
         )
 
     def _compose_reply(self, *, message: str, retrieval, tool_results, context_bundle: dict[str, Any]) -> str:
-        lines: list[str] = []
-        if tool_results:
-            lines.append("Tool results:")
-            for item in tool_results:
-                if item.status == "ok":
-                    output = item.output if isinstance(item.output, dict) else {}
-                    summary_bits: list[str] = []
-                    if "status" in output:
-                        summary_bits.append(f"status={output.get('status')}")
-                    if "state" in output:
-                        summary_bits.append(f"state={output.get('state')}")
-                    if "approval_required" in output:
-                        summary_bits.append(f"approval_required={output.get('approval_required')}")
-                    if not summary_bits:
-                        summary_bits.append("ok")
-                    lines.append(f"- {item.tool_name}: {'; '.join(summary_bits)}")
-                else:
-                    lines.append(f"- {item.tool_name}: {item.status} ({item.reason})")
+        successful_tools = [item for item in tool_results if item.status == "ok"]
+        failed_tools = [item for item in tool_results if item.status != "ok"]
+        if successful_tools:
+            first_output = successful_tools[0].output if isinstance(successful_tools[0].output, dict) else {}
+            if "recommended_process" in first_output:
+                process = str(first_output.get("recommended_process") or "unknown")
+                capability = str(first_output.get("capability_status") or "unknown")
+                cost_estimate = first_output.get("cost_estimate") if isinstance(first_output.get("cost_estimate"), dict) else {}
+                dfm_report = first_output.get("dfm_report") if isinstance(first_output.get("dfm_report"), dict) else {}
+                estimated_unit_cost = cost_estimate.get("estimated_unit_cost", first_output.get("estimated_unit_cost"))
+                currency = str(cost_estimate.get("currency") or "EUR")
+                risk_count = int(dfm_report.get("risk_count") or len(dfm_report.get("risks") or []))
+                reply = f"STELL-AI mühendislik analizini tamamladı. Önerilen süreç: {process}. Yetenek: {capability}."
+                if estimated_unit_cost is not None:
+                    reply += f" Tahmini birim maliyet: {estimated_unit_cost} {currency}."
+                if risk_count:
+                    reply += f" DFM risk sayısı: {risk_count}."
+                return guard_text_or_default(reply, default=GENERAL_FAILURE_TEXT)
+            if "state" in first_output:
+                return guard_text_or_default(
+                    f"STELL-AI karar durumunu doğruladı. Durum: {first_output.get('state')}.",
+                    default=GENERAL_FAILURE_TEXT,
+                )
+            if "status" in first_output:
+                return guard_text_or_default(
+                    f"STELL-AI dosya durumunu doğruladı. Durum: {first_output.get('status')}.",
+                    default=GENERAL_FAILURE_TEXT,
+                )
+            if "capability_status" in first_output:
+                mode = str(first_output.get("mode") or "unknown")
+                capability = str(first_output.get("capability_status") or "unknown")
+                return guard_text_or_default(
+                    f"STELL-AI mühendislik kapasitesini doğruladı. Mod: {mode}. Yetenek: {capability}.",
+                    default=GENERAL_FAILURE_TEXT,
+                )
+
+        if failed_tools:
+            return GENERAL_FAILURE_TEXT
 
         if retrieval.chunks:
-            lines.append("Grounded context:")
-            for idx, chunk in enumerate(retrieval.chunks[:3], start=1):
-                preview = " ".join(chunk.text.strip().split())[:220]
-                lines.append(f"[{idx}] {chunk.source_ref} :: {preview}")
-        else:
-            lines.append("No grounded context was retrieved for this query.")
-        bundle_refs = context_bundle.get("source_references") if isinstance(context_bundle, dict) else []
-        if isinstance(bundle_refs, list) and bundle_refs:
-            lines.append("Knowledge provenance:")
-            for idx, source_ref in enumerate(bundle_refs[:3], start=1):
-                lines.append(f"({idx}) {source_ref}")
+            top_preview = " ".join(str(retrieval.chunks[0].text or "").split())[:180]
+            if top_preview:
+                return guard_text_or_default(
+                    f"STELL-AI doğrulanmış bağlam buldu. Özet: {top_preview}",
+                    default=GENERAL_FAILURE_TEXT,
+                )
+            return "STELL-AI doğrulanmış bağlam buldu."
 
-        if not tool_results and not retrieval.chunks:
-            lines.append("Try adding `file_ids` or broaden the query scope.")
-        return "\n".join(lines)
+        return "STELL-AI isteği aldı. Daha kesin sonuç için file_id ile ilerleyebilirim."
+
+    def _safe_response(
+        self,
+        *,
+        request: RuntimeRequest,
+        reply: str,
+        issue: str,
+        events: list[RuntimeEvent],
+        memory: MemorySnapshot | None = None,
+        plan: TaskGraph | None = None,
+        retrieval: RetrievalResult | None = None,
+        tool_results: list[Any] | None = None,
+    ) -> RuntimeResponse:
+        safe_plan = plan or TaskGraph.create([], metadata={"safe_failure": True, "reason": issue})
+        safe_retrieval = retrieval or RetrievalResult(query=request.message, chunks=[], embedding_dim=0)
+        safe_memory = memory or MemorySnapshot()
+        safe_eval = SelfEvaluation(
+            status="needs_attention",
+            confidence=0.0,
+            retry_recommended=False,
+            revised=False,
+            issues=[issue],
+            actions=["fail_closed"],
+        )
+        return RuntimeResponse(
+            session_id=request.context.session_id,
+            trace_id=request.context.trace_id,
+            reply=guard_text_or_default(reply, default=GENERAL_FAILURE_TEXT),
+            plan=safe_plan,
+            retrieval=safe_retrieval,
+            tool_results=guard_user_payload(tool_results or []),
+            memory=guard_user_payload(safe_memory),
+            evaluation=safe_eval,
+            events=events,
+        )

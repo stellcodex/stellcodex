@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
+from app.core.runtime.response_guard import guard_user_payload
 from app.stellai.memory import MemoryManager
 from app.stellai.retrieval import RetrievalEngine
 from app.stellai.tools import SafeToolExecutor, ToolCall
@@ -55,6 +56,32 @@ def _infer_tools(message: str, file_ids: tuple[str, ...]) -> list[ToolCall]:
         _append("upload.decision", {"file_id": file_ids[0]})
     if ("recompute" in lowered or "rerun" in lowered or "reanalyze" in lowered) and file_ids:
         _append("orchestrator.recompute", {"file_id": file_ids[0]})
+    if ("capability" in lowered or "support" in lowered or "format" in lowered) and file_ids:
+        _append("cad_load", {"file_id": file_ids[0]})
+    if ("mesh" in lowered or "geometry" in lowered or "analysis" in lowered or "analiz" in lowered) and file_ids:
+        _append("mesh_analyze", {"file_id": file_ids[0]})
+    if ("volume" in lowered or "hacim" in lowered) and file_ids:
+        _append("volume_compute", {"file_id": file_ids[0]})
+    if ("surface" in lowered or "yuzey" in lowered or "yüzey" in lowered) and file_ids:
+        _append("surface_area_compute", {"file_id": file_ids[0]})
+    if ("feature" in lowered or "özellik" in lowered or "ozellik" in lowered) and file_ids:
+        _append("feature_extract", {"file_id": file_ids[0]})
+    if (
+        "dfm" in lowered
+        or "manufactur" in lowered
+        or "risk" in lowered
+        or "precheck" in lowered
+        or "cost" in lowered
+        or "price" in lowered
+        or "quote" in lowered
+        or "maliyet" in lowered
+        or "fiyat" in lowered
+        or "plan" in lowered
+        or "workflow" in lowered
+        or "rapor" in lowered
+        or ("report" in lowered and file_ids)
+    ) and file_ids:
+        _append("dfm_precheck", {"file_id": file_ids[0]})
     if "system info" in lowered:
         _append("system_info")
     if "runtime status" in lowered:
@@ -214,14 +241,14 @@ class MemoryManagerAgent:
         evaluation: dict[str, Any] | None = None,
     ) -> MemorySnapshot:
         self.manager.append_user_turn(context=context, text=user_text)
-        memory_path = self.manager.append_assistant_turn(
+        memory_path = self.manager.append_stell_turn(
             context=context,
             text=reply_text,
             metadata={
                 "retrieval_chunks": len(retrieval.chunks),
                 "top_score": retrieval.top_score,
-                "tool_results": [item.to_dict() for item in tool_results],
-                "evaluation": evaluation or {},
+                "tool_results": guard_user_payload([item.to_dict() for item in tool_results]),
+                "evaluation": guard_user_payload(evaluation or {}),
             },
         )
         snapshot = self.manager.load(context=context, query=user_text)
@@ -246,8 +273,6 @@ class SelfEvaluatorAgent:
 
         successful_tools = [item for item in tool_results if item.status == "ok"]
         failed_tools = [item for item in tool_results if item.status != "ok"]
-        provenance_refs = context_bundle.get("source_references") if isinstance(context_bundle, dict) else []
-
         if not retrieval.chunks and not successful_tools:
             issues.append("no_grounded_evidence")
             actions.append("expand retrieval scope or provide file_ids")
@@ -256,17 +281,9 @@ class SelfEvaluatorAgent:
             issues.append("weak_grounding_signal")
             actions.append("retry retrieval with expanded query")
 
-        if retrieval.chunks and "Grounded context:" not in reply:
-            issues.append("missing_grounding_section")
-            actions.append("include grounded context in final answer")
-
-        if provenance_refs and "Knowledge provenance:" not in reply:
-            issues.append("missing_provenance_section")
-            actions.append("include source provenance in final answer")
-
         if failed_tools:
             issues.append("tool_failures_present")
-            actions.append("surface tool failure details and preserve partial result")
+            actions.append("preserve fail-closed behavior")
 
         confidence = 0.25
         if retrieval.chunks:

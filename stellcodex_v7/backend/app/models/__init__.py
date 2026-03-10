@@ -34,4 +34,15 @@ from .phase2 import (  # noqa: F401
     DlqRecord,
     FileReadProjection,
 )
+from .engineering import (  # noqa: F401
+    GeometryMetric,
+    FeatureMap,
+    DfmReportRecord,
+    CostEstimateRecord,
+    ManufacturingPlanRecord,
+    EngineeringReportRecord,
+    ArtifactCacheEntry,
+    AnalysisRun,
+    WorkerNode,
+)
 from .knowledge import KnowledgeRecord, KnowledgeIndexJob  # noqa: F401

@@ -16,6 +16,7 @@ from app.knowledge.normalizers import (
     normalize_audit_event,
     normalize_decision_json,
     normalize_dfm_report,
+    normalize_engineering_report,
     normalize_document,
     normalize_rule_config,
     sanitize_public_payload,
@@ -63,6 +64,7 @@ _TRIGGER_EVENTS = {
     "file.ready",
     "package.ready",
     "assembly.ready",
+    "engineering.analysis.completed",
     "dfm.completed",
     "dfm.ready",
     "decision.produced",
@@ -355,6 +357,26 @@ class KnowledgeService:
             index_version=self.index_version,
         )
 
+    def _engineering_report_record(self, *, file_row: UploadFile) -> CanonicalKnowledgeRecord | None:
+        meta = file_row.meta if isinstance(file_row.meta, dict) else {}
+        payload = meta.get("engineering_report") if isinstance(meta.get("engineering_report"), dict) else {}
+        if not payload:
+            return None
+        normalized = normalize_engineering_report(payload)
+        return canonical_record(
+            tenant_id=str(file_row.tenant_id),
+            project_id=self._project_id_for_file(file_row),
+            file_id=str(file_row.file_id),
+            source_type="artifact",
+            source_subtype="engineering_report",
+            source_ref=f"scx://files/{file_row.file_id}/engineering_report",
+            title=normalized["title"],
+            text=normalized["text"],
+            metadata={**normalized["metadata"], "file_id": str(file_row.file_id)},
+            tags=normalized["tags"],
+            index_version=self.index_version,
+        )
+
     def _assembly_record(self, *, file_row: UploadFile) -> CanonicalKnowledgeRecord | None:
         meta = file_row.meta if isinstance(file_row.meta, dict) else {}
         payload = meta.get("assembly_meta") if isinstance(meta.get("assembly_meta"), dict) else {}
@@ -569,6 +591,10 @@ class KnowledgeService:
                     dfm = self._dfm_record(file_row=row)
                     if dfm is not None:
                         records.append(dfm)
+                if _enabled("engineering_report", "artifacts"):
+                    engineering_report = self._engineering_report_record(file_row=row)
+                    if engineering_report is not None:
+                        records.append(engineering_report)
                 if _enabled("assembly_meta", "artifacts"):
                     assembly = self._assembly_record(file_row=row)
                     if assembly is not None:
@@ -992,6 +1018,12 @@ class KnowledgeService:
                 records.append(dfm)
             return records
 
+        if event_type in {"engineering.analysis.completed"}:
+            engineering_report = self._engineering_report_record(file_row=file_row)
+            if engineering_report is not None:
+                records.append(engineering_report)
+            return records
+
         if event_type in {"assembly.ready"}:
             assembly = self._assembly_record(file_row=file_row)
             if assembly is not None:
@@ -999,7 +1031,14 @@ class KnowledgeService:
             return records
 
         if event_type in {"file.ready", "package.ready"}:
-            for producer in (self._decision_record, self._dfm_record, self._assembly_record, self._package_record, self._error_record):
+            for producer in (
+                self._decision_record,
+                self._dfm_record,
+                self._engineering_report_record,
+                self._assembly_record,
+                self._package_record,
+                self._error_record,
+            ):
                 item = producer(file_row=file_row)
                 if item is not None:
                     records.append(item)
