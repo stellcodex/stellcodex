@@ -1,0 +1,389 @@
+{
+  "generated_at_utc": "2026-03-06T17:15:42Z",
+  "central_root_local": "/root/workspace/audit/STELL_SYSTEM_CORE",
+  "central_root_drive": "gdrive:STELL_SYSTEM_CORE",
+  "inventory_files": {
+    "master_inventory_csv": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/MASTER_PROMPT_INVENTORY.csv",
+    "master_inventory_json": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/MASTER_PROMPT_INVENTORY.json",
+    "duplicates_json": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/PROMPT_DUPLICATES.json",
+    "conflicts_json": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/PROMPT_CONFLICTS.json",
+    "copy_log_csv": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/COPY_ACTION_LOG.csv"
+  },
+  "authoritative": {
+    "identity": [
+      {
+        "source_path": "/root/workspace/_truth/STELLCODEX_MASTER_PROMPT_v8.0.md",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/01_identity/root/workspace/_truth/STELLCODEX_MASTER_PROMPT_v8.0.md",
+        "sha256": "1ec667af272c4604a7f57b95a8809ed57188111433a4e76d2e19ecba00f23342",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/stell/prompts/system/stell-core.md",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/01_identity/root/stell/prompts/system/stell-core.md",
+        "sha256": "55705b4a3db21cb8688a86c41102e7ae2dcde49c5760c909f8807f878cee19f0",
+        "status": "active"
+      }
+    ],
+    "constitution": [
+      {
+        "source_path": "/root/workspace/_truth/15_AGENT_GOVERNANCE_AND_IDENTITY.md",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/02_constitution/root/workspace/_truth/15_AGENT_GOVERNANCE_AND_IDENTITY.md",
+        "sha256": "d408f2c9bd9aca17f9bab2b1ed543769d6fe77e66db564e24e91ef24c090fdd6",
+        "status": "active"
+      },
+      {
+        "source_path": "/var/www/stellcodex/docs/constitution/STELLCODEX_V7_MASTER.md",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/02_constitution/var/www/stellcodex/docs/constitution/STELLCODEX_V7_MASTER.md",
+        "sha256": "37ec3d3ad07f6445c27f8bbe8313fa2c1bec5f9a1d09328c0b9bede45c2d7941",
+        "status": "active"
+      },
+      {
+        "source_path": "/var/www/stellcodex/docs/constitution/V7_ENFORCEMENT_PROTOCOL.md",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/02_constitution/var/www/stellcodex/docs/constitution/V7_ENFORCEMENT_PROTOCOL.md",
+        "sha256": "dabc41253d031a006a72cc71ce07fb4e0ad9e66351fb626bd9d82ec2f09360b1",
+        "status": "active"
+      }
+    ],
+    "global_policies": [
+      {
+        "source_path": "/root/workspace/_truth/09_SECURITY_AND_ACCESS.md",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/03_global_policies/root/workspace/_truth/09_SECURITY_AND_ACCESS.md",
+        "sha256": "6fb9ab739d1134eea77f9a21077deee84980e94b6baf0b17e6eacc35160575ba",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/stell/policies/security/access.md",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/03_global_policies/root/stell/policies/security/access.md",
+        "sha256": "ead26e8caf94f256c1f528773ce855283db669cffc682c95772cb5855fa48470",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/stell/policies/approval/required-approvals.md",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/03_global_policies/root/stell/policies/approval/required-approvals.md",
+        "sha256": "654a3deb4aa45a1ba53626ce387ae5e80cb2b916fc6956f15d0299244b89e3f8",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/stell/policies/channels/whatsapp.md",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/03_global_policies/root/stell/policies/channels/whatsapp.md",
+        "sha256": "b889b51bcc91fe095553a5092b4fadd78dac5a0741a6896ff992aa025bfbdadb",
+        "status": "active"
+      }
+    ],
+    "roles": [
+      {
+        "source_path": "/root/workspace/ops/orchestra/orchestrator/router.py",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/04_roles/root/workspace/ops/orchestra/orchestrator/router.py",
+        "sha256": "006c488a56764d94bf0720e33ee9eb9adfdd47fb40dc56ab24987607c578c3ea",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/workspace/ops/orchestra/state/model_profiles.json",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/04_roles/root/workspace/ops/orchestra/state/model_profiles.json",
+        "sha256": "6f030b817bbc47af931b9f1f996b48613c3fd7d34a588b0c60cea7a9b15ed489",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/stell/playbooks/delegation/ai-routing.md",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/06_tasks/root/stell/playbooks/delegation/ai-routing.md",
+        "sha256": "a34d027e8033c2a11485f351126f76caf6436466b4f1cb7c89dbbe45ed427b55",
+        "status": "active"
+      }
+    ],
+    "workers": [
+      {
+        "source_path": "/root/workspace/ops/orchestra/orchestrator/app.py",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/05_workers/root/workspace/ops/orchestra/orchestrator/app.py",
+        "sha256": "5701add2be0a43e7ccc1bedcb7e523f8b45005e03331a53cff2e8f4885346a67",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/workspace/ops/orchestra/orchestrator/profiler.py",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/05_workers/root/workspace/ops/orchestra/orchestrator/profiler.py",
+        "sha256": "26a58260cf97f7069ec2dcabd5a0a702b2f35c3e258ff9aebada6089e2746627",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/workspace/ops/orchestra/litellm.config.yaml",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/05_workers/root/workspace/ops/orchestra/litellm.config.yaml",
+        "sha256": "40cbfbf2dc52af14d1082e6a84b28e399579a3a1cd57797c90b75b466d431bdc",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/stell/webhook/main.py",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/05_workers/root/stell/webhook/main.py",
+        "sha256": "8264b6abaeb41e7096b5c8b250a0f3cebc08664ba6c597207782abba037504ab",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/stell/webhook/identity_guard.py",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/05_workers/root/stell/webhook/identity_guard.py",
+        "sha256": "51b2b3424617b073822da6fdfddd4fde74b142244b5b3241b8f9361fdfc5a875",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/stell/cloudflare/worker.js",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/05_workers/root/stell/cloudflare/worker.js",
+        "sha256": "1ed5dbd4886b50d5dca1d2ed8976eb52f9e4d21a26bbf235483eeaf303584963",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/stell/stell_brain.py",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/05_workers/root/stell/stell_brain.py",
+        "sha256": "bdf77690f538a2835f69b3c10e57d75488eedb7f9309bfd8c4fbaf03bd7c5b71",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/stell/stell_ai_memory.py",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/05_workers/root/stell/stell_ai_memory.py",
+        "sha256": "db2b1abe89ad5ea2b47d4f94bd7d75f2461dca08babd7c9a7373f2209037ede7",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/stell/stell_ai_planner.py",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/05_workers/root/stell/stell_ai_planner.py",
+        "sha256": "fff308ff9f6d944aca8eae1c7936daf08eba3c58fb49775e55ecc02617eb74c9",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/workspace/ops/orchestra/orchestrator/prompt_templates.json",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/05_workers/root/workspace/ops/orchestra/orchestrator/prompt_templates.json",
+        "sha256": "3c12c5bf44fe23503e0a12c6ae9cd9003a218347dd247d8e93d70b644081f7ea",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/stell/webhook/ecosystem.config.js",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/05_workers/root/stell/webhook/ecosystem.config.js",
+        "sha256": "c9f0b678387846019979e2c2a63a279952cda45689ded95e5e7edcabba874f28",
+        "status": "active"
+      }
+    ],
+    "tasks": [
+      {
+        "source_path": "/root/workspace/ops/orchestra/orchestra.sh",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/06_tasks/root/workspace/ops/orchestra/orchestra.sh",
+        "sha256": "73bffba3618cec85c546a5bba2d91a4b3d810ce31b6a60f8e50d45544d69f9d1",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/workspace/ops/orchestra/autopilot.sh",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/06_tasks/root/workspace/ops/orchestra/autopilot.sh",
+        "sha256": "61505ea12a43c0f8bd64a335b757d69b74eb075bb3b761698cf30b4c608b8631",
+        "status": "active"
+      }
+    ],
+    "output_contracts": [
+      {
+        "source_path": "/root/workspace/_truth/05_API_CONTRACTS.md",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/07_output_contracts/root/workspace/_truth/05_API_CONTRACTS.md",
+        "sha256": "921df95d87f5acd2725628272bc2e06109d0b1fd573680f0dd52a6a7ad1e555e",
+        "status": "active"
+      },
+      {
+        "source_path": "/var/www/stellcodex/docs/data_model/SCHEMA_POLICY.md",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/07_output_contracts/var/www/stellcodex/docs/data_model/SCHEMA_POLICY.md",
+        "sha256": "8861ae3ea5d2d1996a0c981552cf820ac33a53882b03957d3e6eda237b5f190b",
+        "status": "active"
+      },
+      {
+        "source_path": "/var/www/stellcodex/docs/constitution/HIERARCHY.md",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/02_constitution/var/www/stellcodex/docs/constitution/HIERARCHY.md",
+        "sha256": "2dfef8c8540183a8b2649b5919c24b295ff73e1351eb5369eaa220e4b64e2efb",
+        "status": "active"
+      }
+    ],
+    "tool_policies": [
+      {
+        "source_path": "/root/stell/knowledge-map.json",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/08_tool_policies/root/stell/knowledge-map.json",
+        "sha256": "46ca50955bb5eb585f2cbd242f86a31787d3a0ca9f4a9fdf00a4694a0657d467",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/stell/STELL_KNOWLEDGE_SYNC.md",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/08_tool_policies/root/stell/STELL_KNOWLEDGE_SYNC.md",
+        "sha256": "a5941ebdc80502aea7978e4730db3b39c60e87736b80e3affcc0b9d575bad13d",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/workspace/_truth/07_BACKUP_AND_DRIVE_SYNC.md",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/08_tool_policies/root/workspace/_truth/07_BACKUP_AND_DRIVE_SYNC.md",
+        "sha256": "1f234b1805311da1dcadfa98b4236cfe72164f4ffa8d572204632e856bae5dd3",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/workspace/_truth/03_STELL_AI_OPERATING_MODEL.md",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/08_tool_policies/root/workspace/_truth/03_STELL_AI_OPERATING_MODEL.md",
+        "sha256": "269e0b0e486a35b8f1f4a3b57ed754901055846f36212255e64b13c171c78d3a",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/stell/scripts/prompt_drift_guard.py",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/08_tool_policies/root/stell/scripts/prompt_drift_guard.py",
+        "sha256": "c2ccca92d22b076b8de1be50441fdf4e1117eb50e492fad2fd10b50d2554faf9",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/stell/.github/workflows/ci.yml",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/08_tool_policies/root/stell/.github/workflows/ci.yml",
+        "sha256": "7ed5ba7ef64cab7cfa27e0c140609fee95fd6c521386509c27533db2f2daa7e4",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/workspace/_truth/00_SYSTEM_STATE.md",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/08_tool_policies/root/workspace/_truth/00_SYSTEM_STATE.md",
+        "sha256": "2ab8f5df99260d397b6f4f1d39e23d337801e890275468ba436b7fb969978c12",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/stell/knowledge/operations/stellcodex-platform.md",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/08_tool_policies/root/stell/knowledge/operations/stellcodex-platform.md",
+        "sha256": "287836f610b17c8adccf74d69d20de9e3ad4cbcd2d9f9e38e341f1e830e10c17",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/stell/knowledge/products/stellcodex-overview.md",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/08_tool_policies/root/stell/knowledge/products/stellcodex-overview.md",
+        "sha256": "2ceb33591bbf5dfc82524aca6bbbb641b100382f41dd2d957f12145eeb8239bb",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/stell/knowledge/automation/ai-models.md",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/08_tool_policies/root/stell/knowledge/automation/ai-models.md",
+        "sha256": "fedd4bc0539dd7361fdfff1cf1dbffa8672b2073b51a8fcf2ea45f651e9a32f9",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/workspace/_truth/08_DISASTER_RECOVERY_RUNBOOK.md",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/08_tool_policies/root/workspace/_truth/08_DISASTER_RECOVERY_RUNBOOK.md",
+        "sha256": "98574f0895adfd6a88a4d4f157246396adf68dc0bd4c22ac58943d8b9b68db1b",
+        "status": "active"
+      },
+      {
+        "source_path": "/root/workspace/ops/orchestra/docker-compose.yml",
+        "destination_path": "/root/workspace/audit/STELL_SYSTEM_CORE/08_tool_policies/root/workspace/ops/orchestra/docker-compose.yml",
+        "sha256": "b4a372230da776eca05919f5595784d47ed255481daa6d561a16e0fd63f33906",
+        "status": "active"
+      }
+    ]
+  },
+  "stats": {
+    "duplicate_groups": 61,
+    "conflict_groups": 11,
+    "inventory_rows": 856,
+    "active_rows": 242,
+    "legacy_rows": 614,
+    "files_copied_unique_dest": 122,
+    "copy_actions": 122,
+    "scope_workspace": 153,
+    "scope_stell": 389,
+    "scope_var_www_stellcodex": 314
+  },
+  "runtime_enforcement": {
+    "updated_at_utc": "2026-03-06T18:45:03Z",
+    "manifest_env_var": "STELL_PROMPT_MANIFEST_PATH",
+    "default_manifest_path": "/root/workspace/audit/STELL_SYSTEM_CORE/ACTIVE_PROMPT_MANIFEST.json",
+    "patched_files": [
+      "/root/stell/.github/workflows/ci.yml",
+      "/root/stell/scripts/prompt_drift_guard.py",
+      "/root/stell/stell_ai_memory.py",
+      "/root/stell/stell_ai_planner.py",
+      "/root/stell/stell_brain.py",
+      "/root/stell/webhook/ecosystem.config.js",
+      "/root/workspace/ops/orchestra/docker-compose.yml",
+      "/root/workspace/ops/orchestra/orchestrator/app.py",
+      "/root/workspace/ops/orchestra/orchestrator/profiler.py",
+      "/root/workspace/ops/orchestra/orchestrator/prompt_templates.json"
+    ],
+    "verification": {
+      "py_compile": "pass",
+      "resolver_index_count": 40,
+      "note": "stell_ai_memory import runtime check blocked by missing optional dependency qdrant_client",
+      "orchestrator_template_required_keys": "pass",
+      "orchestrator_runtime_import_check": "blocked_missing_httpx_on_host",
+      "strict_manifest_mapping": "enabled",
+      "strict_external_template_mode": "enabled"
+    },
+    "orchestrator_external_prompt_source": "/root/workspace/audit/STELL_SYSTEM_CORE/05_workers/root/workspace/ops/orchestra/orchestrator/prompt_templates.json",
+    "strict_external_prompt_templates": true,
+    "orchestrator_require_external_prompts_default": "1"
+  },
+  "external_provider_audit": {
+    "updated_at_utc": "2026-03-06T19:38:21Z",
+    "cloudflare": {
+      "api_token_present": false,
+      "account_id_present": false,
+      "live_api_enumeration": "blocked_missing_credentials"
+    },
+    "vercel": {
+      "api_token_present": false,
+      "team_or_org_present": false,
+      "live_api_enumeration": "blocked_missing_credentials"
+    },
+    "external_ingress_snapshot": {
+      "checked_at_utc": "2026-03-06T19:37:30Z",
+      "endpoints": [
+        {
+          "url": "https://stellcodex.com",
+          "resolve": "yes",
+          "http_status": 200,
+          "expected": "200,301,302,307,308",
+          "verdict": "ok"
+        },
+        {
+          "url": "https://api.stellcodex.com/api/v1/health",
+          "resolve": "yes",
+          "http_status": 200,
+          "expected": "200",
+          "verdict": "ok"
+        },
+        {
+          "url": "https://stell.stellcodex.com/stell/webhook",
+          "resolve": "yes",
+          "http_status": 200,
+          "expected": "200,400,401,403,405",
+          "verdict": "ok"
+        }
+      ],
+      "workers_dev_check": "skipped_account_specific_host_unknown_without_cloudflare_api",
+      "summary": "PASS"
+    },
+    "remediation": {
+      "api_502_fixed_at_utc": "2026-03-06T18:55:05Z",
+      "nginx_upstream_port_aligned_to_backend": "127.0.0.1:18000"
+    },
+    "provider_live_audit": {
+      "script_path": "/root/workspace/audit/scripts/provider_live_audit.sh",
+      "latest_json": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/provider/provider_live_audit_20260306T193741Z.json",
+      "latest_markdown": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/provider/provider_live_audit_20260306T193741Z.md",
+      "summary": "BLOCKED_MISSING_CREDENTIALS",
+      "cloudflare_live_status": "blocked_missing_token",
+      "vercel_live_status": "blocked_missing_token",
+      "quickstart_script": "/root/workspace/audit/scripts/provider_live_audit_quickstart.sh",
+      "credential_template": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/provider/PROVIDER_AUDIT_ENV_TEMPLATE.env",
+      "script_snapshots": [
+        "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/scripts/monthly_prompt_audit.sh",
+        "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/scripts/provider_live_audit.sh",
+        "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/scripts/provider_credential_status.sh",
+        "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/scripts/provider_live_audit_quickstart.sh",
+        "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/scripts/finalize_provider_audit.sh"
+      ],
+      "finalize_script": "/root/workspace/audit/scripts/finalize_provider_audit.sh",
+      "latest_alias_json": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/provider/LATEST_PROVIDER_LIVE_AUDIT.json",
+      "latest_alias_markdown": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/provider/LATEST_PROVIDER_LIVE_AUDIT.md",
+      "scope_guide": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/provider/PROVIDER_AUDIT_SCOPE_GUIDE.md"
+    },
+    "provider_credential_status": {
+      "latest_json": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/provider/provider_credential_status_20260306T193729Z.json",
+      "latest_markdown": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/provider/provider_credential_status_20260306T193729Z.md",
+      "latest_alias_json": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/provider/LATEST_PROVIDER_CREDENTIAL_STATUS.json",
+      "latest_alias_markdown": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/provider/LATEST_PROVIDER_CREDENTIAL_STATUS.md",
+      "summary": "BLOCKED_MISSING_CREDENTIALS",
+      "script_path": "/root/workspace/audit/scripts/provider_credential_status.sh",
+      "snapshot_path": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/scripts/provider_credential_status.sh"
+    },
+    "last_monthly_report": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/monthly/monthly_audit_20260306T193730Z.md",
+    "last_monthly_alias_markdown": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/monthly/LATEST_MONTHLY_AUDIT.md",
+    "provider_status_file": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/provider/PROVIDER_AUDIT_STATUS.json"
+  }
+}

@@ -1,0 +1,204 @@
+[
+  {
+    "filename": "readme.md",
+    "classification": "Playbooks",
+    "unique_hashes": [
+      "2565b9a46b77e8d85c99e4c4253f0dbb3ac95b713a1e4fe4f6656a2ff440b07b",
+      "2d22a1b0f356241345044e6d0398126b3dc998f76b04d0af95c1e578f080f227",
+      "ea046b63adc37bb3b65d3f5c5a6e1c707e3d662f94126dd4c3272deb64289243",
+      "eef2c055e1e029f347f538e2f2a29d8ca76aa3951df0305763380624d28fef60"
+    ],
+    "paths": [
+      "/root/stell/playbooks/README.md",
+      "/root/stell/playbooks/admin/README.md",
+      "/root/stell/playbooks/delegation/README.md",
+      "/root/stell/playbooks/whatsapp/README.md"
+    ],
+    "active_paths": [
+      "/root/stell/playbooks/README.md",
+      "/root/stell/playbooks/admin/README.md",
+      "/root/stell/playbooks/delegation/README.md",
+      "/root/stell/playbooks/whatsapp/README.md"
+    ],
+    "legacy_paths": []
+  },
+  {
+    "filename": "readme.md",
+    "classification": "Global policies",
+    "unique_hashes": [
+      "3fc7f38e6a5665aa6e13493b148f4cd6f46f276249017e47590ebab285c013d9",
+      "5656ada446e8c8d14d4297b9c58dcbe78fe7af06af83d1570f8da8717e2a7c13",
+      "bd7b57ad400e55fa235c0d3870cc4ba4e9737abf4755378ff14e27fa8c0c7908",
+      "e9a30b35be3d08f6771479337972152707212d5520ea901c91d696f6f2136038"
+    ],
+    "paths": [
+      "/root/stell/policies/README.md",
+      "/root/stell/policies/approval/README.md",
+      "/root/stell/policies/channels/README.md",
+      "/root/stell/policies/security/README.md"
+    ],
+    "active_paths": [
+      "/root/stell/policies/README.md",
+      "/root/stell/policies/approval/README.md",
+      "/root/stell/policies/channels/README.md",
+      "/root/stell/policies/security/README.md"
+    ],
+    "legacy_paths": []
+  },
+  {
+    "filename": "stellcodex_master_prompt_v8.0.md",
+    "classification": "Identity/Core",
+    "unique_hashes": [
+      "1b6840ae4fb926e6c5b8d7b28e936a7c1663fb953cd4e33356474c86dad70942",
+      "1ec667af272c4604a7f57b95a8809ed57188111433a4e76d2e19ecba00f23342",
+      "961dfe7dd6abe3f529c44beafe5c6c24dad7aee9dd30062a1e0fb14edf9f42fe",
+      "dc13fae631ee088c36f3be8f5209cb6d9ed93f1626f3678b5357a4b7e8cb4dd2"
+    ],
+    "paths": [
+      "/root/workspace/_backups/20260304_022800_ai_engine_ssot_guard/manuals/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_backups/20260304_022800_ai_engine_ssot_guard/truth/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_backups/20260304_024921_gemini_fix_state/manuals/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_backups/20260304_024921_gemini_fix_state/truth/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_backups/20260304_033000_v62_fullpack_complete/_truth/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_backups/20260304_034500_v62_post_fullpack_state/_truth/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_backups/20260304_074000_sev0_triple_fix/_truth/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_backups/20260304_075500_sev0_post_fix_state/_truth/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_backups/20260304_080000_whatsapp_secret_active/_truth/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_backups/20260304_225931_ui_ai_megafix/snapshots/knowledge/manuals/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_knowledge/manuals/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_truth/STELLCODEX_MASTER_PROMPT_v8.0.md"
+    ],
+    "active_paths": [
+      "/root/workspace/_truth/STELLCODEX_MASTER_PROMPT_v8.0.md"
+    ],
+    "legacy_paths": [
+      "/root/workspace/_backups/20260304_022800_ai_engine_ssot_guard/manuals/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_backups/20260304_022800_ai_engine_ssot_guard/truth/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_backups/20260304_024921_gemini_fix_state/manuals/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_backups/20260304_024921_gemini_fix_state/truth/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_backups/20260304_033000_v62_fullpack_complete/_truth/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_backups/20260304_034500_v62_post_fullpack_state/_truth/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_backups/20260304_074000_sev0_triple_fix/_truth/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_backups/20260304_075500_sev0_post_fix_state/_truth/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_backups/20260304_080000_whatsapp_secret_active/_truth/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_backups/20260304_225931_ui_ai_megafix/snapshots/knowledge/manuals/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_knowledge/manuals/STELLCODEX_MASTER_PROMPT_v8.0.md"
+    ]
+  },
+  {
+    "filename": "seed.json",
+    "classification": "Output contracts",
+    "unique_hashes": [
+      "04e8e83a34ad76442312738be66167c0e346ba41cf8f9a58111a8bb0a8ccdb6d",
+      "86a23827a6bb670325d050d8768409996369d0d18a5ed662de054056956c7c26",
+      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    ],
+    "paths": [
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003318/seed.json",
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003420/seed.json",
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003753/seed.json"
+    ],
+    "active_paths": [],
+    "legacy_paths": [
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003318/seed.json",
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003420/seed.json",
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003753/seed.json"
+    ]
+  },
+  {
+    "filename": "cleanup.txt",
+    "classification": "Output contracts",
+    "unique_hashes": [
+      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "f36070de2103f02eebdb671b5acdbb220c7550abf222311036388c8bb0e49e25"
+    ],
+    "paths": [
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003420/cleanup.txt",
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003753/cleanup.txt"
+    ],
+    "active_paths": [],
+    "legacy_paths": [
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003420/cleanup.txt",
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003753/cleanup.txt"
+    ]
+  },
+  {
+    "filename": "endpoint_check.txt",
+    "classification": "Output contracts",
+    "unique_hashes": [
+      "31b05f656382fa619fe97b7f367a8143fa85a2f7860f8624de0d2829b1727890",
+      "81b60479b50796dc86173eda6934b8862924d565b34539808fb7413886bbc8d2"
+    ],
+    "paths": [
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003420/endpoint_check.txt",
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003753/endpoint_check.txt"
+    ],
+    "active_paths": [],
+    "legacy_paths": [
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003420/endpoint_check.txt",
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003753/endpoint_check.txt"
+    ]
+  },
+  {
+    "filename": "expire.json",
+    "classification": "Output contracts",
+    "unique_hashes": [
+      "98efee72e56f11192644d690787ce4606673437568066fee9670e369b37416a0",
+      "e41656eb2ba6c6293bf6dd928e5a88cdbc50535cab661c1969e0f598e497ed62"
+    ],
+    "paths": [
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003420/expire.json",
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003753/expire.json"
+    ],
+    "active_paths": [],
+    "legacy_paths": [
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003420/expire.json",
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003753/expire.json"
+    ]
+  },
+  {
+    "filename": "revoke_before.json",
+    "classification": "Output contracts",
+    "unique_hashes": [
+      "b4525d8cef7de0dd930402db66f8d79f3fbbaa3b825c92102651611b3b3beb53",
+      "e41656eb2ba6c6293bf6dd928e5a88cdbc50535cab661c1969e0f598e497ed62"
+    ],
+    "paths": [
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003420/revoke_before.json",
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003753/revoke_before.json"
+    ],
+    "active_paths": [],
+    "legacy_paths": [
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003420/revoke_before.json",
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003753/revoke_before.json"
+    ]
+  },
+  {
+    "filename": "STELLCODEX_MASTER_PROMPT_v8.0.md",
+    "classification": "Identity/Core",
+    "reason": "truth vs manuals copies diverge",
+    "paths": [
+      "/root/workspace/_truth/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_knowledge/manuals/STELLCODEX_MASTER_PROMPT_v8.0.md"
+    ]
+  },
+  {
+    "filename": "constitution_family",
+    "classification": "Constitution",
+    "reason": "v7 constitution supersedes v6 constitution",
+    "paths": [
+      "/var/www/stellcodex/docs/constitution/STELLCODEX_V7_MASTER.md",
+      "/var/www/stellcodex/docs/v6/V6_00_CONSTITUTION.md",
+      "/var/www/stellcodex/docs/v6/V6_08_CODEX_MEGA_PROMPT_V6.md"
+    ]
+  },
+  {
+    "filename": "webhook_main_duplication",
+    "classification": "Worker prompts",
+    "reason": "duplicate runtime entrypoint files with identical content",
+    "paths": [
+      "/root/stell/webhook/main.py",
+      "/root/stell/webhook_main.py"
+    ]
+  }
+]

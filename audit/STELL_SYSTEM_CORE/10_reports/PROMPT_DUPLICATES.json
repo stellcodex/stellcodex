@@ -1,0 +1,664 @@
+[
+  {
+    "sha256": "cd9fc582cb40f643cf31f78ab0b95f2a4857cb9aba80dac998f42d16acf4cdb4",
+    "count": 12,
+    "paths": [
+      "/root/workspace/_backups/20260304_173003_stage0_discovery_map/STELLCODEX_SYSTEM_MAP.md",
+      "/root/workspace/_backups/20260304_173044_stage1_canonical_repo_and_deploy_proof/STELLCODEX_SYSTEM_MAP.md",
+      "/root/workspace/_backups/20260304_173110_stage2_ingress_stabilization/STELLCODEX_SYSTEM_MAP.md",
+      "/root/workspace/_backups/20260304_173149_stage3_ui_rebuild/STELLCODEX_SYSTEM_MAP.md",
+      "/root/workspace/_backups/20260304_173217_stage4_core_flows/STELLCODEX_SYSTEM_MAP.md",
+      "/root/workspace/_backups/20260304_173250_stage5_worker_grid/STELLCODEX_SYSTEM_MAP.md",
+      "/root/workspace/_backups/20260304_173319_stage6_moldcodes_mvp/STELLCODEX_SYSTEM_MAP.md",
+      "/root/workspace/_backups/20260304_173350_stage7_social_manager_mvp/STELLCODEX_SYSTEM_MAP.md",
+      "/root/workspace/_backups/20260304_173418_stage8_accounting_mvp/STELLCODEX_SYSTEM_MAP.md",
+      "/root/workspace/_backups/20260304_173447_stage9_webbuilder_and_cms_mvp/STELLCODEX_SYSTEM_MAP.md",
+      "/root/workspace/_backups/20260304_173534_stage10_security_and_whatsapp_verification/STELLCODEX_SYSTEM_MAP.md",
+      "/root/workspace/_backups/20260304_173603_stage11_final_release_gate/STELLCODEX_SYSTEM_MAP.md"
+    ],
+    "active_count": 0,
+    "legacy_count": 12
+  },
+  {
+    "sha256": "7dbe893310da3c626c900444cb6a1c80b478c2c6e28711bf69a289c9e921cdaa",
+    "count": 8,
+    "paths": [
+      "/root/workspace/_backups/20260304_034500_v62_post_fullpack_state/handoff/stell-ai-v8-5-final-consolidation-complete-autonomy-achieved-status.md",
+      "/root/workspace/_backups/20260304_075500_sev0_post_fix_state/handoff/stell-ai-v8-5-final-consolidation-complete-autonomy-achieved-status.md",
+      "/root/workspace/_backups/20260304_080000_whatsapp_secret_active/handoff/stell-ai-v8-5-final-consolidation-complete-autonomy-achieved-status.md",
+      "/root/workspace/handoff/backups/session_20260304_130658/backups/session_20260304_130658/stell-ai-v8-5-final-consolidation-complete-autonomy-achieved-status.md",
+      "/root/workspace/handoff/backups/session_20260304_130658/stell-ai-v8-5-final-consolidation-complete-autonomy-achieved-status.md",
+      "/root/workspace/handoff/backups/session_20260304_131144/stell-ai-v8-5-final-consolidation-complete-autonomy-achieved-status.md",
+      "/root/workspace/handoff/backups/session_20260304_131553/stell-ai-v8-5-final-consolidation-complete-autonomy-achieved-status.md",
+      "/root/workspace/handoff/stell-ai-v8-5-final-consolidation-complete-autonomy-achieved-status.md"
+    ],
+    "active_count": 5,
+    "legacy_count": 3
+  },
+  {
+    "sha256": "a8b8dc14034dad0608fb28f3fa884f52f5c48adfb26e6936f7c05bef0bfa218e",
+    "count": 6,
+    "paths": [
+      "/root/stell/genois/05_whatsapp_ingest/20260301_194131_610101__event.json",
+      "/root/stell/genois/05_whatsapp_ingest/20260301_194132_786505__event.json",
+      "/root/stell/genois/05_whatsapp_ingest/20260301_194133_713893__event.json",
+      "/root/stell/genois/05_whatsapp_ingest/20260301_194135_789933__event.json",
+      "/root/stell/genois/05_whatsapp_ingest/20260301_194154_329609__event.json",
+      "/root/stell/genois/05_whatsapp_ingest/20260301_194410_697853__event.json"
+    ],
+    "active_count": 0,
+    "legacy_count": 6
+  },
+  {
+    "sha256": "3e8e23748865f48e4cd52da63d9ccb7ac0c4fecc6ca4fd77994c7c582c24d918",
+    "count": 6,
+    "paths": [
+      "/root/stell/genois/05_whatsapp_ingest/20260301_194131_761990__event.json",
+      "/root/stell/genois/05_whatsapp_ingest/20260301_194132_577875__event.json",
+      "/root/stell/genois/05_whatsapp_ingest/20260301_194133_419027__event.json",
+      "/root/stell/genois/05_whatsapp_ingest/20260301_194134_880569__event.json",
+      "/root/stell/genois/05_whatsapp_ingest/20260301_194155_808693__event.json",
+      "/root/stell/genois/05_whatsapp_ingest/20260301_194803_769419__event.json"
+    ],
+    "active_count": 0,
+    "legacy_count": 6
+  },
+  {
+    "sha256": "f258d05bc3d6bf918250c2cfceb352a3c93a55e6b048f08c79ccf2f928c50d93",
+    "count": 6,
+    "paths": [
+      "/root/stell/genois/05_whatsapp_ingest/20260301_194240_507827__event.json",
+      "/root/stell/genois/05_whatsapp_ingest/20260301_194240_915041__event.json",
+      "/root/stell/genois/05_whatsapp_ingest/20260301_194241_600209__event.json",
+      "/root/stell/genois/05_whatsapp_ingest/20260301_194242_433685__event.json",
+      "/root/stell/genois/05_whatsapp_ingest/20260301_194246_709766__event.json",
+      "/root/stell/genois/05_whatsapp_ingest/20260301_194821_858340__event.json"
+    ],
+    "active_count": 0,
+    "legacy_count": 6
+  },
+  {
+    "sha256": "fdb53e1dec9c592de2d3a62f2ae65e03426fad22d5b38f43eab5fc9a5b0a347f",
+    "count": 5,
+    "paths": [
+      "/root/stell/genois/05_whatsapp_ingest/20260301_194239_420173__event.json",
+      "/root/stell/genois/05_whatsapp_ingest/20260301_194240_194630__event.json",
+      "/root/stell/genois/05_whatsapp_ingest/20260301_194241_012897__event.json",
+      "/root/stell/genois/05_whatsapp_ingest/20260301_194242_038359__event.json",
+      "/root/stell/genois/05_whatsapp_ingest/20260301_194759_761275__event.json"
+    ],
+    "active_count": 0,
+    "legacy_count": 5
+  },
+  {
+    "sha256": "1b6840ae4fb926e6c5b8d7b28e936a7c1663fb953cd4e33356474c86dad70942",
+    "count": 5,
+    "paths": [
+      "/root/workspace/_backups/20260304_033000_v62_fullpack_complete/_truth/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_backups/20260304_034500_v62_post_fullpack_state/_truth/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_backups/20260304_074000_sev0_triple_fix/_truth/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_backups/20260304_075500_sev0_post_fix_state/_truth/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_backups/20260304_080000_whatsapp_secret_active/_truth/STELLCODEX_MASTER_PROMPT_v8.0.md"
+    ],
+    "active_count": 0,
+    "legacy_count": 5
+  },
+  {
+    "sha256": "aafd2666229e36947cad9b4c291060745f20493948598cf291794740f9d76239",
+    "count": 4,
+    "paths": [
+      "/root/stellcodex_output/evidence/smoke_20260306_160035/smoke/status_last.json",
+      "/root/stellcodex_output/evidence/smoke_20260306_162811/smoke/status_last.json",
+      "/root/stellcodex_output/evidence/smoke_retry_20260306_160338/smoke/status_last.json",
+      "/root/stellcodex_output/evidence/smoke_retry_20260306_160445/smoke/status_last.json"
+    ],
+    "active_count": 0,
+    "legacy_count": 4
+  },
+  {
+    "sha256": "dc13fae631ee088c36f3be8f5209cb6d9ed93f1626f3678b5357a4b7e8cb4dd2",
+    "count": 4,
+    "paths": [
+      "/root/workspace/_backups/20260304_022800_ai_engine_ssot_guard/manuals/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_backups/20260304_024921_gemini_fix_state/manuals/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_backups/20260304_225931_ui_ai_megafix/snapshots/knowledge/manuals/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_knowledge/manuals/STELLCODEX_MASTER_PROMPT_v8.0.md"
+    ],
+    "active_count": 0,
+    "legacy_count": 4
+  },
+  {
+    "sha256": "a0fad2d4acffa560a1f919228516afe09e66d6ebdee56a91e0e2e43dbf8e1331",
+    "count": 4,
+    "paths": [
+      "/var/www/stellcodex/evidence/recent_files_fix_20260227_070400/storage_key_grep.txt",
+      "/var/www/stellcodex/evidence/recent_files_fix_20260227_070400/storage_key_grep_after_upload.txt",
+      "/var/www/stellcodex/evidence/recent_files_fix_20260227_070626/storage_key_grep.txt",
+      "/var/www/stellcodex/evidence/recent_files_fix_20260227_070759/storage_key_grep.txt"
+    ],
+    "active_count": 0,
+    "legacy_count": 4
+  },
+  {
+    "sha256": "e41656eb2ba6c6293bf6dd928e5a88cdbc50535cab661c1969e0f598e497ed62",
+    "count": 4,
+    "paths": [
+      "/var/www/stellcodex/evidence/v6_exec_check_20260226_233407/upload.json",
+      "/var/www/stellcodex/evidence/v6_exec_followup_20260226_233733/upload_attempt_body.txt",
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003420/expire.json",
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003420/revoke_before.json"
+    ],
+    "active_count": 0,
+    "legacy_count": 4
+  },
+  {
+    "sha256": "98efee72e56f11192644d690787ce4606673437568066fee9670e369b37416a0",
+    "count": 3,
+    "paths": [
+      "/root/stellcodex_output/evidence/smoke_20260306_162811/smoke/share_expired_410.json",
+      "/root/stellcodex_output/evidence/smoke_retry_20260306_160445/smoke/share_expired_410.json",
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003753/expire.json"
+    ],
+    "active_count": 0,
+    "legacy_count": 3
+  },
+  {
+    "sha256": "e14516c02093ef128065fb54d2525fb22a91cafa4be506176c280f3f48f1e411",
+    "count": 3,
+    "paths": [
+      "/root/workspace/_backups/20260304_034500_v62_post_fullpack_state/handoff/stell-judge-status.md",
+      "/root/workspace/_backups/20260304_075500_sev0_post_fix_state/handoff/stell-judge-status.md",
+      "/root/workspace/_backups/20260304_080000_whatsapp_secret_active/handoff/stell-judge-status.md"
+    ],
+    "active_count": 0,
+    "legacy_count": 3
+  },
+  {
+    "sha256": "b7c3490c6d8114cc2f73375f4c8a555cc791111bf084b89fd0fe63efcf3f03f6",
+    "count": 3,
+    "paths": [
+      "/root/workspace/_jobs/backups/20260305_134618/stellai/requirements.txt",
+      "/root/workspace/_jobs/backups/20260305_134720/stellai/requirements.txt",
+      "/root/workspace/ops/stellai/requirements.txt"
+    ],
+    "active_count": 1,
+    "legacy_count": 2
+  },
+  {
+    "sha256": "73fd6fccdd802c419a6b2d983d6c3173b7da97558ac4b589edec2dfe443db9ad",
+    "count": 3,
+    "paths": [
+      "/root/workspace/stellcodex_v7/backend/.pytest_cache/README.md",
+      "/var/www/stellcodex/.pytest_cache/README.md",
+      "/var/www/stellcodex/backend/.pytest_cache/README.md"
+    ],
+    "active_count": 3,
+    "legacy_count": 0
+  },
+  {
+    "sha256": "c11e3f4837efde2441e23a7b9da02131f53bf59fddeb7147c4ab81afe400460f",
+    "count": 3,
+    "paths": [
+      "/var/www/stellcodex/evidence/recent_files_fix_20260227_070400/upload_status.txt",
+      "/var/www/stellcodex/evidence/recent_files_fix_20260227_070759/upload_status.txt",
+      "/var/www/stellcodex/evidence/ui_viewer_fix_20260227_080236/view_route_status.txt"
+    ],
+    "active_count": 0,
+    "legacy_count": 3
+  },
+  {
+    "sha256": "5b4769f7a5c11a6953ff72768b8394abc8b909de5670a3a62052c9f539b359d9",
+    "count": 3,
+    "paths": [
+      "/var/www/stellcodex/evidence/ui_viewer_fix_20260227_075526/curl_guest.json",
+      "/var/www/stellcodex/evidence/ui_viewer_fix_20260227_075601/curl_guest.json",
+      "/var/www/stellcodex/evidence/ui_viewer_fix_20260227_080236/curl_guest.json"
+    ],
+    "active_count": 0,
+    "legacy_count": 3
+  },
+  {
+    "sha256": "61444db1c3ccfa49d943f01d42d65a85de5938171cf69a1e3ea4677184ff95ad",
+    "count": 3,
+    "paths": [
+      "/var/www/stellcodex/evidence/ui_viewer_fix_20260227_075526/leak_check.txt",
+      "/var/www/stellcodex/evidence/ui_viewer_fix_20260227_075601/leak_check.txt",
+      "/var/www/stellcodex/evidence/ui_viewer_fix_20260227_080236/leak_check.txt"
+    ],
+    "active_count": 0,
+    "legacy_count": 3
+  },
+  {
+    "sha256": "9ac3754eba1fd9706053855d7a70376080ac3376979894cbc2effe645bd030ec",
+    "count": 3,
+    "paths": [
+      "/var/www/stellcodex/evidence/v6_exec_followup_20260226_233733/share1_resolve_after.json",
+      "/var/www/stellcodex/evidence/v6_exec_followup_20260226_233733/share1_resolve_before.json",
+      "/var/www/stellcodex/evidence/v6_exec_followup_20260226_233733/share2_resolve_expired.json"
+    ],
+    "active_count": 0,
+    "legacy_count": 3
+  },
+  {
+    "sha256": "a29ee2b15c494311c52521766e44af56a3ad2248e7a8ab465e5206463c13d288",
+    "count": 3,
+    "paths": [
+      "/var/www/stellcodex/evidence/v6_fix_03_v6_data_model_migration_20260227_002737/health.json",
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003420/revoke_response.json",
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003753/revoke_response.json"
+    ],
+    "active_count": 0,
+    "legacy_count": 3
+  },
+  {
+    "sha256": "c53a265fca244a4f394c364817b828c030917740143da5f586c97738e0211365",
+    "count": 3,
+    "paths": [
+      "/var/www/stellcodex/evidence/v7_release_factory_20260305_162603/02_host_backend_hashes.txt",
+      "/var/www/stellcodex/evidence/v7_release_factory_20260305_162603/03_container_backend_hashes.norm.txt",
+      "/var/www/stellcodex/evidence/v7_release_factory_20260305_162603/03_container_backend_hashes.txt"
+    ],
+    "active_count": 0,
+    "legacy_count": 3
+  },
+  {
+    "sha256": "a8e846050d72c9168f551df4aaad3bde66a126d35a04d030e8e4f3dcc16f5b84",
+    "count": 2,
+    "paths": [
+      "/root/stell/webhook/.env",
+      "/root/workspace/_backups/20260304_212236_platform_stability/stell_webhook/.env"
+    ],
+    "active_count": 1,
+    "legacy_count": 1
+  },
+  {
+    "sha256": "9ac02d0a0e3b612ca5654a5e4bd2ede58f1cdb444e96f35f4d2c5bd0534b1029",
+    "count": 2,
+    "paths": [
+      "/root/stell/webhook/.env.example",
+      "/root/workspace/_backups/20260304_212236_platform_stability/stell_webhook/.env.example"
+    ],
+    "active_count": 1,
+    "legacy_count": 1
+  },
+  {
+    "sha256": "66faac95c69478af3503e90a29dc8a9edae1e42139d3fb06f9a18f76774b6ad3",
+    "count": 2,
+    "paths": [
+      "/root/stell/webhook/.env.save",
+      "/root/workspace/_backups/20260304_212236_platform_stability/stell_webhook/.env.save"
+    ],
+    "active_count": 1,
+    "legacy_count": 1
+  },
+  {
+    "sha256": "b6ab2ce985f1b21fee4c917c19d3a41f4b86d99f520014d1342242409450633a",
+    "count": 2,
+    "paths": [
+      "/root/stell/webhook/requirements.txt",
+      "/root/workspace/_backups/20260304_212236_platform_stability/stell_webhook/requirements.txt"
+    ],
+    "active_count": 1,
+    "legacy_count": 1
+  },
+  {
+    "sha256": "2ae274790139e8bf7661a4574ed16c98b467ca1317bc371c248f299e5cb10767",
+    "count": 2,
+    "paths": [
+      "/root/stellcodex_output/evidence/smoke_20260306_162811/smoke/share_rate_429.json",
+      "/root/stellcodex_output/evidence/smoke_retry_20260306_160445/smoke/share_rate_429.json"
+    ],
+    "active_count": 0,
+    "legacy_count": 2
+  },
+  {
+    "sha256": "92e88fa8e0969c40d82591b70994537ec6733fedb2ca364c069db1411c8258ce",
+    "count": 2,
+    "paths": [
+      "/root/stellcodex_output/evidence/smoke_20260306_162811/smoke/status.txt",
+      "/root/stellcodex_output/evidence/smoke_retry_20260306_160445/smoke/status.txt"
+    ],
+    "active_count": 0,
+    "legacy_count": 2
+  },
+  {
+    "sha256": "961dfe7dd6abe3f529c44beafe5c6c24dad7aee9dd30062a1e0fb14edf9f42fe",
+    "count": 2,
+    "paths": [
+      "/root/workspace/_backups/20260304_022800_ai_engine_ssot_guard/truth/STELLCODEX_MASTER_PROMPT_v8.0.md",
+      "/root/workspace/_backups/20260304_024921_gemini_fix_state/truth/STELLCODEX_MASTER_PROMPT_v8.0.md"
+    ],
+    "active_count": 0,
+    "legacy_count": 2
+  },
+  {
+    "sha256": "1d47f310eaebce6f26294ad5e12840c00f0b20a42b004cb296a3eab374c3c882",
+    "count": 2,
+    "paths": [
+      "/root/workspace/_backups/20260304_180021_stage12_public_deploy_alignment/STELLCODEX_SYSTEM_MAP.md",
+      "/root/workspace/handoff/STELLCODEX_SYSTEM_MAP.md"
+    ],
+    "active_count": 1,
+    "legacy_count": 1
+  },
+  {
+    "sha256": "6cf2ad8a2c759cd4fe66756d1fc0555de6a3c7f202aff6fa9db75e4b570509b7",
+    "count": 2,
+    "paths": [
+      "/root/workspace/handoff/backups/session_20260304_130658/backups/session_20260304_130658/stell-judge-status.md",
+      "/root/workspace/handoff/backups/session_20260304_130658/stell-judge-status.md"
+    ],
+    "active_count": 2,
+    "legacy_count": 0
+  },
+  {
+    "sha256": "f3b60c5ce2bbc7c6ff459bf0b24f83169188e4afa6b7f6040aa928ede17873b6",
+    "count": 2,
+    "paths": [
+      "/root/workspace/handoff/backups/session_20260304_131144/stell-judge-status.md",
+      "/root/workspace/handoff/backups/session_20260304_131553/stell-judge-status.md"
+    ],
+    "active_count": 2,
+    "legacy_count": 0
+  },
+  {
+    "sha256": "30b9d1aea8c617bf80f2228eed8c34e203752c6922b56cb9e4b7af0edbe07b10",
+    "count": 2,
+    "paths": [
+      "/root/workspace/ops/orchestra/state/stellcodex_modules_45.json",
+      "/root/workspace/stellcodex_v7/backend/marketplace/catalog.json"
+    ],
+    "active_count": 2,
+    "legacy_count": 0
+  },
+  {
+    "sha256": "3dcf92359eec961e2ce8940815e56a4d6724705b45b4c822d280e2cdcd6920c3",
+    "count": 2,
+    "paths": [
+      "/root/workspace/stellcodex_v7/backend/.env",
+      "/var/www/stellcodex/backend/.env"
+    ],
+    "active_count": 2,
+    "legacy_count": 0
+  },
+  {
+    "sha256": "d8d1d90750f04d90962cef444d580bd3d1e00432cc0baee90304cd1f96dd6254",
+    "count": 2,
+    "paths": [
+      "/root/workspace/stellcodex_v7/backend/app/data/formats.json",
+      "/var/www/stellcodex/backend/app/data/formats.json"
+    ],
+    "active_count": 2,
+    "legacy_count": 0
+  },
+  {
+    "sha256": "66b230bb0f8dc6be13b40589b5dc3d45c7066cc64694fbf028a55df5c4acba41",
+    "count": 2,
+    "paths": [
+      "/root/workspace/stellcodex_v7/backend/app/data/render-presets.json",
+      "/var/www/stellcodex/backend/app/data/render-presets.json"
+    ],
+    "active_count": 2,
+    "legacy_count": 0
+  },
+  {
+    "sha256": "4286495200e7e053800ddd369b93914243a94ab98f3575358a7eee0052db0540",
+    "count": 2,
+    "paths": [
+      "/root/workspace/stellcodex_v7/backend/app/security/api-perms.generated.json",
+      "/var/www/stellcodex/backend/app/security/api-perms.generated.json"
+    ],
+    "active_count": 2,
+    "legacy_count": 0
+  },
+  {
+    "sha256": "72fde7c1beeea51d9a0c151d672c4dc9da9f467a2d70183ad09f56e84f93f9db",
+    "count": 2,
+    "paths": [
+      "/root/workspace/stellcodex_v7/backend/app/security/critical-endpoints.generated.json",
+      "/var/www/stellcodex/backend/app/security/critical-endpoints.generated.json"
+    ],
+    "active_count": 2,
+    "legacy_count": 0
+  },
+  {
+    "sha256": "7bee9be64e326139092ee4fb19d6807235cb4376855fbbaa3884ab469dd8d426",
+    "count": 2,
+    "paths": [
+      "/root/workspace/stellcodex_v7/backend/requirements.txt",
+      "/var/www/stellcodex/backend/requirements.txt"
+    ],
+    "active_count": 2,
+    "legacy_count": 0
+  },
+  {
+    "sha256": "604e782600ba8a619d1927535d56894e693b4002d4dbc3057872f0ee740e2d0d",
+    "count": 2,
+    "paths": [
+      "/root/workspace/stellcodex_v7/backend/tools/occt-convert/CMakeLists.txt",
+      "/var/www/stellcodex/backend/tools/occt-convert/CMakeLists.txt"
+    ],
+    "active_count": 2,
+    "legacy_count": 0
+  },
+  {
+    "sha256": "5a5ae525056b5715bf188545e0d85f2ce477938d3ad1821b13adb60facdf5654",
+    "count": 2,
+    "paths": [
+      "/root/workspace/stellcodex_v7/frontend/content/privacy.en.md",
+      "/var/www/stellcodex/frontend/src/content/privacy.en.md"
+    ],
+    "active_count": 2,
+    "legacy_count": 0
+  },
+  {
+    "sha256": "240229a72063d3859b84012134c81752493ed06a04558c4e1f791b87ce681111",
+    "count": 2,
+    "paths": [
+      "/root/workspace/stellcodex_v7/frontend/content/privacy.tr.md",
+      "/var/www/stellcodex/frontend/src/content/privacy.tr.md"
+    ],
+    "active_count": 2,
+    "legacy_count": 0
+  },
+  {
+    "sha256": "5e483b22e756f45e43cc980a927d8e2ece1c57a7268619ecea4176f689fc67f8",
+    "count": 2,
+    "paths": [
+      "/root/workspace/stellcodex_v7/frontend/content/terms.en.md",
+      "/var/www/stellcodex/frontend/src/content/terms.en.md"
+    ],
+    "active_count": 2,
+    "legacy_count": 0
+  },
+  {
+    "sha256": "2eff772f1fa4530a49def79b3b9f4376944250ff8492544e25b56d877a1f444d",
+    "count": 2,
+    "paths": [
+      "/root/workspace/stellcodex_v7/frontend/content/terms.tr.md",
+      "/var/www/stellcodex/frontend/src/content/terms.tr.md"
+    ],
+    "active_count": 2,
+    "legacy_count": 0
+  },
+  {
+    "sha256": "0343639fac1511a32a4c9a92c7655a6e9f9ad3a600fc6f30b5bdad6806160a97",
+    "count": 2,
+    "paths": [
+      "/root/workspace/stellcodex_v7/frontend/data/community.static.json",
+      "/var/www/stellcodex/frontend/src/data/community.static.json"
+    ],
+    "active_count": 2,
+    "legacy_count": 0
+  },
+  {
+    "sha256": "51ad77db492ca4961b45207ce8bd322bde58db4f08199253daa4804a9fd2c30c",
+    "count": 2,
+    "paths": [
+      "/root/workspace/stellcodex_v7/frontend/data/status.static.json",
+      "/var/www/stellcodex/frontend/src/data/status.static.json"
+    ],
+    "active_count": 2,
+    "legacy_count": 0
+  },
+  {
+    "sha256": "0c6a0bcfa13957dcc276bc2c8592c6d43b5f3ce1d41d9a3b6fb55d945cd82e4d",
+    "count": 2,
+    "paths": [
+      "/root/workspace/stellcodex_v7/frontend/security/access-control.source.json",
+      "/var/www/stellcodex/frontend/src/security/access-control.source.json"
+    ],
+    "active_count": 2,
+    "legacy_count": 0
+  },
+  {
+    "sha256": "7c5e4825e0a806234791ad18481d362233d0c73f5d1dd36d5808712c2f776b14",
+    "count": 2,
+    "paths": [
+      "/root/workspace/stellcodex_v7/frontend/security/route-permissions.json",
+      "/var/www/stellcodex/frontend/src/security/route-permissions.json"
+    ],
+    "active_count": 2,
+    "legacy_count": 0
+  },
+  {
+    "sha256": "1a04838cc65af716251461e442eaa6409abf7fb1e4fff905caedcd4e55e1c0fc",
+    "count": 2,
+    "paths": [
+      "/root/workspace/stellcodex_v7/infrastructure/compliance/third_party_licenses.md",
+      "/var/www/stellcodex/infrastructure/compliance/third_party_licenses.md"
+    ],
+    "active_count": 2,
+    "legacy_count": 0
+  },
+  {
+    "sha256": "f9dc158c1b89bab650125b2611b02e35225fd2c8caf293cab7f72da06bd51eba",
+    "count": 2,
+    "paths": [
+      "/root/workspace/stellcodex_v7/infrastructure/deploy/.env",
+      "/var/www/stellcodex/infrastructure/deploy/.env"
+    ],
+    "active_count": 2,
+    "legacy_count": 0
+  },
+  {
+    "sha256": "6da6d01a72d57516961f36d3913966c36dbb451043f427ebd0f72032eaa512d7",
+    "count": 2,
+    "paths": [
+      "/root/workspace/stellcodex_v7/infrastructure/deploy/.env.example",
+      "/var/www/stellcodex/infrastructure/deploy/.env.example"
+    ],
+    "active_count": 2,
+    "legacy_count": 0
+  },
+  {
+    "sha256": "b8b45778271af5f7b52c9106ee6edfd8d21370f466e2c262eca4820e1bbf8c1c",
+    "count": 2,
+    "paths": [
+      "/var/www/stellcodex/evidence/_tmp_git_diff_name_only.txt",
+      "/var/www/stellcodex/evidence/v6_fix_P1_20260227_0123/git_diff_name_only.txt"
+    ],
+    "active_count": 0,
+    "legacy_count": 2
+  },
+  {
+    "sha256": "3338066a6dd7b0f0ec5358523a723773939b17840773ba99132404b6f5cb92c0",
+    "count": 2,
+    "paths": [
+      "/var/www/stellcodex/evidence/_tmp_git_status.txt",
+      "/var/www/stellcodex/evidence/v6_fix_P1_20260227_0123/git_status.txt"
+    ],
+    "active_count": 0,
+    "legacy_count": 2
+  },
+  {
+    "sha256": "29b0d625b9399462f46e71880c0a16eb71afd8264a091d04db4a7330772cc342",
+    "count": 2,
+    "paths": [
+      "/var/www/stellcodex/evidence/v6_exec_followup_20260226_233733/legacy_share_create_probe.json",
+      "/var/www/stellcodex/evidence/v6_exec_followup_20260226_233733/manifest.json"
+    ],
+    "active_count": 0,
+    "legacy_count": 2
+  },
+  {
+    "sha256": "37ec4665a8102d115ffd1ac20dae94c98b4dac64b0c1a68228aa2a531caeb35d",
+    "count": 2,
+    "paths": [
+      "/var/www/stellcodex/evidence/v6_exec_followup_20260226_233733/orchestrator_decision.txt",
+      "/var/www/stellcodex/evidence/v6_exec_followup_20260226_233733/product_status.json"
+    ],
+    "active_count": 0,
+    "legacy_count": 2
+  },
+  {
+    "sha256": "0fd638576463a7d31ab94c97509eb16ce42fa91cc2feedfbceeaf6aa6f1e9426",
+    "count": 2,
+    "paths": [
+      "/var/www/stellcodex/evidence/v6_fix_02_storage_key_leak_20260227_002512/openapi.json",
+      "/var/www/stellcodex/evidence/v6_fix_03_v6_data_model_migration_20260227_002737/openapi.json"
+    ],
+    "active_count": 0,
+    "legacy_count": 2
+  },
+  {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "count": 2,
+    "paths": [
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003318/seed.json",
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003420/cleanup.txt"
+    ],
+    "active_count": 0,
+    "legacy_count": 2
+  },
+  {
+    "sha256": "e0ae1d792ff3f444f89c6dce46e744ded97b2435508a30c6e9fb6a39e87fdf26",
+    "count": 2,
+    "paths": [
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003420/db_schema_check.txt",
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003753/db_schema_check.txt"
+    ],
+    "active_count": 0,
+    "legacy_count": 2
+  },
+  {
+    "sha256": "2df8ae8721ccf8d31d220f8ef65271fbd85d232ad3068b34b006e2d0df421fd0",
+    "count": 2,
+    "paths": [
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003420/openapi.json",
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003753/openapi.json"
+    ],
+    "active_count": 0,
+    "legacy_count": 2
+  },
+  {
+    "sha256": "29f6fe1979f1e74c8fc4e6c3f68e4bd9250259d5d44187d58565b8cc20002c31",
+    "count": 2,
+    "paths": [
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003420/openapi_check.txt",
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003753/openapi_check.txt"
+    ],
+    "active_count": 0,
+    "legacy_count": 2
+  },
+  {
+    "sha256": "544bc38e2d87b2f32cc7e518607a01cb2bde3d6348b9bbdec0f41e7846705dac",
+    "count": 2,
+    "paths": [
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003420/revoke_after.json",
+      "/var/www/stellcodex/evidence/v6_fix_04_share_contract_20260227_003753/revoke_after.json"
+    ],
+    "active_count": 0,
+    "legacy_count": 2
+  },
+  {
+    "sha256": "6a3cd03bc6630f52cd1fd4ea935276d5c355b476ff425819b98fdcc257ec640d",
+    "count": 2,
+    "paths": [
+      "/var/www/stellcodex/evidence/v7_full_upgrade_20260227_144226.txt",
+      "/var/www/stellcodex/evidence/v7_full_upgrade_20260227_161408.txt"
+    ],
+    "active_count": 0,
+    "legacy_count": 2
+  }
+]

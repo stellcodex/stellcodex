@@ -1,0 +1,21 @@
+{
+  "generated_at_utc": "2026-03-06T19:37:29Z",
+  "monthly_report": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/monthly/monthly_audit_20260306T193730Z.md",
+  "provider_live_audit": {
+    "summary": "BLOCKED_MISSING_CREDENTIALS",
+    "latest_json": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/provider/provider_live_audit_20260306T193741Z.json",
+    "latest_markdown": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/provider/provider_live_audit_20260306T193741Z.md",
+    "cloudflare_live_status": "blocked_missing_token",
+    "vercel_live_status": "blocked_missing_token",
+    "latest_alias_json": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/provider/LATEST_PROVIDER_LIVE_AUDIT.json",
+    "latest_alias_markdown": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/provider/LATEST_PROVIDER_LIVE_AUDIT.md"
+  },
+  "provider_credential_status": {
+    "summary": "BLOCKED_MISSING_CREDENTIALS",
+    "latest_json": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/provider/provider_credential_status_20260306T193729Z.json",
+    "latest_markdown": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/provider/provider_credential_status_20260306T193729Z.md",
+    "latest_alias_json": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/provider/LATEST_PROVIDER_CREDENTIAL_STATUS.json",
+    "latest_alias_markdown": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/provider/LATEST_PROVIDER_CREDENTIAL_STATUS.md"
+  },
+  "latest_monthly_alias_markdown": "/root/workspace/audit/STELL_SYSTEM_CORE/10_reports/monthly/LATEST_MONTHLY_AUDIT.md"
+}

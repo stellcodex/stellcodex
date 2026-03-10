@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "drive_remote": "gdrive:stellcodex-genois",
+  "github_managed": [
+    "knowledge",
+    "playbooks",
+    "policies",
+    "prompts",
+    "actions"
+  ],
+  "drive_seed_directories": [
+    "01_inbox",
+    "02_approved/github-seed",
+    "03_archive",
+    "04_exports",
+    "05_whatsapp_ingest",
+    "06_reports"
+  ],
+  "drive_only_notes": [
+    "Store heavy PDFs, DOCX, XLSX, images, meeting notes, and raw customer files in Drive.",
+    "Store approved text-first knowledge in GitHub and mirror a seed copy to Drive."
+  ]
+}
