@@ -17,6 +17,8 @@ contain Turkish text or Turkish keyword matching.
   Reason: legacy Turkish pending-state compatibility detection.
 - `frontend/app/(viewer)/view/[scx_id]/page.tsx`
   Reason: legacy Turkish transport error compatibility detection.
+- `frontend/lib/workspace-store.ts`
+  Reason: legacy default project identifier compatibility mapping.
 - `frontend/content/privacy.tr.md`
   Reason: dedicated Turkish privacy content.
 - `frontend/content/terms.tr.md`

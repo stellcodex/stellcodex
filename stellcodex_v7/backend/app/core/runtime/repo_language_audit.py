@@ -28,6 +28,7 @@ ALLOWED_MULTILINGUAL_FILES = {
     "frontend/components/ChatShell.tsx": "bilingual quick-start intent matching",
     "frontend/components/viewer/DxfViewer.tsx": "legacy Turkish pending-state compatibility detection",
     "frontend/app/(viewer)/view/[scx_id]/page.tsx": "legacy Turkish transport error compatibility detection",
+    "frontend/lib/workspace-store.ts": "legacy default project identifier compatibility mapping",
     "frontend/content/privacy.tr.md": "dedicated Turkish privacy content",
     "frontend/content/terms.tr.md": "dedicated Turkish terms content",
 }
