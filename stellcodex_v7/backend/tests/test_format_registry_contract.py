@@ -28,9 +28,33 @@ class FormatRegistryContractTests(unittest.TestCase):
     def test_public_rows_have_no_missing_contract_fields(self) -> None:
         rows = as_public_rows()
         self.assertTrue(rows)
-        required = {"ext", "kind", "mode", "pipeline", "accept", "display_label"}
+        required = {
+            "ext",
+            "kind",
+            "mode",
+            "pipeline",
+            "accept",
+            "display_label",
+            "support_tier",
+            "preview_supported",
+            "metadata_extracted",
+            "geometry_extracted",
+            "dfm_supported",
+        }
         for row in rows:
             self.assertTrue(required.issubset(row.keys()))
+
+    def test_capability_tiers_are_honest_for_real_supported_formats(self) -> None:
+        rows = {row["ext"]: row for row in as_public_rows()}
+        self.assertEqual(rows["step"]["support_tier"], "dfm_supported")
+        self.assertTrue(rows["step"]["geometry_extracted"])
+        self.assertEqual(rows["stl"]["support_tier"], "dfm_supported")
+        self.assertEqual(rows["obj"]["support_tier"], "dfm_supported")
+        self.assertEqual(rows["dxf"]["support_tier"], "dfm_supported")
+        self.assertEqual(rows["pdf"]["support_tier"], "dfm_supported")
+        self.assertEqual(rows["docx"]["support_tier"], "dfm_supported")
+        self.assertEqual(rows["glb"]["support_tier"], "preview_supported")
+        self.assertEqual(rows["iges"]["support_tier"], "accepted_only")
 
     def test_mime_sniff_guards(self) -> None:
         sniffed = infer_mime_from_bytes(b"%PDF-1.4\n", "sample.pdf")

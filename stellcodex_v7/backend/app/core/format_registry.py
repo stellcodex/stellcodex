@@ -13,13 +13,18 @@ class FormatRule:
     pipeline: str
     accept: bool
     display_label: str
+    support_tier: str = "accepted_only"
+    preview_supported: bool = False
+    metadata_extracted: bool = False
+    geometry_extracted: bool = False
+    dfm_supported: bool = False
     reject_reason: str | None = None
 
 
 _RULES: tuple[FormatRule, ...] = (
     # 3D B-Rep
-    FormatRule("step", "3d", "brep", "pipeline_3d_brep", True, "STEP"),
-    FormatRule("stp", "3d", "brep", "pipeline_3d_brep", True, "STEP"),
+    FormatRule("step", "3d", "brep", "pipeline_3d_brep", True, "STEP", "dfm_supported", True, True, True, True),
+    FormatRule("stp", "3d", "brep", "pipeline_3d_brep", True, "STEP", "dfm_supported", True, True, True, True),
     FormatRule("x_t", "3d", "brep", "pipeline_3d_brep", True, "Parasolid XT"),
     FormatRule("x_b", "3d", "brep", "pipeline_3d_brep", True, "Parasolid XB"),
     FormatRule("sat", "3d", "brep", "pipeline_3d_brep", True, "ACIS SAT"),
@@ -29,8 +34,8 @@ _RULES: tuple[FormatRule, ...] = (
     FormatRule("jt", "3d", "brep", "pipeline_3d_brep", True, "JT (B-Rep where available)"),
     FormatRule("ifc", "3d", "brep", "pipeline_3d_brep", True, "IFC (limited)"),
     # 3D mesh approximation
-    FormatRule("stl", "3d", "mesh_approx", "pipeline_3d_mesh", True, "STL"),
-    FormatRule("obj", "3d", "mesh_approx", "pipeline_3d_mesh", True, "OBJ"),
+    FormatRule("stl", "3d", "mesh_approx", "pipeline_3d_mesh", True, "STL", "dfm_supported", True, True, True, True),
+    FormatRule("obj", "3d", "mesh_approx", "pipeline_3d_mesh", True, "OBJ", "dfm_supported", True, True, True, True),
     FormatRule("ply", "3d", "mesh_approx", "pipeline_3d_mesh", True, "PLY"),
     FormatRule("3mf", "3d", "mesh_approx", "pipeline_3d_mesh", True, "3MF"),
     FormatRule("amf", "3d", "mesh_approx", "pipeline_3d_mesh", True, "AMF"),
@@ -39,36 +44,36 @@ _RULES: tuple[FormatRule, ...] = (
     FormatRule("vrml", "3d", "mesh_approx", "pipeline_3d_mesh", True, "VRML"),
     FormatRule("dae", "3d", "mesh_approx", "pipeline_3d_mesh", True, "COLLADA"),
     # 3D visual only
-    FormatRule("gltf", "3d", "visual_only", "pipeline_3d_visual", True, "glTF"),
-    FormatRule("glb", "3d", "visual_only", "pipeline_3d_visual", True, "GLB"),
+    FormatRule("gltf", "3d", "visual_only", "pipeline_3d_visual", True, "glTF", "preview_supported", True),
+    FormatRule("glb", "3d", "visual_only", "pipeline_3d_visual", True, "GLB", "preview_supported", True),
     # 2D
-    FormatRule("dxf", "2d", "2d_only", "pipeline_2d", True, "DXF"),
+    FormatRule("dxf", "2d", "2d_only", "pipeline_2d", True, "DXF", "dfm_supported", True, True, False, True),
     FormatRule("svg", "2d", "2d_only", "pipeline_2d", True, "SVG"),
     # Documents
-    FormatRule("pdf", "doc", "doc", "pipeline_doc", True, "PDF"),
-    FormatRule("docx", "doc", "doc", "pipeline_doc", True, "DOCX"),
-    FormatRule("xlsx", "doc", "doc", "pipeline_doc", True, "XLSX"),
-    FormatRule("pptx", "doc", "doc", "pipeline_doc", True, "PPTX"),
-    FormatRule("odt", "doc", "doc", "pipeline_doc", True, "ODT"),
-    FormatRule("ods", "doc", "doc", "pipeline_doc", True, "ODS"),
-    FormatRule("odp", "doc", "doc", "pipeline_doc", True, "ODP"),
-    FormatRule("rtf", "doc", "doc", "pipeline_doc", True, "RTF"),
-    FormatRule("txt", "doc", "doc", "pipeline_doc", True, "TXT"),
-    FormatRule("csv", "doc", "doc", "pipeline_doc", True, "CSV"),
-    FormatRule("html", "doc", "doc", "pipeline_doc", True, "HTML"),
-    FormatRule("htm", "doc", "doc", "pipeline_doc", True, "HTML"),
+    FormatRule("pdf", "doc", "doc", "pipeline_doc", True, "PDF", "dfm_supported", True, True, False, True),
+    FormatRule("docx", "doc", "doc", "pipeline_doc", True, "DOCX", "dfm_supported", True, True, False, True),
+    FormatRule("xlsx", "doc", "doc", "pipeline_doc", True, "XLSX", "preview_supported", True),
+    FormatRule("pptx", "doc", "doc", "pipeline_doc", True, "PPTX", "preview_supported", True),
+    FormatRule("odt", "doc", "doc", "pipeline_doc", True, "ODT", "preview_supported", True),
+    FormatRule("ods", "doc", "doc", "pipeline_doc", True, "ODS", "preview_supported", True),
+    FormatRule("odp", "doc", "doc", "pipeline_doc", True, "ODP", "preview_supported", True),
+    FormatRule("rtf", "doc", "doc", "pipeline_doc", True, "RTF", "preview_supported", True),
+    FormatRule("txt", "doc", "doc", "pipeline_doc", True, "TXT", "preview_supported", True),
+    FormatRule("csv", "doc", "doc", "pipeline_doc", True, "CSV", "preview_supported", True),
+    FormatRule("html", "doc", "doc", "pipeline_doc", True, "HTML", "preview_supported", True),
+    FormatRule("htm", "doc", "doc", "pipeline_doc", True, "HTML", "preview_supported", True),
     # Images
-    FormatRule("png", "image", "image", "pipeline_image", True, "PNG"),
-    FormatRule("jpg", "image", "image", "pipeline_image", True, "JPG"),
-    FormatRule("jpeg", "image", "image", "pipeline_image", True, "JPEG"),
-    FormatRule("webp", "image", "image", "pipeline_image", True, "WEBP"),
-    FormatRule("bmp", "image", "image", "pipeline_image", True, "BMP"),
-    FormatRule("gif", "image", "image", "pipeline_image", True, "GIF"),
-    FormatRule("tif", "image", "image", "pipeline_image", True, "TIF"),
-    FormatRule("tiff", "image", "image", "pipeline_image", True, "TIFF"),
+    FormatRule("png", "image", "image", "pipeline_image", True, "PNG", "preview_supported", True),
+    FormatRule("jpg", "image", "image", "pipeline_image", True, "JPG", "preview_supported", True),
+    FormatRule("jpeg", "image", "image", "pipeline_image", True, "JPEG", "preview_supported", True),
+    FormatRule("webp", "image", "image", "pipeline_image", True, "WEBP", "preview_supported", True),
+    FormatRule("bmp", "image", "image", "pipeline_image", True, "BMP", "preview_supported", True),
+    FormatRule("gif", "image", "image", "pipeline_image", True, "GIF", "preview_supported", True),
+    FormatRule("tif", "image", "image", "pipeline_image", True, "TIF", "preview_supported", True),
+    FormatRule("tiff", "image", "image", "pipeline_image", True, "TIFF", "preview_supported", True),
     # deterministic rejects
-    FormatRule("dwg", "2d", "rejected", "reject", False, "DWG", "STEP export required"),
-    FormatRule("fcstd", "3d", "rejected", "reject", False, "FreeCAD FCStd", "STEP export required"),
+    FormatRule("dwg", "2d", "rejected", "reject", False, "DWG", "unsupported", False, False, False, False, "STEP export required"),
+    FormatRule("fcstd", "3d", "rejected", "reject", False, "FreeCAD FCStd", "unsupported", False, False, False, False, "STEP export required"),
 )
 
 
@@ -120,7 +125,7 @@ def grouped_payload() -> dict[str, list[dict[str, str]]]:
         "rejected": [],
     }
     for rule in _RULES:
-        row = {"ext": rule.ext, "display_label": rule.display_label}
+        row = {"ext": rule.ext, "display_label": rule.display_label, "support_tier": rule.support_tier}
         if not rule.accept:
             row["reason"] = rule.reject_reason or "Unsupported format"
             groups["rejected"].append(row)
@@ -150,6 +155,11 @@ def as_public_rows() -> list[dict[str, str | bool | None]]:
                 "mode": rule.mode,
                 "pipeline": rule.pipeline,
                 "accept": rule.accept,
+                "support_tier": rule.support_tier,
+                "preview_supported": rule.preview_supported,
+                "metadata_extracted": rule.metadata_extracted,
+                "geometry_extracted": rule.geometry_extracted,
+                "dfm_supported": rule.dfm_supported,
                 "reject_reason": rule.reject_reason,
                 "display_label": rule.display_label,
             }

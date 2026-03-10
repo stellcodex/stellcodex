@@ -11,7 +11,7 @@ from typing import Any, Union
 from uuid import UUID, uuid4
 
 from botocore.exceptions import ClientError
-from fastapi import APIRouter, HTTPException, Depends, Form, UploadFile, File as FastAPIFile, Response
+from fastapi import APIRouter, HTTPException, Depends, Form, UploadFile, File as FastAPIFile, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.event_bus import default_event_bus
 from app.core.event_types import EventType
+from app.core.format_intelligence import public_extraction_summary
 from app.core.format_registry import (
     allowed_extensions as registry_allowed_extensions,
     extension_from_filename,
@@ -91,6 +92,8 @@ def _check_upload_rate(principal: Principal) -> None:
 
 def _validate_upload(content_type: str, size_bytes: int, filename: str, sniffed_content_type: str | None = None) -> None:
     max_bytes = getattr(settings, "max_upload_bytes", 100 * 1024 * 1024)
+    if size_bytes < 1:
+        raise HTTPException(status_code=400, detail="Empty file")
     if size_bytes > max_bytes:
         raise HTTPException(status_code=413, detail=f"File too large (max {max_bytes} bytes)")
 
@@ -418,11 +421,75 @@ def _assembly_meta_occurrences(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return normalized
 
 
+def _assembly_child_ids(raw_children: Any) -> list[str] | None:
+    if not isinstance(raw_children, list):
+        return None
+    child_ids: list[str] = []
+    for item in raw_children:
+        if isinstance(item, str):
+            token = item.strip()
+        elif isinstance(item, dict):
+            token = str(item.get("occurrence_id") or item.get("id") or "").strip()
+        else:
+            return None
+        if not token:
+            return None
+        child_ids.append(token)
+    return child_ids
+
+
+def _has_valid_occurrence_graph(occurrences: list[dict[str, Any]]) -> bool:
+    known_ids: list[str] = [row["occurrence_id"] for row in occurrences if isinstance(row.get("occurrence_id"), str)]
+    if len(known_ids) != len(set(known_ids)):
+        return False
+
+    children_map: dict[str, list[str]] = {}
+    parent_counts: dict[str, int] = {occ_id: 0 for occ_id in known_ids}
+    for row in occurrences:
+        occ_id = row["occurrence_id"]
+        child_ids = _assembly_child_ids(row.get("children"))
+        if child_ids is None or len(child_ids) != len(set(child_ids)):
+            return False
+        children_map[occ_id] = child_ids
+        for child_id in child_ids:
+            if child_id == occ_id or child_id not in parent_counts:
+                return False
+            parent_counts[child_id] += 1
+            if parent_counts[child_id] > 1:
+                return False
+
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def _dfs(node_id: str) -> bool:
+        if node_id in visited:
+            return True
+        if node_id in visiting:
+            return False
+        visiting.add(node_id)
+        for child_id in children_map.get(node_id, []):
+            if not _dfs(child_id):
+                return False
+        visiting.remove(node_id)
+        visited.add(node_id)
+        return True
+
+    roots = [occ_id for occ_id, count in parent_counts.items() if count == 0]
+    if not roots:
+        return False
+    for root_id in roots:
+        if not _dfs(root_id):
+            return False
+    return len(visited) == len(known_ids)
+
+
 def _is_valid_assembly_meta(payload: Any) -> bool:
     if not isinstance(payload, dict):
         return False
     occurrences = _assembly_meta_occurrences(payload)
     if not occurrences:
+        return False
+    if not _has_valid_occurrence_graph(occurrences):
         return False
     occurrence_to_nodes = _assembly_meta_index(payload)
     if not isinstance(occurrence_to_nodes, dict):
@@ -435,6 +502,8 @@ def _is_valid_assembly_meta(payload: Any) -> bool:
         if mapped is None:
             continue
         if not isinstance(mapped, list):
+            return False
+        if not all(isinstance(node, str) and node.strip() for node in mapped):
             return False
     return True
 
@@ -592,6 +661,9 @@ class FileOut(BaseModel):
     original_url: str | None = None
     bbox_meta: dict[str, Any] | None = None
     part_count: int | None = None
+    extraction_status: str | None = None
+    extraction_stage: str | None = None
+    support_tier: str | None = None
     error: str | None = None
     error_code: str | None = None
 
@@ -600,6 +672,7 @@ class FileDetailOut(FileOut):
     lods: dict[str, dict[str, Any]] | None = None
     quality_default: str = "Medium"
     view_mode_default: str = "shaded_edge"
+    extraction_summary: dict[str, Any] | None = None
 
 
 class FileVersionOut(BaseModel):
@@ -640,11 +713,15 @@ class UrlOut(BaseModel):
 
 
 class StatusOut(BaseModel):
+    file_id: str
     state: str
     derivatives_available: list[str]
     progress_hint: str | None = None
     progress_percent: int | None = None
     stage: str | None = None
+    extraction_status: str | None = None
+    extraction_stage: str | None = None
+    support_tier: str | None = None
 
 
 class RenderIn(BaseModel):
@@ -703,8 +780,25 @@ def _build_file_urls(
     if _file_kind(f.content_type, f.original_filename) == "doc":
         if (f.meta or {}).get("pdf_key"):
             return f"/api/v1/files/{public_id}/pdf", None, f"/api/v1/files/{public_id}/pdf"
-    original_url = f"/api/v1/files/{public_id}/content"
+    original_url = _content_url(f)
     return original_url, None, original_url
+
+
+def _content_url(f: UploadFileModel, *, download: bool = False) -> str:
+    public_id = _public_file_id(f.file_id)
+    suffix = "?download=1" if download else ""
+    return f"/api/v1/files/{public_id}/content{suffix}"
+
+
+def _upload_ingress_url(f: UploadFileModel) -> str:
+    return f"/api/v1/files/{_public_file_id(f.file_id)}/content"
+
+
+def _download_headers(f: UploadFileModel) -> dict[str, str]:
+    fallback = _public_file_id(f.file_id)
+    filename = os.path.basename(f.original_filename or "").strip() or fallback
+    safe_filename = filename.replace("\r", "_").replace("\n", "_").replace('"', "")
+    return {"Content-Disposition": f'attachment; filename="{safe_filename or fallback}"'}
 
 
 def _file_thumbnail_url(f: UploadFileModel) -> str | None:
@@ -843,10 +937,16 @@ def _projection_map(db: Session, file_ids: list[str]) -> dict[str, FileReadProje
     return {row.file_id: row for row in rows}
 
 
+def _extraction_summary(f: UploadFileModel) -> dict[str, Any] | None:
+    meta = f.meta if isinstance(f.meta, dict) else {}
+    return public_extraction_summary(meta)
+
+
 def _serialize_file_out(f: UploadFileModel, projection: FileReadProjection | None = None) -> FileOut:
     preview_url, gltf_url, original_url = _build_file_urls(f, projection)
     previews = _preview_urls(f)
     effective_status = _effective_status(f, projection)
+    extraction_summary = _extraction_summary(f)
     err = (f.meta or {}).get("error") if effective_status == "failed" else None
     error_code = (f.meta or {}).get("error_code") if effective_status == "failed" else None
     if effective_status == "failed" and not err and (f.status or "").lower() == "ready":
@@ -869,6 +969,9 @@ def _serialize_file_out(f: UploadFileModel, projection: FileReadProjection | Non
         original_url=original_url,
         bbox_meta=(_geometry_meta(f) or {}).get("bbox"),
         part_count=_projection_part_count(f, projection),
+        extraction_status=str(extraction_summary.get("extraction_status")) if isinstance(extraction_summary, dict) and extraction_summary.get("extraction_status") is not None else None,
+        extraction_stage=str(extraction_summary.get("extraction_stage")) if isinstance(extraction_summary, dict) and extraction_summary.get("extraction_stage") is not None else None,
+        support_tier=str(extraction_summary.get("support_tier")) if isinstance(extraction_summary, dict) and extraction_summary.get("support_tier") is not None else None,
         error=err,
         error_code=str(error_code) if error_code else None,
     )
@@ -926,13 +1029,7 @@ def initiate_upload(
         f"route=/api/v1/files/initiate"
     )
 
-    s3 = s3_presign_client()
-    url = s3.generate_presigned_url(
-        "put_object",
-        Params={"Bucket": bucket, "Key": key, "ContentType": data.content_type},
-        ExpiresIn=900,
-    )
-    return InitiateOut(file_id=_public_file_id(f.file_id), upload_url=url, expires_in_seconds=900)
+    return InitiateOut(file_id=_public_file_id(f.file_id), upload_url=_upload_ingress_url(f), expires_in_seconds=900)
 
 
 @router.post("/upload", response_model=FileOut)
@@ -1203,6 +1300,7 @@ def get_file(
         lods=_build_lod_map(f, include_key=False),
         quality_default=str(defaults.get("quality") or "Medium"),
         view_mode_default=str(defaults.get("view_mode") or "shaded_edge"),
+        extraction_summary=_extraction_summary(f),
     )
 
 
@@ -1451,11 +1549,15 @@ def file_status(
             progress_percent = 100
 
     return StatusOut(
+        file_id=_public_file_id(f.file_id),
         state=state,
         derivatives_available=derivatives,
         progress_hint=progress_hint,
         progress_percent=progress_percent,
         stage=stage,
+        extraction_status=str((_extraction_summary(f) or {}).get("extraction_status") or "") or None,
+        extraction_stage=str((_extraction_summary(f) or {}).get("extraction_stage") or "") or None,
+        support_tier=str((_extraction_summary(f) or {}).get("support_tier") or "") or None,
     )
 
 
@@ -1497,18 +1599,66 @@ def download_url(
     if f.status != "ready":
         raise HTTPException(status_code=409, detail="File not ready")
 
-    s3 = s3_presign_client()
-    url = s3.generate_presigned_url(
-        "get_object",
-        Params={"Bucket": f.bucket, "Key": f.object_key},
-        ExpiresIn=900,
+    return UrlOut(url=_content_url(f, download=True), expires_in_seconds=900)
+
+
+@router.put("/{file_id}/content", status_code=204)
+async def upload_content(
+    file_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(_require_principal),
+):
+    _feature_on()
+    f = _get_file_by_identifier(db, file_id)
+    if not f:
+        raise HTTPException(status_code=404, detail="File not found")
+    _assert_file_access(f, principal)
+    if (f.status or "").lower() != "pending":
+        raise HTTPException(status_code=409, detail="Upload ingress is closed")
+
+    header_content_type = str(request.headers.get("content-type") or "").split(";", 1)[0].strip()
+    if header_content_type and f.content_type and header_content_type != f.content_type:
+        raise HTTPException(status_code=415, detail="Uploaded content-type mismatch")
+
+    max_bytes = getattr(settings, "max_upload_bytes", 100 * 1024 * 1024)
+    total = 0
+    head = bytearray()
+    spool = tempfile.SpooledTemporaryFile(max_size=max_bytes + 1024)
+    async for chunk in request.stream():
+        if not chunk:
+            continue
+        total += len(chunk)
+        if total > max_bytes:
+            raise HTTPException(status_code=413, detail=f"File too large (max {max_bytes} bytes)")
+        if len(head) < 8192:
+            remaining = 8192 - len(head)
+            head.extend(chunk[:remaining])
+        spool.write(chunk)
+
+    sniffed = infer_mime_from_bytes(bytes(head), f.original_filename)
+    _validate_upload(f.content_type, total, f.original_filename, sniffed_content_type=sniffed)
+
+    spool.seek(0)
+    s3 = s3_client()
+    s3.upload_fileobj(
+        spool,
+        f.bucket,
+        f.object_key,
+        ExtraArgs={"ContentType": f.content_type},
     )
-    return UrlOut(url=url, expires_in_seconds=900)
+    f.updated_at = _now()
+    meta = f.meta if isinstance(f.meta, dict) else {}
+    f.meta = {**meta, "sniffed_content_type": sniffed}
+    db.add(f)
+    db.commit()
+    return Response(status_code=204)
 
 
 @router.get("/{file_id}/content")
 def download_content(
     file_id: str,
+    download: bool = False,
     db: Session = Depends(get_db),
     principal: Principal = Depends(_require_principal),
 ):
@@ -1523,7 +1673,8 @@ def download_content(
     s3 = s3_client()
     obj = s3.get_object(Bucket=f.bucket, Key=f.object_key)
     stream = obj["Body"].iter_chunks()
-    return StreamingResponse(stream, media_type=f.content_type)
+    headers = _download_headers(f) if download else None
+    return StreamingResponse(stream, media_type=f.content_type, headers=headers)
 
 
 @router.get("/{file_id}/thumbnail")

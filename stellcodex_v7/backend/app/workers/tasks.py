@@ -21,6 +21,7 @@ from app.core.config import settings
 from app.core.dlq import PermanentStageError, TransientStageError
 from app.core.event_bus import default_event_bus
 from app.core.event_types import EventType, StageName
+from app.core.format_intelligence import extract_format_intelligence
 from app.core.format_registry import get_rule_for_filename
 from app.core.hybrid_v1_rules import run_hybrid_v1_step_pipeline
 from app.core.memory_foundation import write_memory_payload
@@ -482,7 +483,15 @@ def _pipeline_image(f: UploadFile, input_path: Path, s3) -> dict:
     return {"thumbnail_key": thumb_key}
 
 
-def _pipeline_3d(f: UploadFile, input_path: Path, mode: str, s3) -> dict:
+def _pipeline_3d(
+    f: UploadFile,
+    input_path: Path,
+    mode: str,
+    s3,
+    *,
+    geometry_meta: dict[str, Any] | None = None,
+    part_count: int | None = None,
+) -> dict:
     ext = _ext(f.original_filename)
     out_glb = Path(input_path.parent) / "model.glb"
     gltf_key: str | None = None
@@ -502,9 +511,10 @@ def _pipeline_3d(f: UploadFile, input_path: Path, mode: str, s3) -> dict:
             # deterministic fallback: keep public contract complete and mark conversion fallback.
             gltf_key = f.object_key
 
-    estimated_part_count = _estimate_step_part_count(input_path) if ext in STEP_EXTS else 1
-    geometry_meta = _geometry_meta(input_path, ext, part_count=estimated_part_count)
-    assembly = _assembly_meta(mode, int(geometry_meta.get("part_count") or 1), f.original_filename)
+    effective_part_count = int(part_count or 0)
+    if effective_part_count < 1:
+        effective_part_count = _estimate_step_part_count(input_path) if ext in STEP_EXTS else 1
+    assembly = _assembly_meta(mode, effective_part_count, f.original_filename)
     assembly_key = f"metadata/{f.file_id}/assembly_meta.json"
     _upload_bytes(
         s3,
@@ -522,8 +532,8 @@ def _pipeline_3d(f: UploadFile, input_path: Path, mode: str, s3) -> dict:
         "assembly_meta_key": assembly_key,
         "assembly_meta": assembly,
         "preview_jpg_keys": preview_keys,
-        "geometry_meta_json": geometry_meta,
         "occurrence_count": len(assembly.get("occurrences") or []),
+        **({"geometry_meta_json": geometry_meta} if isinstance(geometry_meta, dict) else {}),
     }
 
 
@@ -560,9 +570,18 @@ def _assembly_meta_is_valid(payload: Any) -> bool:
         index_map = payload.get("occurrence_id_to_gltf_nodes") or {}
     else:
         return False
+    known_ids: list[str] = []
+    children_map: dict[str, list[str]] = {}
+    parent_counts: dict[str, int] = {}
     for item in occurrences:
         if not isinstance(item, dict):
             return False
+        occ_id = str(item.get("occurrence_id") or "").strip()
+        if occ_id in parent_counts:
+            return False
+        known_ids.append(occ_id)
+        parent_counts[occ_id] = 0
+    for item in occurrences:
         occ_id = str(item.get("occurrence_id") or "").strip()
         part_id = str(item.get("part_id") or "").strip()
         display_name = str(item.get("display_name") or item.get("name") or "").strip()
@@ -570,9 +589,55 @@ def _assembly_meta_is_valid(payload: Any) -> bool:
         children = item.get("children")
         if not occ_id or not part_id or not display_name or not isinstance(children, list) or not isinstance(selectable, bool):
             return False
+        child_ids: list[str] = []
+        for child in children:
+            if isinstance(child, str):
+                child_id = child.strip()
+            elif isinstance(child, dict):
+                child_id = str(child.get("occurrence_id") or child.get("id") or "").strip()
+            else:
+                return False
+            if not child_id:
+                return False
+            child_ids.append(child_id)
+        if len(child_ids) != len(set(child_ids)):
+            return False
+        children_map[occ_id] = child_ids
+        for child_id in child_ids:
+            if child_id == occ_id or child_id not in parent_counts:
+                return False
+            parent_counts[child_id] += 1
+            if parent_counts[child_id] > 1:
+                return False
         mapped = index_map.get(occ_id, [])
         if not isinstance(mapped, list):
             return False
+        if not all(isinstance(node, str) and node.strip() for node in mapped):
+            return False
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def _dfs(node_id: str) -> bool:
+        if node_id in visited:
+            return True
+        if node_id in visiting:
+            return False
+        visiting.add(node_id)
+        for child_id in children_map.get(node_id, []):
+            if not _dfs(child_id):
+                return False
+        visiting.remove(node_id)
+        visited.add(node_id)
+        return True
+
+    roots = [occ_id for occ_id, count in parent_counts.items() if count == 0]
+    if not roots:
+        return False
+    for root_id in roots:
+        if not _dfs(root_id):
+            return False
+    if len(visited) != len(known_ids):
+        return False
     return True
 
 
@@ -629,9 +694,50 @@ def _stage_convert(db, envelope, version_no: int) -> dict[str, Any]:
             if virus_status == "infected":
                 raise PermanentStageError("Virus scan failed", "STORAGE_FAIL")
 
+            extraction = extract_format_intelligence(
+                local_path,
+                file_id=f.file_id,
+                tenant_id=int(f.tenant_id),
+                original_filename=f.original_filename,
+                mime_type=f.content_type,
+                size_bytes=int(f.size_bytes),
+                checksum=str(f.sha256) if f.sha256 else None,
+                sniffed_content_type=str(meta.get("sniffed_content_type") or "") or None,
+            )
+            real_supported_tier = str(extraction.get("support_tier") or "") in {"metadata_extracted", "geometry_extracted", "dfm_supported"}
+            extraction_status = str(extraction.get("extraction_status") or "")
+            if not f.sha256 and isinstance(extraction.get("checksum"), str) and extraction.get("checksum"):
+                f.sha256 = str(extraction["checksum"])
+            if extraction_status == "failed" and real_supported_tier:
+                extraction_errors = extraction.get("extraction_errors") if isinstance(extraction.get("extraction_errors"), list) else []
+                first_error = extraction_errors[0] if extraction_errors and isinstance(extraction_errors[0], dict) else {}
+                f.meta = {
+                    **meta,
+                    "kind": kind,
+                    "mode": mode,
+                    "project_id": _memory_project_id(meta),
+                    "virus_scan_status": "clean",
+                    "extraction_result": extraction,
+                    "stage": StageName.CONVERT.value,
+                    "progress_percent": 34,
+                    "progress": "convert.extraction_failed",
+                }
+                db.add(f)
+                upsert_projection(db, f)
+                db.commit()
+                message = str(first_error.get("message") or "Extraction failed safely")
+                raise PermanentStageError(message, "CONVERT_FAIL")
+
             _set_progress(db, f, stage=StageName.CONVERT.value, percent=34, hint="convert.processing", status="running")
             if kind == "3d":
-                result_payload = _pipeline_3d(f, local_path, mode, s3)
+                result_payload = _pipeline_3d(
+                    f,
+                    local_path,
+                    mode,
+                    s3,
+                    geometry_meta=extraction.get("geometry_meta_json") if isinstance(extraction.get("geometry_meta_json"), dict) else None,
+                    part_count=int(extraction.get("part_count") or 0) if isinstance(extraction.get("part_count"), int) else None,
+                )
                 geometry_report, dfm_findings = _hybrid_artifacts_if_step(
                     local_path,
                     _ext(f.original_filename),
@@ -678,11 +784,12 @@ def _stage_convert(db, envelope, version_no: int) -> dict[str, Any]:
         "assembly_meta": result_payload.get("assembly_meta") if isinstance(result_payload.get("assembly_meta"), dict) else meta.get("assembly_meta"),
         "preview_jpg_keys": result_payload.get("preview_jpg_keys"),
         "pdf_key": result_payload.get("pdf_key"),
-        "geometry_meta_json": geometry if isinstance(geometry, dict) else meta.get("geometry_meta_json"),
+        "geometry_meta_json": geometry if isinstance(geometry, dict) else None,
         "occurrence_count": occurrence_count if occurrence_count is not None else meta.get("occurrence_count"),
         "part_count": occurrence_count if occurrence_count is not None else meta.get("part_count"),
         "geometry_report": result_payload.get("geometry_report") if isinstance(result_payload.get("geometry_report"), dict) else meta.get("geometry_report"),
         "dfm_findings": result_payload.get("dfm_findings") if isinstance(result_payload.get("dfm_findings"), dict) else meta.get("dfm_findings"),
+        "extraction_result": extraction,
         "stage": StageName.CONVERT.value,
         "progress_percent": 40,
         "progress": "convert.done",

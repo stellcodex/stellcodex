@@ -39,7 +39,7 @@ def _require_user(principal: Principal) -> None:
 
 
 def _allowed_role(role: str | None) -> bool:
-    return str(role or "").strip().lower() in {"owner", "admin", "support"}
+    return str(role or "").strip().lower() in {"admin", "support"}
 
 
 def _load_session(db: Session, session_id: str) -> OrchestratorSession:
@@ -108,6 +108,16 @@ def _approval_response(file_row: UploadFileModel, row: OrchestratorSession, deci
     )
 
 
+def _approval_transition_path(state: str) -> list[str]:
+    if state == "S4":
+        return ["S5", "S6", "S7"]
+    if state == "S5":
+        return ["S6", "S7"]
+    if state == "S6":
+        return ["S7"]
+    return []
+
+
 @router.post("/{session_id}/approve", response_model=ApprovalActionOut)
 def approve_session(
     session_id: str,
@@ -126,10 +136,7 @@ def approve_session(
     if bool(decision.get("approval_required")) and state not in {"S4", "S5"}:
         raise HTTPException(status_code=409, detail="Approval-required session must be in S4 or S5")
 
-    transition_path: list[str] = []
-    if state == "S4":
-        transition_path.append("S5")
-    transition_path.extend(["S6", "S7"])
+    transition_path = _approval_transition_path(state)
 
     decision["state"] = "S7"
     decision["state_code"] = "S7"
@@ -137,7 +144,7 @@ def approve_session(
     decision["status_gate"] = "PASS"
     decision["approval_required"] = False
     decision["decision"] = "approve_manual"
-    decision["state_transition_path"] = [state] + transition_path
+    decision["state_transition_path"] = [state] + transition_path if transition_path else [state]
     _append_reason(
         decision,
         f"manual approval accepted; transition path={'->'.join([state] + transition_path)}.",

@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import patch
 
 from app.core.orchestrator import ensure_session_decision
-from app.services.orchestrator_engine import build_decision_json
+from app.services.orchestrator_engine import build_decision_json, upsert_orchestrator_session
 
 
 def _file(status: str, kind: str = "3d", mode: str = "brep", extra_meta: dict | None = None):
@@ -162,6 +162,153 @@ class OrchestratorCoreTests(unittest.TestCase):
         self.assertEqual(decision["status_gate"], "PASS")
         self.assertFalse(decision["approval_required"])
         self.assertIn("required_inputs_acknowledged_by_manual_approval", " ".join(decision["rule_explanations"]))
+
+    def test_decision_is_deterministic_for_same_input_when_clock_is_fixed(self) -> None:
+        file_row = _file(
+            "ready",
+            extra_meta={
+                "dfm_findings": {"status_gate": "PASS", "risk_flags": ["thin_wall"]},
+                "geometry_report": {"critical_unknowns": []},
+            },
+        )
+
+        with patch("app.services.orchestrator_engine._now_iso", return_value="2026-03-10T00:00:00Z"):
+            left = build_decision_json(file_row, _rules())
+            right = build_decision_json(file_row, _rules())
+
+        self.assertEqual(left, right)
+
+    def test_decision_thresholds_come_from_rule_configs(self) -> None:
+        file_row = _file("ready")
+        rules = {
+            **_rules(),
+            "draft_min_deg": 3.5,
+            "wall_mm_min": 1.7,
+            "wall_mm_max": 8.2,
+            "quantity_threshold_high": 321,
+        }
+
+        decision = build_decision_json(file_row, rules)
+
+        self.assertEqual(decision["thresholds"]["draft_min_deg"], 3.5)
+        self.assertEqual(decision["thresholds"]["wall_mm_min"], 1.7)
+        self.assertEqual(decision["thresholds"]["wall_mm_max"], 8.2)
+        self.assertEqual(decision["thresholds"]["quantity_threshold_high"], 321.0)
+
+    def test_geometry_mode_classification_matches_file_extension(self) -> None:
+        cases = [
+            ("demo.step", "brep"),
+            ("demo.stl", "mesh_approx"),
+            ("demo.glb", "visual_only"),
+        ]
+        for filename, expected in cases:
+            with self.subTest(filename=filename):
+                file_row = SimpleNamespace(
+                    file_id="scx_file_aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                    status="ready",
+                    original_filename=filename,
+                    meta={"kind": "3d"},
+                )
+                decision = build_decision_json(file_row, _rules())
+                self.assertEqual(decision["mode"], expected)
+
+    def test_upsert_session_blocks_s4_to_s7_bypass_without_transition_path(self) -> None:
+        existing = SimpleNamespace(
+            state="S4",
+            state_code="S4",
+            state_label="dfm_ready",
+            status_gate="NEEDS_APPROVAL",
+            approval_required=True,
+            rule_version="v7.0.0",
+            mode="brep",
+            confidence=0.5,
+            risk_flags=[],
+            decision_json={},
+            notes=None,
+        )
+        file_row = SimpleNamespace(file_id="scx_file_12121212-1212-1212-1212-121212121212")
+
+        class _Query:
+            def filter(self, *_args, **_kwargs):
+                return self
+
+            def first(self):
+                return existing
+
+        class _DB:
+            def query(self, *_args, **_kwargs):
+                return _Query()
+
+            def add(self, *_args, **_kwargs):
+                return None
+
+        decision = {
+            "state": "S7",
+            "state_code": "S7",
+            "state_label": "share_ready",
+            "status_gate": "PASS",
+            "approval_required": False,
+            "rule_version": "v7.0.0",
+            "mode": "brep",
+            "confidence": 0.8,
+            "risk_flags": [],
+            "conflict_flags": [],
+            "rule_explanations": ["attempted bypass"],
+        }
+        row = upsert_orchestrator_session(_DB(), file_row, decision)
+
+        self.assertEqual(row.state, "S5")
+        self.assertTrue(decision["approval_required"])
+        self.assertEqual(decision["status_gate"], "NEEDS_APPROVAL")
+
+    def test_upsert_session_allows_explicit_safe_progression_path(self) -> None:
+        existing = SimpleNamespace(
+            state="S4",
+            state_code="S4",
+            state_label="dfm_ready",
+            status_gate="NEEDS_APPROVAL",
+            approval_required=True,
+            rule_version="v7.0.0",
+            mode="brep",
+            confidence=0.5,
+            risk_flags=[],
+            decision_json={},
+            notes=None,
+        )
+        file_row = SimpleNamespace(file_id="scx_file_34343434-3434-3434-3434-343434343434")
+
+        class _Query:
+            def filter(self, *_args, **_kwargs):
+                return self
+
+            def first(self):
+                return existing
+
+        class _DB:
+            def query(self, *_args, **_kwargs):
+                return _Query()
+
+            def add(self, *_args, **_kwargs):
+                return None
+
+        decision = {
+            "state": "S7",
+            "state_code": "S7",
+            "state_label": "share_ready",
+            "status_gate": "PASS",
+            "approval_required": False,
+            "state_transition_path": ["S4", "S5", "S6", "S7"],
+            "rule_version": "v7.0.0",
+            "mode": "brep",
+            "confidence": 0.8,
+            "risk_flags": [],
+            "conflict_flags": [],
+            "rule_explanations": ["safe explicit progression"],
+        }
+        row = upsert_orchestrator_session(_DB(), file_row, decision)
+
+        self.assertEqual(row.state, "S7")
+        self.assertFalse(decision["approval_required"])
 
 
 if __name__ == "__main__":

@@ -23,6 +23,28 @@ def _rule_float(rules: dict[str, Any], key: str) -> float:
     return _as_float(rules.get(key))
 
 
+def _validated_decision_json(decision_json: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(decision_json, dict) or not decision_json:
+        raise RuntimeError("decision_json is required")
+
+    required = ("mode", "confidence", "rule_version", "rule_explanations")
+    missing = [key for key in required if key not in decision_json]
+    if missing:
+        raise RuntimeError(f"decision_json missing required keys: {missing}")
+
+    mode = str(decision_json.get("mode") or "").strip()
+    if not mode:
+        raise RuntimeError("decision_json.mode is required")
+    if not isinstance(decision_json.get("confidence"), (int, float)):
+        raise RuntimeError("decision_json.confidence is required")
+    rule_version = str(decision_json.get("rule_version") or "").strip()
+    if not rule_version:
+        raise RuntimeError("decision_json.rule_version is required")
+    if not isinstance(decision_json.get("rule_explanations"), list):
+        raise RuntimeError("decision_json.rule_explanations is required")
+    return decision_json
+
+
 def _simple_pdf_bytes(title: str, body: list[str]) -> bytes:
     lines = [f"BT /F1 18 Tf 72 760 Td ({title}) Tj ET"]
     y = 730
@@ -65,6 +87,7 @@ def build_dfm_report(
     decision_json: dict[str, Any],
     deterministic_rules: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    decision_json = _validated_decision_json(decision_json)
     meta = file_row.meta if isinstance(getattr(file_row, "meta", None), dict) else {}
     geometry = meta.get("geometry_meta_json") if isinstance(meta.get("geometry_meta_json"), dict) else {}
     geometry_report = meta.get("geometry_report") if isinstance(meta.get("geometry_report"), dict) else {}

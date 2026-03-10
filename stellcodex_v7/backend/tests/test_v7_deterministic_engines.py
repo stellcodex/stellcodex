@@ -78,10 +78,34 @@ class V7DeterministicEngineTests(unittest.TestCase):
         self.assertIn("shrinkage_warnings", report)
         self.assertIn("recommendations", report)
         self.assertEqual(report["mode"], "brep")
+        self.assertEqual(report["confidence"], 0.91)
         self.assertEqual(report["rule_version"], "v7.0.0")
-        self.assertIsInstance(report["rule_explanations"], list)
+        self.assertEqual(report["rule_explanations"], ["deterministic checks"])
         pdf_bytes = build_dfm_pdf(report)
         self.assertTrue(pdf_bytes.startswith(b"%PDF-1.4"))
+
+    def test_dfm_engine_rejects_missing_decision_json_contract_fields(self) -> None:
+        file_row = SimpleNamespace(file_id="scx_file_55555555-5555-5555-5555-555555555555", meta={})
+        rules = {
+            "rule_version": "v7.0.0",
+            "draft_min_deg": 1.0,
+            "wall_mm_min": 1.0,
+            "wall_mm_max": 3.0,
+            "shrinkage_warn_pct": 2.0,
+        }
+        invalid_payloads = [
+            None,
+            {},
+            {"mode": "brep", "confidence": 0.8, "rule_explanations": ["ok"]},
+            {"confidence": 0.8, "rule_version": "v7.0.0", "rule_explanations": ["ok"]},
+            {"mode": "brep", "rule_version": "v7.0.0", "rule_explanations": ["ok"]},
+            {"mode": "brep", "confidence": 0.8, "rule_version": "v7.0.0"},
+        ]
+
+        for payload in invalid_payloads:
+            with self.subTest(payload=payload):
+                with self.assertRaises(RuntimeError):
+                    build_dfm_report(file_row, rules, payload, deterministic_rules=[])
 
     def test_state_machine_blocks_skip_transitions(self) -> None:
         bounded_state, path, checkpoint = enforce_state_machine("S4", "S7")

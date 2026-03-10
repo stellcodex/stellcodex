@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import unittest
 
+from app.core.format_intelligence import public_extraction_summary
 from app.api.v1.routes.files import _serialize_file_out
 from app.api.v1.routes.share import _serialize_share_resolve
 from app.main import app
@@ -77,8 +78,32 @@ class PublicContractLeakTests(unittest.TestCase):
         self.assertNotIn("revision" + "_id", props)
 
     def test_product_route_no_private_key_presign_contract(self) -> None:
-        source = Path("app/api/v1/routes/product.py").read_text(encoding="utf-8")
+        source = (Path(__file__).resolve().parents[1] / "app/api/v1/routes/product.py").read_text(encoding="utf-8")
         self.assertNotIn("a.storage" + "_key", source)
+
+    def test_public_extraction_summary_does_not_leak_private_fields(self) -> None:
+        payload = public_extraction_summary(
+            {
+                "extraction_result": {
+                    "source_format": "stl",
+                    "support_tier": "dfm_supported",
+                    "extraction_status": "completed",
+                    "extraction_stage": "completed",
+                    "preview_supported": True,
+                    "metadata_extracted": True,
+                    "geometry_extracted": True,
+                    "dfm_supported": True,
+                    "bbox": {"x": 10, "y": 12, "z": 5},
+                    "engineering_rules": [{"rule_id": "units_missing", "status": "warn"}],
+                    "extracted_text_preview": "REV A MATERIAL: AL6061",
+                    "object_key": "uploads/private/raw",
+                    "storage_key": "s3://private-bucket/uploads/private/raw",
+                    "revision_id": "rev-1",
+                }
+            }
+        )
+        self.assertIsNotNone(payload)
+        _assert_no_banned_content(payload or {})
 
 
 if __name__ == "__main__":
