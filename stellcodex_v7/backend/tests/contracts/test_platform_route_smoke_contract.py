@@ -73,10 +73,10 @@ def test_legacy_dashboard_routes_redirect_into_workspace_shell() -> None:
     settings_text = DASHBOARD_SETTINGS_PATH.read_text(encoding="utf-8")
     shares_text = DASHBOARD_SHARES_PATH.read_text(encoding="utf-8")
 
-    assert "WorkspaceRedirect" in dashboard_text
-    assert 'suffix="/files"' in files_text
-    assert 'suffix="/settings"' in settings_text
-    assert 'suffix="/files"' in shares_text
+    assert 'redirect("/");' in dashboard_text
+    assert 'redirect("/files");' in files_text
+    assert 'redirect("/settings");' in settings_text
+    assert 'redirect("/files");' in shares_text
 
 
 def test_home_surface_primary_actions_are_unique() -> None:

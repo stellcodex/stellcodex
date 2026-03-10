@@ -1,6 +1,8 @@
 import fs from "fs";
 import path from "path";
 
+export const revalidate = 1800;
+
 function collectDocs(root: string, base: string, out: string[]) {
   const entries = fs.readdirSync(root, { withFileTypes: true });
   for (const entry of entries) {
@@ -30,16 +32,16 @@ export default function DocsPage() {
           Docs
         </div>
         <h1 className="mt-4 text-xl font-semibold tracking-tight text-[#0c2a2a] sm:text-2xl">
-          Help and documentation
+          Help and documentation for the STELLCODEX suite
         </h1>
         <p className="mt-3 text-sm text-[#2c4b49]">
-          Getting started guides, format lists, troubleshooting notes, and FAQ live here.
+          Getting started guides, format lists, troubleshooting notes, and suite behavior references live here.
         </p>
       </header>
 
       <section className="mt-8 rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
         <div className="text-sm font-semibold text-[#0c2a2a]">Getting Started</div>
-        <p className="mt-2 text-sm text-[#2c4b49]">Upload -> View -> Share.</p>
+        <p className="mt-2 text-sm text-[#2c4b49]">Upload -> Route -> Review -> Share.</p>
       </section>
 
       <section className="mt-6 rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">

@@ -1,5 +1,5 @@
-import { WorkspaceRedirect } from "@/components/workspace/WorkspaceRedirect";
+import { redirect } from "next/navigation";
 
 export default function DashboardFilesPage() {
-  return <WorkspaceRedirect suffix="/files" />;
+  redirect("/files");
 }

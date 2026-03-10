@@ -1,5 +1,5 @@
-import { WorkspaceRedirect } from "@/components/workspace/WorkspaceRedirect";
+import { redirect } from "next/navigation";
 
 export default function DashboardSettingsPage() {
-  return <WorkspaceRedirect suffix="/settings" />;
+  redirect("/settings");
 }

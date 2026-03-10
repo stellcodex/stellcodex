@@ -1,5 +1,7 @@
 "use client";
 
+export const revalidate = 300;
+
 import { useEffect, useMemo, useState } from "react";
 import accessControl from "@/security/access-control.source.json";
 import statusStatic from "@/data/status.static.json";

@@ -1,6 +1,5 @@
-import { WorkspaceRedirect } from "@/components/workspace/WorkspaceRedirect";
+import { redirect } from "next/navigation";
 
 export default function DashboardPage() {
-  // Legacy dashboard now resolves into the canonical suite home.
-  return <WorkspaceRedirect />;
+  redirect("/");
 }
