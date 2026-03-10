@@ -11,11 +11,11 @@ export default function HomePage() {
             STELLCODEX ENGINEERING WORKSPACE
           </div>
           <h1 className="mt-4 text-xl font-semibold tracking-tight text-[#0c2a2a] sm:text-2xl">
-            Review. Inspect. Share. Engineering data without CAD installs.
+            One suite for 3D review, 2D review, documents, files, and controlled sharing.
           </h1>
           <p className="mt-4 max-w-xl text-sm text-[#2c4b49]">
             Built for industrial designers, manufacturing teams, and decision makers without CAD licenses.
-            Upload a file, view it in 2D or 3D, and share it with a controlled link.
+            Upload once, route the file into the right STELLCODEX application, and keep every handoff inside one trusted platform.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Button href="/">Open STELLCODEX</Button>
@@ -89,11 +89,10 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="rounded-3xl border border-[#d7d3c8] bg-[#0c3b3a] p-5 text-white shadow-sm">
+        <div className="rounded-3xl border border-[#cfe1de] bg-[#eef8f6] p-5 text-[#0c2a2a] shadow-sm">
           <div className="text-sm font-semibold">Before you upload</div>
-          <p className="mt-2 text-sm text-white/80">
-            STEP, IGES, STL, PDF, PNG, DXF, and more. Upload and viewing stay smooth,
-            stable, and secure.
+          <p className="mt-2 text-sm text-[#2c4b49]">
+            STEP, IGES, STL, PDF, PNG, DXF, and more. STELLCODEX will open the responsible application automatically and keep the flow simple.
           </p>
           <div className="mt-4">
             <Button href="/upload" variant="secondary">
@@ -122,7 +121,7 @@ export default function HomePage() {
           <div className="rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
             <div className="text-sm font-semibold text-[#0c2a2a]">2D + 3D in one place</div>
             <p className="mt-2 text-sm text-[#2c4b49]">
-              One link keeps engineering teams and customers aligned on the same model.
+              One suite keeps engineering teams and customers aligned on the same file without sending them into separate products.
             </p>
           </div>
           <div className="rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
@@ -194,9 +193,9 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="rounded-3xl border border-[#d7d3c8] bg-[#0c3b3a] p-5 text-white shadow-sm">
+        <div className="rounded-3xl border border-[#cfe1de] bg-[#eef8f6] p-5 text-[#0c2a2a] shadow-sm">
           <div className="text-sm font-semibold">Security and limits</div>
-          <ul className="mt-3 grid gap-2 text-sm text-white/80">
+          <ul className="mt-3 grid gap-2 text-sm text-[#2c4b49]">
             <li>Read-only viewing</li>
             <li>Controlled sharing links</li>
             <li>PII masking and audit logging</li>

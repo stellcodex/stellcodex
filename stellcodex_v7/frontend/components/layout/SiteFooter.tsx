@@ -21,8 +21,8 @@ export function SiteFooter() {
             <Link className="text-[#4b5563] hover:text-[#111827]" href="/docs">
               Docs
             </Link>
-            <Link className="text-[#4b5563] hover:text-[#111827]" href="/dashboard">
-              Dashboard
+            <Link className="text-[#4b5563] hover:text-[#111827]" href="/">
+              Open Suite
             </Link>
             <Link className="text-[#4b5563] hover:text-[#111827]" href="/login">
               Sign In
@@ -38,7 +38,7 @@ export function SiteFooter() {
 
         <div className="mt-8 flex flex-wrap items-center justify-between gap-2 text-xs text-[#6b7280]">
           <span>© 2026 STELLCODEX</span>
-          <span>Review + Share • Web + PWA</span>
+          <span>One suite • Separate apps • Web + PWA</span>
         </div>
       </div>
     </footer>

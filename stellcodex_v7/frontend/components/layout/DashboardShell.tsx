@@ -8,7 +8,7 @@ import { clsx } from "clsx";
 import { Button } from "@/components/ui/Button";
 
 const nav = [
-  { href: "/dashboard", label: "Overview" },
+  { href: "/dashboard", label: "Suite Home" },
   { href: "/dashboard/files", label: "Files" },
   { href: "/dashboard/shares", label: "Shares" },
   { href: "/dashboard/settings", label: "Settings" },
@@ -34,7 +34,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       <div className="flex">
         <aside className="hidden w-64 flex-col border-r border-slate-200 bg-white p-4 lg:flex">
           <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-            Dashboard
+            Suite Redirect
           </div>
           <nav className="mt-4 grid gap-1">
             {items.map((item) => (
@@ -66,16 +66,16 @@ export function DashboardShell({ children }: { children: ReactNode }) {
                 <button
                   className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white lg:hidden"
                   onClick={() => setOpen((s) => !s)}
-                  aria-label="Open dashboard menu"
+                  aria-label="Open suite menu"
                   aria-expanded={open}
                 >
                   ☰
                 </button>
-                <div className="text-sm font-semibold text-slate-900">User Dashboard</div>
+                <div className="text-sm font-semibold text-slate-900">STELLCODEX Suite</div>
               </div>
               <div className="flex items-center gap-2">
-                <Button href="/dashboard" variant="secondary">
-                  Dashboard
+                <Button href="/" variant="secondary">
+                  Open Suite
                 </Button>
                 <div className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500">
                   Session

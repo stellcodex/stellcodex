@@ -7,7 +7,7 @@ import { clsx } from "clsx";
 import { useUser } from "@/context/UserContext";
 
 const ITEMS = [
-  { href: "/dashboard", label: "Dashboard", icon: "⬜" },
+  { href: "/", label: "Suite Home", icon: "⬜" },
   { href: "/files", label: "My Files", icon: "◎" },
   { href: "/shares", label: "Shares", icon: "⇗" },
   { href: "/settings", label: "Settings", icon: "⚙" },
@@ -22,7 +22,7 @@ export function LeftNav() {
   const NavItem = ({ href, label, icon }: { href: string; label: string; icon: string }) => {
     const active =
       pathname === href ||
-      (href === "/dashboard" && pathname === "/") ||
+      (href === "/" && pathname === "/") ||
       (href !== "/" && pathname.startsWith(`${href}/`));
 
     return (

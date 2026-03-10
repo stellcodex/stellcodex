@@ -9,7 +9,7 @@ import { clsx } from "clsx";
 
 const nav = [
   { href: "/", label: "Home" },
-  { href: "/dashboard", label: "Dashboard" },
+  { href: "/", label: "Suite" },
   { href: "/docs", label: "Docs" },
 ];
 
@@ -67,7 +67,7 @@ export function SiteHeader() {
             <Button href="/login" variant="ghost">
               Sign In
             </Button>
-            <Button href="/dashboard">Dashboard</Button>
+            <Button href="/">Open Suite</Button>
           </div>
 
           <button
@@ -102,7 +102,7 @@ export function SiteHeader() {
                   <Button href="/login" variant="secondary">
                     Sign In
                   </Button>
-                  <Button href="/dashboard">Dashboard</Button>
+                  <Button href="/">Open Suite</Button>
                 </div>
               </div>
             </div>

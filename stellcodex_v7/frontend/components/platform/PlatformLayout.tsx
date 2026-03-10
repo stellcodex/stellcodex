@@ -90,16 +90,16 @@ export function PlatformLayout({ title, subtitle, children, sessionState }: Plat
   return (
     <div className="flex min-h-screen bg-[var(--platform-bg)] text-[var(--platform-text)]">
       <aside
-        className={`sticky top-0 hidden h-screen flex-col border-r border-white/10 bg-[var(--platform-sidebar)] transition-all duration-200 lg:flex ${
+        className={`sticky top-0 hidden h-screen flex-col border-r border-[#d7dfde] bg-[var(--platform-sidebar)] transition-all duration-200 lg:flex ${
           collapsed ? "w-[76px]" : "w-[260px]"
         }`}
       >
         <div className="flex h-14 items-center justify-between px-3">
-          {!collapsed ? <div className="text-xs font-semibold tracking-[0.28em] text-white/55">STELLCODEX</div> : <div />}
+          {!collapsed ? <div className="text-xs font-semibold tracking-[0.28em] text-[#111827]">STELLCODEX</div> : <div />}
           <button
             type="button"
             onClick={() => setCollapsed((value) => !value)}
-            className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white/70 hover:bg-white/10"
+            className="rounded-lg border border-[#d7dfde] bg-[#f6f8f7] px-2.5 py-1.5 text-xs text-[#4b5563] hover:bg-[#edf4f2]"
           >
             {collapsed ? "Open" : "Focus"}
           </button>
@@ -109,7 +109,7 @@ export function PlatformLayout({ title, subtitle, children, sessionState }: Plat
           <button
             type="button"
             onClick={onCreateSession}
-            className="flex w-full items-center justify-center rounded-2xl bg-white/7 px-3 py-3 text-sm font-medium text-white hover:bg-white/12"
+            className="flex w-full items-center justify-center rounded-2xl bg-[#0f766e] px-3 py-3 text-sm font-medium text-white hover:bg-[#0c5f59]"
           >
             {collapsed ? "+" : "New workspace"}
           </button>
@@ -124,7 +124,7 @@ export function PlatformLayout({ title, subtitle, children, sessionState }: Plat
                 key={item.href}
                 href={href}
                 className={`flex items-center rounded-xl px-3 py-2 text-sm ${
-                  active ? "bg-white/12 text-white" : "text-white/65 hover:bg-white/6 hover:text-white"
+                  active ? "bg-[#edf4f2] text-[#111827]" : "text-[#4b5563] hover:bg-[#f4f7f6] hover:text-[#111827]"
                 }`}
               >
                 {collapsed ? item.label.slice(0, 1) : item.label}
@@ -134,7 +134,7 @@ export function PlatformLayout({ title, subtitle, children, sessionState }: Plat
         </nav>
 
         <div className="mt-5 px-3">
-          <div className="mb-2 text-[11px] uppercase tracking-[0.2em] text-white/35">
+          <div className="mb-2 text-[11px] uppercase tracking-[0.2em] text-[#6b7280]">
             {collapsed ? "W" : "Workspaces"}
           </div>
           <div className="space-y-1">
@@ -146,7 +146,7 @@ export function PlatformLayout({ title, subtitle, children, sessionState }: Plat
                   type="button"
                   onClick={() => onSelectSession(session.id)}
                   className={`w-full rounded-xl px-3 py-2 text-left text-sm ${
-                    active ? "bg-white/12 text-white" : "text-white/58 hover:bg-white/6 hover:text-white"
+                    active ? "bg-[#edf4f2] text-[#111827]" : "text-[#4b5563] hover:bg-[#f4f7f6] hover:text-[#111827]"
                   }`}
                 >
                   {collapsed ? session.title.slice(0, 1) : session.title}
@@ -157,7 +157,7 @@ export function PlatformLayout({ title, subtitle, children, sessionState }: Plat
         </div>
 
         <div className="mt-5 flex-1 overflow-y-auto px-3 pb-6">
-          <div className="mb-2 text-[11px] uppercase tracking-[0.2em] text-white/35">
+          <div className="mb-2 text-[11px] uppercase tracking-[0.2em] text-[#6b7280]">
             {collapsed ? "A" : "Applications"}
           </div>
           <div className="space-y-3">
@@ -166,7 +166,7 @@ export function PlatformLayout({ title, subtitle, children, sessionState }: Plat
               if (items.length === 0) return null;
               return (
                 <div key={category}>
-                  {!collapsed ? <div className="mb-1 text-xs text-white/35">{category}</div> : null}
+                  {!collapsed ? <div className="mb-1 text-xs text-[#6b7280]">{category}</div> : null}
                   <div className="space-y-1">
                     {items.map((app) => {
                       const href = resolveWorkspaceHref(workspaceId, app.route);
@@ -175,7 +175,7 @@ export function PlatformLayout({ title, subtitle, children, sessionState }: Plat
                           key={app.id}
                           href={href}
                           className={`flex rounded-xl px-3 py-2 text-sm ${
-                            pathname === href ? "bg-white/12 text-white" : "text-white/58 hover:bg-white/6 hover:text-white"
+                            pathname === href ? "bg-[#edf4f2] text-[#111827]" : "text-[#4b5563] hover:bg-[#f4f7f6] hover:text-[#111827]"
                           }`}
                         >
                           {collapsed ? app.shortName : app.name}
@@ -191,37 +191,34 @@ export function PlatformLayout({ title, subtitle, children, sessionState }: Plat
       </aside>
 
       <div className="flex min-h-screen flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-white/10 bg-[var(--platform-bg)]/92 px-4 backdrop-blur">
+        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-[#d7dfde] bg-white/92 px-4 backdrop-blur">
           <div>
-            <div className="text-sm font-semibold text-white">{title}</div>
-            {subtitle ? <div className="text-xs text-white/40">{subtitle}</div> : null}
+            <div className="text-sm font-semibold text-[#111827]">{title}</div>
+            {subtitle ? <div className="text-xs text-[#6b7280]">{subtitle}</div> : null}
           </div>
 
           <div className="relative">
             <button
               type="button"
               onClick={() => setShowMenu((value) => !value)}
-              className="flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-2 py-1.5 text-sm text-white/85 hover:bg-white/10"
+              className="flex items-center gap-3 rounded-full border border-[#d7dfde] bg-white px-2 py-1.5 text-sm text-[#111827] hover:bg-[#f4f7f6]"
             >
-              <span className="grid h-8 w-8 place-items-center rounded-full bg-emerald-500/20 text-xs font-semibold text-emerald-200">
+              <span className="grid h-8 w-8 place-items-center rounded-full bg-[#e8f3f1] text-xs font-semibold text-[#0f766e]">
                 {initials(user.name)}
               </span>
               <span className="hidden sm:block">{user.name}</span>
             </button>
 
             {showMenu ? (
-              <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-white/10 bg-[#171717] p-2 shadow-2xl">
-                <div className="rounded-xl px-3 py-2 text-sm text-white/85">
+              <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-[#d7dfde] bg-white p-2 shadow-[0_20px_50px_rgba(15,23,42,0.12)]">
+                <div className="rounded-xl px-3 py-2 text-sm text-[#111827]">
                   <div>{user.name}</div>
-                  <div className="text-xs text-white/45">{isAuthenticated ? "Signed in" : "Guest workspace"}</div>
+                  <div className="text-xs text-[#6b7280]">{isAuthenticated ? "Signed in" : "Guest workspace"}</div>
                 </div>
-                <Link href={resolveWorkspaceHref(workspaceId, "/settings")} className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/8">
-                  Plan
+                <Link href={resolveWorkspaceHref(workspaceId, "/settings")} className="block rounded-xl px-3 py-2 text-sm text-[#374151] hover:bg-[#f4f7f6]">
+                  Plan access
                 </Link>
-                <Link href={resolveWorkspaceHref(workspaceId, "/settings")} className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/8">
-                  Plans
-                </Link>
-                <Link href={resolveWorkspaceHref(workspaceId, "/")} className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/8">
+                <Link href={resolveWorkspaceHref(workspaceId, "/")} className="block rounded-xl px-3 py-2 text-sm text-[#374151] hover:bg-[#f4f7f6]">
                   Suite Home
                 </Link>
                 <button
@@ -231,7 +228,7 @@ export function PlatformLayout({ title, subtitle, children, sessionState }: Plat
                     logout();
                     router.push(resolveWorkspaceHref(workspaceId, "/"));
                   }}
-                  className="mt-1 block w-full rounded-xl px-3 py-2 text-left text-sm text-red-200 hover:bg-red-500/10"
+                  className="mt-1 block w-full rounded-xl px-3 py-2 text-left text-sm text-[#b42318] hover:bg-[#fff5f5]"
                 >
                   Logout
                 </button>
