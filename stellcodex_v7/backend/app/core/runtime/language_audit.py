@@ -12,7 +12,7 @@ from typing import Iterable
 
 
 BACKEND_ROOT = Path(__file__).resolve().parents[3]
-SCAN_ROOTS = ("app", "docs", "tests")
+SCAN_ROOTS = ("app", "docs", "tests", "scripts", "alembic", "../infrastructure")
 ALLOWED_MULTILINGUAL_FILES = {
     "app/core/runtime/message_mode.py": "multilingual message classification keywords",
     "app/stellai/agents.py": "multilingual tool inference keywords",

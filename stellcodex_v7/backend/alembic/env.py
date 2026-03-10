@@ -6,7 +6,7 @@ from sqlalchemy import engine_from_config, pool
 from app.core.config import settings
 from app.db.base import Base
 
-# MODELLERİ BURADA import edeceksin (autogenerate için)
+# Import models here so Alembic autogenerate can discover metadata.
 import app.models  # noqa: F401
 
 config = context.config
