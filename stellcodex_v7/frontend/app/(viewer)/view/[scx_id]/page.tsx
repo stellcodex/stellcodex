@@ -527,9 +527,7 @@ export default function ViewPage() {
     [mappedAssemblyRows]
   );
   const explodeAvailable = explodePartGroups.length > 0;
-  const canSelectRow = assemblyRows.length > 0;
   const canActOnSelection = selectedNodeIds.length > 0 && allViewerNodeIds.length > 0;
-  const partOpsDisabledReason = !canSelectRow ? "Assembly tree not available for this model yet." : "Select a node.";
   const effectivePartCount = partCount > 0 ? partCount : assemblyRows.length;
   const processingPercent = Math.max(
     1,
@@ -549,12 +547,6 @@ export default function ViewPage() {
     () => ({ key: zoomTick, direction: zoomDirection }),
     [zoomTick, zoomDirection]
   );
-
-  const handleSelectTreeNode = () => {
-    if (!selectedTreeKey && assemblyRows[0]) {
-      setSelectedTreeKey(assemblyRows[0].key);
-    }
-  };
 
   const handleHideShow = () => {
     if (!canActOnSelection) return;
@@ -594,179 +586,6 @@ export default function ViewPage() {
       setExplodeFactor(0);
     }
   }, [explodeAvailable, explodeFactor]);
-
-  const leftPanelCard = (
-    <Card className="p-3">
-      <div className="grid grid-cols-3 gap-1 rounded-lg border border-[#d1d5db] bg-[#f8f8f8] p-1 text-[11px]">
-        <button className={`rounded px-1 py-1 ${leftTab === "assembly" ? "bg-white font-semibold" : ""}`} onClick={() => setLeftTab("assembly")}>Assembly Tree</button>
-        <button className={`rounded px-1 py-1 ${leftTab === "display" ? "bg-white font-semibold" : ""}`} onClick={() => setLeftTab("display")}>View/Display</button>
-        <button className={`rounded px-1 py-1 ${leftTab === "section" ? "bg-white font-semibold" : ""}`} onClick={() => setLeftTab("section")}>Section</button>
-      </div>
-      <div className="mt-2 rounded-lg border border-[#d1d5db] bg-[#f9fafb] px-2 py-1 text-[11px] text-[#4b5563]">
-        Parts: <span className="font-semibold text-[#111827]">{effectivePartCount}</span>
-      </div>
-
-      {leftTab === "assembly" ? (
-        <div className="mt-3">
-          <input
-            value={treeQuery}
-            onChange={(e) => setTreeQuery(e.target.value)}
-            placeholder="Search tree..."
-            disabled={assemblyTree.length === 0}
-            className="h-8 w-full rounded-lg border border-[#d1d5db] bg-white px-2 text-xs"
-          />
-          <div className="mt-2 grid grid-cols-3 gap-2">
-            <button
-              disabled={!canSelectRow}
-              title={!canSelectRow ? partOpsDisabledReason : undefined}
-              className={`rounded border px-2 py-1 text-[10px] ${
-                canSelectRow ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"
-              }`}
-              onClick={handleSelectTreeNode}
-            >
-              Select
-            </button>
-            <button
-              disabled={!canActOnSelection}
-              title={!canActOnSelection ? partOpsDisabledReason : undefined}
-              className={`rounded border px-2 py-1 text-[10px] ${
-                canActOnSelection ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"
-              }`}
-              onClick={handleHideShow}
-            >
-              Hide/Show
-            </button>
-            <button
-              disabled={!canActOnSelection}
-              title={!canActOnSelection ? partOpsDisabledReason : undefined}
-              className={`rounded border px-2 py-1 text-[10px] ${
-                canActOnSelection ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"
-              }`}
-              onClick={handleIsolate}
-            >
-              Isolate
-            </button>
-          </div>
-          <div className="mt-2 max-h-[min(56vh,calc(100dvh-18rem))] overflow-auto text-xs text-[#374151]">
-            {assemblyRows.length === 0 ? (
-              <div className="rounded-lg border border-[#d1d5db] bg-[#f9fafb] p-3 text-[#6b7280]">
-                Assembly tree not available for this model yet.
-              </div>
-            ) : (
-              assemblyRows.map((row) => (
-                <div key={row.key} className="py-0.5">
-                  <button
-                    className={`w-full truncate rounded px-1 py-1 text-left ${
-                      selectedTreeKey === row.key ? "bg-[#eef2ff] text-[#111827]" : "text-[#374151] hover:bg-[#f8fafc] hover:text-[#111827]"
-                    } ${row.nodeIds.length > 0 ? "" : "opacity-70"}`}
-                    style={{ paddingLeft: `${Math.min(row.depth * 12 + 4, 96)}px` }}
-                    title={row.nodeIds.length === 0 ? "No matching part was found for this node." : undefined}
-                    onClick={() => setSelectedTreeKey(row.key)}
-                  >
-                    {row.label}
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      ) : null}
-
-      {leftTab === "display" ? (
-        <div className="mt-3 grid gap-3 text-xs">
-          <div className="font-semibold text-[#111827]">View mode</div>
-          <div className="grid gap-2">
-            {VIEWER_MODE_ORDER.map((mode) => (
-              <button
-                key={mode}
-                className={`rounded-lg border px-2 py-1 text-left ${
-                  renderMode === mode ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white text-[#374151]"
-                }`}
-                onClick={() => setRenderMode(mode)}
-              >
-                {VIEWER_MODE_LABEL[mode]}
-              </button>
-            ))}
-          </div>
-          <div className="font-semibold text-[#111827]">Projection</div>
-          <div className="grid grid-cols-2 gap-2">
-            {(["perspective", "orthographic"] as ProjectionMode[]).map((mode) => (
-              <button
-                key={mode}
-                className={`rounded-lg border px-2 py-1 ${
-                  projection === mode ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white text-[#374151]"
-                }`}
-                onClick={() => setProjection(mode)}
-              >
-                {mode === "perspective" ? "Persp" : "Ortho"}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {leftTab === "section" ? (
-        <div className="mt-3 grid gap-3 text-xs">
-          <label className="flex items-center justify-between">
-            Section enabled
-            <input type="checkbox" checked={clip} onChange={(e) => setClip(e.target.checked)} />
-          </label>
-          <div className="grid grid-cols-4 gap-1">
-            {(["x", "y", "z", "free"] as const).map((axis) => (
-              <button
-                key={axis}
-                type="button"
-                onClick={() => setClipAxis(axis)}
-                className={`rounded border px-2 py-1 text-[11px] ${
-                  clipAxis === axis ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white text-[#374151]"
-                }`}
-              >
-                {axis.toUpperCase()}
-              </button>
-            ))}
-          </div>
-          {clip ? (
-            <input
-              type="range"
-              min={-2}
-              max={2}
-              step={0.01}
-              value={clipOffset}
-              onChange={(e) => setClipOffset(Number(e.target.value))}
-            />
-          ) : null}
-          <div className="text-[11px] text-[#6b7280]">Active plane: {clipAxis.toUpperCase()} · offset: {clipOffset.toFixed(2)}</div>
-        </div>
-      ) : null}
-    </Card>
-  );
-
-  const rightPanelCard = (
-    <Card className="p-2">
-      <div className="grid gap-2">
-        <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs" onClick={() => setCameraPreset("iso")}>Orbit</button>
-        <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs">Pan</button>
-        <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs">Zoom +</button>
-        <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs">Zoom -</button>
-        <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs" onClick={() => setCameraPreset("iso")}>Fit</button>
-        <button className={`rounded border px-2 py-2 text-xs ${clip ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db]"}`} onClick={() => setClip((v) => !v)}>Section</button>
-        <button
-          className={`rounded border px-2 py-2 text-xs ${
-            explodeAvailable ? "border-[#d1d5db]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"
-          }`}
-          onClick={() => explodeAvailable && setBottomTab("explode")}
-          disabled={!explodeAvailable}
-          title={explodeAvailable ? undefined : "Explode requires assembly_meta to part mapping."}
-        >
-          Explode
-        </button>
-        <button className={`rounded border px-2 py-2 text-xs ${measureEnabled ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db]"}`} onClick={() => setMeasureEnabled((v) => !v)}>Measure</button>
-        <div className="rounded border border-[#e5e7eb] bg-[#f9fafb] px-2 py-1 text-[10px] text-[#6b7280]">
-          {measureValue !== null ? `${measureValue.toFixed(2)} mm` : "Distance: -"}
-        </div>
-      </div>
-    </Card>
-  );
 
   const viewerBody = useMemo(() => {
     if (!fileId) {
@@ -1029,31 +848,8 @@ export default function ViewPage() {
             disabled={assemblyRows.length === 0}
             className="h-9 rounded-lg border border-[#d1d5db] bg-white px-2 text-xs"
           />
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              disabled={!canSelectRow}
-              onClick={handleSelectTreeNode}
-              className={`rounded border px-2 py-1 text-[11px] ${canSelectRow ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"}`}
-            >
-              Select
-            </button>
-            <button
-              type="button"
-              disabled={!canActOnSelection}
-              onClick={handleHideShow}
-              className={`rounded border px-2 py-1 text-[11px] ${canActOnSelection ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"}`}
-            >
-              Hide/Show
-            </button>
-            <button
-              type="button"
-              disabled={!canActOnSelection}
-              onClick={handleIsolate}
-              className={`rounded border px-2 py-1 text-[11px] ${canActOnSelection ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"}`}
-            >
-              Isolate
-            </button>
+          <div className="rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-2 py-2 text-[11px] text-[#6b7280]">
+            Select a part in the tree, then use the top toolbar for isolate and visibility actions.
           </div>
           <div className="min-h-0 overflow-auto rounded-lg border border-[#e5e7eb] bg-[#f9fafb] p-2 text-xs text-[#374151]">
             {assemblyRows.length === 0 ? (
@@ -1111,6 +907,8 @@ export default function ViewPage() {
                   {file ? shortName(file.original_filename) : "Viewer"}
                 </div>
               </div>
+              {/* Keep the top toolbar as the single action surface to avoid duplicated
+                  controls across the viewer and side panels. */}
               <div className="flex flex-wrap items-center gap-2">
                 {CAMERA_PRESETS.map((preset) => (
                   <button

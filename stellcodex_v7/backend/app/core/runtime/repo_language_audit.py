@@ -25,7 +25,6 @@ ALLOWED_MULTILINGUAL_FILES = {
     "backend/app/core/runtime/repo_language_audit.py": "repo language audit keyword patterns",
     "backend/app/stellai/agents.py": "multilingual tool inference keywords",
     "backend/app/stellai/channel_runtime.py": "multilingual async routing keywords",
-    "frontend/components/ChatShell.tsx": "bilingual quick-start intent matching",
     "frontend/components/viewer/DxfViewer.tsx": "legacy Turkish pending-state compatibility detection",
     "frontend/app/(viewer)/view/[scx_id]/page.tsx": "legacy Turkish transport error compatibility detection",
     "frontend/lib/workspace-store.ts": "legacy default project identifier compatibility mapping",

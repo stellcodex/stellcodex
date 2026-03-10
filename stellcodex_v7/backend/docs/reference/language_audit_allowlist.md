@@ -11,8 +11,6 @@ contain Turkish text or Turkish keyword matching.
   Reason: multilingual tool inference keywords.
 - `backend/app/stellai/channel_runtime.py`
   Reason: multilingual async routing keywords.
-- `frontend/components/ChatShell.tsx`
-  Reason: bilingual quick-start intent matching.
 - `frontend/components/viewer/DxfViewer.tsx`
   Reason: legacy Turkish pending-state compatibility detection.
 - `frontend/app/(viewer)/view/[scx_id]/page.tsx`
