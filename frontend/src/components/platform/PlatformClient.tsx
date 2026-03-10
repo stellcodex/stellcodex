@@ -4,16 +4,20 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@/context/UserContext";
-import { getPlatformApp, getVisiblePlatformApps } from "@/data/platformCatalog";
+import { getHomePlatformApps, getPlatformApp, type PlatformAppId, type PlatformSurface } from "@/data/platformCatalog";
+import {
+  getMarketplaceIntegration,
+  normalizeMarketplaceCategory,
+  resolveMarketplaceCoreAppId,
+  summarizeMarketplaceCapabilities,
+} from "@/data/platformMarketplace";
 import { loadLatestRecords, saveRecordFile, type PersistedRecord } from "@/lib/fileRecords";
 import {
-  appendSessionMessage,
   ensureSession,
   loadSessions,
   newSession,
   saveActiveSessionId,
   saveSessions,
-  upsertSession,
   type WorkspaceSession,
 } from "@/lib/sessionStore";
 import {
@@ -24,6 +28,7 @@ import {
   buildWorkspaceProjectPath,
   classifyWorkspaceApp,
   extractWorkspaceId,
+  resolveFileAppPath,
   resolveWorkspaceHref,
 } from "@/lib/workspace-routing";
 import {
@@ -34,33 +39,28 @@ import {
   enqueueMesh2d3d,
   enqueueMoldcodesExport,
   fetchAuthedBlobUrl,
+  getAppManifest,
   getFile,
   getFileStatus,
   getJob,
   getLibraryFeed,
   getProject,
-  getStellAnalysis,
+  listAppsCatalog,
   listFiles,
   listProjects,
-  listStellAgents,
-  orchestrateStellAgents,
   publishLibraryItem,
-  runStellAgent,
-  searchStellKnowledge,
+  type AppManifestResponse,
+  type AppsCatalogItem,
   type FileDetail,
   type FileItem,
   type JobStatus,
   type LibraryItem,
   type ProjectSummary,
-  type StellAgentDescriptor,
-  type StellAgentRunResult,
-  type StellAnalysisResult,
-  type StellKnowledgeResult,
   uploadDirect,
 } from "@/services/api";
 import { PlatformLayout } from "./PlatformLayout";
 
-type PlatformView = "home" | "app" | "projects" | "project" | "files" | "library" | "settings" | "admin" | "viewer";
+type PlatformView = "home" | "apps" | "app" | "projects" | "project" | "files" | "library" | "settings" | "admin" | "viewer";
 
 type PlatformClientProps = {
   view: PlatformView;
@@ -85,17 +85,31 @@ type WorkspaceData = {
   refresh: () => Promise<void>;
 };
 
-type RunnerTab = "Overview" | "Inputs" | "Run" | "Progress" | "Output";
-
 type PublishDocument = {
   filename: string;
   title: string;
   html: string;
   expiresInSeconds?: number;
 };
-
-const RUNNER_TABS: RunnerTab[] = ["Overview", "Inputs", "Run", "Progress", "Output"];
 const SOCIAL_OAUTH_BLOCKERS = ["META_APP_ID", "META_APP_SECRET"] as const;
+const HOME_FOCUS_APP_IDS: PlatformAppId[] = ["viewer3d", "viewer2d", "docviewer", "drive", "projects", "applications"];
+const SUITE_PLAN_ROWS = [
+  {
+    name: "Free",
+    headline: "Start fast",
+    description: "Core upload routing, viewer access, and the shared STELLCODEX shell.",
+  },
+  {
+    name: "Plus",
+    headline: "Go deeper",
+    description: "Expanded app usage, longer workflows, and more engineering runtime access.",
+  },
+  {
+    name: "Pro",
+    headline: "Run the suite",
+    description: "Team workflows, advanced automation, and the full STELLCODEX operating surface.",
+  },
+] as const;
 
 type MoldFamilyConfig = {
   label: string;
@@ -140,7 +154,7 @@ function formatDate(value?: string | null) {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("tr-TR", {
+  return date.toLocaleString("en-US", {
     year: "numeric",
     month: "short",
     day: "2-digit",
@@ -185,7 +199,7 @@ function buildPublishedPage(kind: "webbuilder" | "cms", payload: Record<string, 
   const ctaLabel = String(payload.ctaLabel || "Contact sales").trim() || "Contact sales";
   const body = richTextToHtml(payload.body || "");
   const status = escapeHtml(payload.status || "draft");
-  const publishedAt = new Date().toLocaleString("tr-TR");
+  const publishedAt = new Date().toLocaleString("en-US");
 
   if (kind === "webbuilder") {
     return {
@@ -284,6 +298,71 @@ function appForFile(file: { original_filename?: string | null; content_type?: st
   return classifyWorkspaceApp(file);
 }
 
+function fileRouteCopy(appId: ReturnType<typeof classifyWorkspaceApp>) {
+  if (appId === "viewer2d") {
+    return {
+      label: "2D Drawings",
+      description: "DXF and flat technical files open in the 2D drawing workspace.",
+    };
+  }
+  if (appId === "docviewer") {
+    return {
+      label: "Documents",
+      description: "PDF, image, and office documents open in the document workspace.",
+    };
+  }
+  return {
+    label: "3D Review",
+    description: "3D models and assemblies open in the 3D review workspace.",
+  };
+}
+
+function resolveUploadedFileDestination(
+  workspaceId: string | null,
+  file: { original_filename?: string | null; content_type?: string | null },
+  fileId: string
+) {
+  const destination = resolveFileAppPath(workspaceId, file, fileId);
+  return {
+    ...destination,
+    ...fileRouteCopy(destination.appId),
+  };
+}
+
+function viewerSurfaceContent(surface: PlatformSurface) {
+  if (surface === "viewer2d") {
+    return {
+      label: "2D Drawing Workspace",
+      description: "Focused on technical drawings, DXF review, layers, and clean document handoff.",
+      stageTitle: "2D Drawing Stage",
+      stageDescription: "Use this surface for drawings and flat technical layouts. Viewer actions stay limited to the essentials.",
+      emptyTitle: "Select a drawing file",
+      emptyDescription: "Choose a DXF or drawing-oriented file to open the dedicated 2D review surface.",
+      tips: ["Drawing-first layout", "DXF-ready file routing", "Minimal review actions"],
+    };
+  }
+  if (surface === "docviewer") {
+    return {
+      label: "Document Workspace",
+      description: "Focused on PDF and document review, file status, and controlled download or share actions.",
+      stageTitle: "Document Stage",
+      stageDescription: "Use this surface for project documents, PDFs, images, and office artifacts.",
+      emptyTitle: "Select a document file",
+      emptyDescription: "Choose a PDF or document artifact to open the document review surface.",
+      tips: ["Document-first layout", "Clear metadata and status", "No viewer tool clutter"],
+    };
+  }
+  return {
+    label: "3D Review Workspace",
+    description: "Focused on part and assembly review, viewer status, and direct handoff into the deep-link viewer.",
+    stageTitle: "3D Review Stage",
+    stageDescription: "Use this surface for STEP, STL, OBJ, GLB, and other 3D-oriented files.",
+    emptyTitle: "Select a 3D file",
+    emptyDescription: "Choose a model file to open the dedicated 3D review surface.",
+    tips: ["3D-first layout", "Large viewer stage", "Short action rail"],
+  };
+}
+
 function formatBytes(size?: number | null) {
   if (!size) return "0 B";
   if (size < 1024) return `${size} B`;
@@ -292,6 +371,13 @@ function formatBytes(size?: number | null) {
 }
 
 function resolveAppHref(workspaceId: string | null, appId: string, fileId?: string | null) {
+  const platformApp = getPlatformApp(appId);
+  if (platformApp) {
+    if (fileId && platformApp.route.startsWith("/app/")) {
+      return workspaceId ? buildWorkspaceAppPath(workspaceId, appId, fileId) : `${platformApp.route}?file_id=${encodeURIComponent(fileId)}`;
+    }
+    return resolveWorkspaceHref(workspaceId, platformApp.route);
+  }
   if (workspaceId) return buildWorkspaceAppPath(workspaceId, appId, fileId);
   const base = `/app/${encodeURIComponent(appId)}`;
   return fileId ? `${base}?file_id=${encodeURIComponent(fileId)}` : base;
@@ -319,7 +405,7 @@ function useWorkspaceData(): WorkspaceData {
       setFiles(fileRows);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Workspace verisi yuklenemedi.");
+      setError(err instanceof Error ? err.message : "Workspace data could not be loaded.");
     } finally {
       setLoading(false);
     }
@@ -342,7 +428,7 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-[28px] border border-[#e5e7eb] bg-white p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
+    <section className="rounded-[28px] border border-[#d7dfde] bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
       <div className="mb-4">
         <div className="text-lg font-semibold text-[#111827]">{title}</div>
         {description ? <div className="mt-1 text-sm text-[#6b7280]">{description}</div> : null}
@@ -353,18 +439,19 @@ function SectionCard({
 }
 
 function StatusBadge({ label }: { label: string }) {
+  const normalized = label.toLowerCase();
   const tone =
-    label === "ready" || label === "finished" || label === "ok"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-      : label === "failed"
-      ? "border-red-200 bg-red-50 text-red-700"
-      : "border-amber-200 bg-amber-50 text-amber-700";
+    normalized === "ready" || normalized === "finished" || normalized === "ok" || normalized === "enabled" || normalized === "succeeded"
+      ? "border-[#b7d9d5] bg-[#eef8f6] text-[#0f766e]"
+      : normalized === "failed"
+      ? "border-[#f1c9c9] bg-[#fff5f5] text-[#b42318]"
+      : "border-[#f3ddaa] bg-[#fff8e8] text-[#7a4b00]";
   return <span className={`rounded-full border px-2.5 py-1 text-xs ${tone}`}>{titleCase(label)}</span>;
 }
 
 function EmptyPanel({ title, description }: { title: string; description: string }) {
   return (
-    <div className="rounded-[24px] border border-dashed border-[#e5e7eb] bg-white p-6 text-sm text-[#6b7280]">
+    <div className="rounded-[24px] border border-dashed border-[#d7dfde] bg-white p-6 text-sm text-[#4b5563]">
       <div className="font-medium text-[#1f2937]">{title}</div>
       <div className="mt-1">{description}</div>
     </div>
@@ -381,12 +468,12 @@ function BlockerPanel({
   blockerKeys: readonly string[];
 }) {
   return (
-    <div className="rounded-[24px] border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">
-      <div className="font-semibold text-amber-900">{title}</div>
-      <div className="mt-2 text-amber-800">{description}</div>
+    <div className="rounded-[24px] border border-[#f3ddaa] bg-[#fff8e8] p-5 text-sm text-[#7a4b00]">
+      <div className="font-semibold text-[#7a4b00]">{title}</div>
+      <div className="mt-2 text-[#8a5a10]">{description}</div>
       <div className="mt-4 flex flex-wrap gap-2">
         {blockerKeys.map((key) => (
-          <span key={key} className="rounded-full border border-amber-300 bg-white px-3 py-1 text-xs tracking-[0.14em] text-amber-900">
+          <span key={key} className="rounded-full border border-[#f3ddaa] bg-white px-3 py-1 text-xs tracking-[0.14em] text-[#7a4b00]">
             {key}
           </span>
         ))}
@@ -396,13 +483,16 @@ function BlockerPanel({
 }
 
 function HomeScreen() {
+  // The suite home is intentionally simple: one entry surface, then fast handoff into focused apps.
   const router = useRouter();
   const pathname = usePathname();
   const { user } = useUser();
   const [sessions, setSessions] = useState<WorkspaceSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
-  const [showBeta, setShowBeta] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const workspaceId = extractWorkspaceId(pathname);
 
   useEffect(() => {
@@ -413,7 +503,10 @@ function HomeScreen() {
   }, [workspaceId]);
 
   const activeSession = sessions.find((item) => item.id === activeSessionId) || sessions[0] || null;
-  const visibleApps = getVisiblePlatformApps(user.role, { showBeta }).filter((app) => app.id !== "workspace");
+  const visibleApps = getHomePlatformApps(user.role);
+  const focusApps = HOME_FOCUS_APP_IDS
+    .map((appId) => visibleApps.find((app) => app.id === appId))
+    .filter((app): app is NonNullable<typeof app> => app !== undefined);
 
   function onSelectSession(sessionId: string) {
     setActiveSessionId(sessionId);
@@ -431,110 +524,363 @@ function HomeScreen() {
     router.push(buildWorkspacePath(created.id));
   }
 
-  function onSendMessage() {
-    if (!activeSession || !draft.trim()) return;
-    const userMessage = appendSessionMessage(activeSession, "user", draft.trim());
-    const reply = appendSessionMessage(
-      userMessage,
-      "assistant",
-      "Bu istegi bir STELLCODEX uygulamasina yonlendirebilirsiniz. Files ile yukleme, Projects ile proje acma veya Explore Applications ile uygun runner secimi hazir."
-    );
-    const next = upsertSession(reply);
-    setSessions(next);
-    setActiveSessionId(reply.id);
-    setDraft("");
+  async function onUpload(files: FileList | null) {
+    const file = files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadError(null);
+    setUploadStatus("Uploading file...");
+    try {
+      const result = await uploadDirect(file);
+      const destination = resolveUploadedFileDestination(
+        workspaceId,
+        { original_filename: file.name, content_type: file.type || null },
+        result.file_id
+      );
+      setUploadStatus(`Opening ${destination.label}...`);
+      router.push(destination.href);
+    } catch (err) {
+      setUploadStatus(null);
+      setUploadError(err instanceof Error ? err.message : "Upload failed.");
+    } finally {
+      setUploading(false);
+    }
   }
 
   return (
     <PlatformLayout
-      title={activeSession?.title || "Workspace"}
-      subtitle="Single entry platform with sessions and embedded applications"
+      title={activeSession?.title || "STELLCODEX"}
+      subtitle="Separate applications inside one STELLCODEX suite"
       sessionState={{ sessions, activeSessionId, onSelectSession, onNewSession }}
     >
       <div className="mx-auto flex h-full w-full max-w-[1600px] flex-col px-4 py-6 lg:px-8">
-        <div className="flex-1 rounded-[32px] border border-[#e5e7eb] bg-white">
-          <div className="mx-auto flex h-full max-w-[960px] flex-col gap-6 px-4 py-8 lg:px-8">
-            <div className="pt-8 text-center">
-              <div className="text-3xl font-semibold tracking-tight text-[#111827]">What can STELLCODEX help build today?</div>
-              <div className="mt-2 text-sm text-[#6b7280]">
-                Upload files, open projects, run mesh jobs and manage platform applications from one workspace.
-              </div>
+        <div className="flex-1 space-y-6 rounded-[32px] border border-[#d7dfde] bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] px-4 py-8 lg:px-8">
+          <div className="max-w-[920px]">
+            <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[#6b7280]">STELLCODEX Suite</div>
+            <div className="mt-4 text-4xl font-semibold tracking-tight text-[#111827]">Simple in front. Specialized underneath.</div>
+            <div className="mt-3 max-w-[760px] text-sm leading-6 text-[#4b5563]">
+              Start with one upload or one question. STELLCODEX chooses the responsible application, keeps the layout focused, and leaves files, projects, and sharing inside the same platform.
             </div>
+          </div>
 
-            <div className="flex flex-1 flex-col gap-4">
-              {activeSession?.messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`max-w-[760px] rounded-[24px] px-5 py-4 text-sm leading-6 ${
-                    message.role === "assistant"
-                      ? "bg-[#f9fafb] text-[#111827]"
-                      : "ml-auto bg-[#f3f4f6] text-[#111827]"
-                  }`}
-                >
-                  {message.text}
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_340px]">
+            <SectionCard title="Start working" description="The first step stays obvious: upload a file or open the correct application.">
+              <input
+                ref={uploadInputRef}
+                type="file"
+                className="hidden"
+                onChange={(event) => void onUpload(event.target.files)}
+              />
+              <div className="rounded-[28px] border border-dashed border-[#d7dfde] bg-[#fbfcfc] p-6">
+                <div className="text-2xl font-semibold text-[#111827]">Upload once. Open the right app automatically.</div>
+                <div className="mt-3 max-w-[720px] text-sm leading-6 text-[#4b5563]">
+                  3D models go to the 3D workspace, DXF and flat drawings go to the 2D workspace, and PDF or office files go to the document workspace. No extra routing decision is left to the user.
                 </div>
-              ))}
-            </div>
-
-            <SectionCard title="Explore Applications" description="Only active apps are visible by default.">
-              <div className="mb-3 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowBeta((value) => !value)}
-                  className={`rounded-full border px-3 py-1 text-xs ${
-                    showBeta
-                      ? "border-[#111827] bg-[#111827] text-white"
-                      : "border-[#d1d5db] bg-white text-[#4b5563] hover:bg-[#f9fafb]"
-                  }`}
-                >
-                  Show beta
-                </button>
-              </div>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {visibleApps.map((app) => (
+                <div className="mt-5 flex flex-wrap gap-3">
                   <button
-                    key={app.id}
                     type="button"
-                    onClick={() => router.push(resolveWorkspaceHref(workspaceId, app.route))}
-                    className="rounded-[24px] border border-[#e5e7eb] bg-white p-4 text-left transition hover:border-[#d1d5db] hover:bg-[#f9fafb]"
+                    onClick={() => uploadInputRef.current?.click()}
+                    className="rounded-2xl bg-[#0f766e] px-5 py-3 text-sm font-medium text-white hover:bg-[#0c5f59]"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold text-[#111827]">{app.name}</div>
-                      <div className="rounded-full border border-[#e5e7eb] px-2 py-1 text-[11px] text-[#6b7280]">
-                        {app.status === "beta" ? "BETA" : app.category}
-                      </div>
-                    </div>
-                    <div className="mt-2 text-sm text-[#6b7280]">{app.summary}</div>
+                    {uploading ? "Uploading..." : "Select file"}
                   </button>
+                  <Link href={resolveWorkspaceHref(workspaceId, "/files")} className="rounded-2xl border border-[#d7dfde] px-5 py-3 text-sm text-[#1f2937] hover:bg-[#f4f7f6]">
+                    Open Files and Share
+                  </Link>
+                  <Link href={resolveWorkspaceHref(workspaceId, "/apps")} className="rounded-2xl border border-[#d7dfde] px-5 py-3 text-sm text-[#1f2937] hover:bg-[#f4f7f6]">
+                    Browse all applications
+                  </Link>
+                </div>
+                {uploadStatus ? <div className="mt-4 text-sm text-[#4b5563]">{uploadStatus}</div> : null}
+                {uploadError ? <div className="mt-4 text-sm text-[#b42318]">{uploadError}</div> : null}
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                {[
+                  fileRouteCopy("viewer3d"),
+                  fileRouteCopy("viewer2d"),
+                  fileRouteCopy("docviewer"),
+                ].map((item) => (
+                  <div key={item.label} className="rounded-[24px] border border-[#d7dfde] bg-white p-4">
+                    <div className="text-sm font-semibold text-[#111827]">{item.label}</div>
+                    <div className="mt-2 text-sm text-[#4b5563]">{item.description}</div>
+                  </div>
                 ))}
               </div>
             </SectionCard>
 
-            <div className="sticky bottom-0 rounded-[28px] border border-[#e5e7eb] bg-white p-3 shadow-[0_30px_80px_rgba(0,0,0,0.35)]">
-              <textarea
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                rows={3}
-                placeholder="Describe the task, then switch into the right application..."
-                className="w-full resize-none bg-transparent px-3 py-2 text-sm text-[#111827] outline-none placeholder:text-[#94a3b8]"
-              />
-              <div className="flex items-center justify-between border-t border-[#e5e7eb] pt-3">
-                <div className="flex flex-wrap gap-2 text-xs text-[#94a3b8]">
-                  <span className="rounded-full border border-[#e5e7eb] px-3 py-1">Files upload</span>
-                  <span className="rounded-full border border-[#e5e7eb] px-3 py-1">Mesh jobs</span>
-                  <span className="rounded-full border border-[#e5e7eb] px-3 py-1">Mold export</span>
-                </div>
+            <SectionCard title="Keep trust high" description="The platform should feel predictable even to a first-time user.">
+              <div className="space-y-3">
+                {[
+                  "Each app has one clear purpose and one focused layout.",
+                  "Collapse the left rail to give the current app more stage space.",
+                  "STELL-AI can guide the flow, but the application stays visible and in control.",
+                  "Files, projects, and shares stay in one suite instead of becoming separate products.",
+                ].map((item) => (
+                  <div key={item} className="rounded-[20px] border border-[#d7dfde] bg-white px-4 py-3 text-sm text-[#374151]">
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+          </div>
+
+          <SectionCard title="Core applications" description="Each application is separate, but every one of them completes STELLCODEX.">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {focusApps.map((app) => (
                 <button
+                  key={app.id}
                   type="button"
-                  onClick={onSendMessage}
-                  className="rounded-full bg-white px-4 py-2 text-sm font-medium text-black hover:bg-white/90"
+                  onClick={() => router.push(resolveAppHref(workspaceId, app.id))}
+                  className="rounded-[24px] border border-[#d7dfde] bg-white p-4 text-left transition hover:border-[#bcc9c7] hover:bg-[#f4f7f6]"
                 >
-                  Send
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-[#111827]">{app.name}</div>
+                    <div className="rounded-full border border-[#d7dfde] px-2 py-1 text-[11px] text-[#6b7280]">{app.category}</div>
+                  </div>
+                  <div className="mt-2 text-sm text-[#4b5563]">{app.summary}</div>
                 </button>
+              ))}
+            </div>
+          </SectionCard>
+
+          <SectionCard title="One product, not copied pages" description="The suite keeps one shell and focused app stages instead of duplicated screens.">
+            <div className="grid gap-4 lg:grid-cols-3">
+              <div className="rounded-[24px] border border-[#d7dfde] bg-white p-5">
+                <div className="text-sm font-semibold text-[#111827]">No cloned entry pages</div>
+                <div className="mt-2 text-sm text-[#4b5563]">Uploads, routing, and app launch stay in the main suite shell so users do not bounce across lookalike pages.</div>
+              </div>
+              <div className="rounded-[24px] border border-[#d7dfde] bg-white p-5">
+                <div className="text-sm font-semibold text-[#111827]">No duplicate primary buttons</div>
+                <div className="mt-2 text-sm text-[#4b5563]">Each surface keeps one main action so users always know what happens next.</div>
+              </div>
+              <div className="rounded-[24px] border border-[#d7dfde] bg-white p-5">
+                <div className="text-sm font-semibold text-[#111827]">Separate apps, shared core</div>
+                <div className="mt-2 text-sm text-[#4b5563]">Apps can later ship separately, but the canonical STELLCODEX experience stays one platform with one shared infrastructure layer.</div>
               </div>
             </div>
-          </div>
+          </SectionCard>
         </div>
+      </div>
+    </PlatformLayout>
+  );
+}
+
+function AppsCatalogScreen() {
+  const pathname = usePathname();
+  const workspaceId = extractWorkspaceId(pathname);
+  const [items, setItems] = useState<AppsCatalogItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const rows = await listAppsCatalog(true);
+        if (!active) return;
+        setItems(rows);
+        setError(null);
+      } catch (err) {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "The applications catalog could not be loaded.");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const groupedItems = useMemo(() => {
+    const groups = new Map<string, AppsCatalogItem[]>();
+    for (const item of items) {
+      const key = item.category || "general";
+      const list = groups.get(key) || [];
+      list.push(item);
+      groups.set(key, list);
+    }
+    return [...groups.entries()]
+      .map(([category, rows]) => [
+        category,
+        rows.sort((a, b) => {
+          if (a.enabled !== b.enabled) return Number(b.enabled) - Number(a.enabled);
+          return a.name.localeCompare(b.name);
+        }),
+      ] as const)
+      .sort((a, b) => a[0].localeCompare(b[0]));
+  }, [items]);
+
+  const enabledCount = items.filter((item) => item.enabled).length;
+  const coreIntegratedCount = items.filter((item) => resolveMarketplaceCoreAppId(item.slug)).length;
+
+  return (
+    <PlatformLayout title="Applications" subtitle="Separate applications inside one STELLCODEX suite shell">
+      <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-6 px-4 py-6 lg:px-8">
+        <SectionCard title="Inventory Status" description="Every registered app stays inside the same STELLCODEX platform shell.">
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="rounded-[24px] border border-[#d7dfde] bg-white p-5">
+              <div className="text-xs uppercase tracking-[0.2em] text-[#6b7280]">Registered Modules</div>
+              <div className="mt-3 text-3xl font-semibold text-[#111827]">{items.length}</div>
+            </div>
+            <div className="rounded-[24px] border border-[#d7dfde] bg-white p-5">
+              <div className="text-xs uppercase tracking-[0.2em] text-[#6b7280]">Enabled Today</div>
+              <div className="mt-3 text-3xl font-semibold text-[#111827]">{enabledCount}</div>
+            </div>
+            <div className="rounded-[24px] border border-[#d7dfde] bg-white p-5">
+              <div className="text-xs uppercase tracking-[0.2em] text-[#6b7280]">Core-integrated Modules</div>
+              <div className="mt-3 text-3xl font-semibold text-[#111827]">{coreIntegratedCount}</div>
+            </div>
+          </div>
+          <div className="mt-4 text-sm text-[#4b5563]">
+            Core workflows keep dedicated workspace surfaces. Remaining modules stay available through manifest-backed pages until their specialized workflow is promoted into the workspace shell.
+          </div>
+        </SectionCard>
+
+        {loading ? <SectionCard title="Loading" description="Reading the marketplace registry."><div className="text-sm text-[#4b5563]">Loading application inventory...</div></SectionCard> : null}
+        {error ? <SectionCard title="Catalog Error" description="The inventory could not be read."><div className="text-sm text-[#b42318]">{error}</div></SectionCard> : null}
+
+        {groupedItems.map(([category, rows]) => (
+          <SectionCard key={category} title={normalizeMarketplaceCategory(category)} description={`${rows.length} registered module${rows.length === 1 ? "" : "s"} in this group.`}>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {rows.map((item) => {
+                const integration = getMarketplaceIntegration(item);
+                const capabilitySummary = summarizeMarketplaceCapabilities(item);
+                return (
+                  <Link
+                    key={item.slug}
+                    href={resolveAppHref(workspaceId, item.slug)}
+                    className="rounded-[24px] border border-[#d7dfde] bg-white p-4 transition hover:border-[#bcc9c7] hover:bg-[#f4f7f6]"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-[#111827]">{item.name}</div>
+                        <div className="mt-1 text-xs text-[#6b7280]">{item.slug}</div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <StatusBadge label={item.enabled ? "enabled" : "disabled"} />
+                        <span className="rounded-full border border-[#d7dfde] px-2.5 py-1 text-xs text-[#4b5563]">{item.tier}</span>
+                      </div>
+                    </div>
+                    <div className="mt-3 text-sm text-[#4b5563]">{integration.note}</div>
+                    <div className="mt-4 space-y-2 text-xs text-[#6b7280]">
+                      <div>Capabilities: {capabilitySummary.capabilities}</div>
+                      <div>Formats: {capabilitySummary.formats}</div>
+                    </div>
+                    <div className="mt-4 flex items-center justify-between text-xs text-[#6b7280]">
+                      <span>{integration.headline}</span>
+                      <span>{integration.primaryLabel}</span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </SectionCard>
+        ))}
+      </div>
+    </PlatformLayout>
+  );
+}
+
+function MarketplaceModuleScreen({ slug }: { slug: string }) {
+  const pathname = usePathname();
+  const workspaceId = extractWorkspaceId(pathname);
+  const [catalogItem, setCatalogItem] = useState<AppsCatalogItem | null>(null);
+  const [manifest, setManifest] = useState<AppManifestResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const [catalogRows, manifestPayload] = await Promise.all([listAppsCatalog(true), getAppManifest(slug, true)]);
+        if (!active) return;
+        setCatalogItem(catalogRows.find((item) => item.slug === slug) || null);
+        setManifest(manifestPayload);
+        setError(null);
+      } catch (err) {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "The module surface could not be loaded.");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [slug]);
+
+  const integration = catalogItem ? getMarketplaceIntegration(catalogItem) : null;
+  const permissions = (manifest?.manifest.permissions as Record<string, unknown> | undefined) || {};
+  const dependencies = (manifest?.manifest.dependencies as Record<string, unknown> | undefined) || {};
+  const featureFlags = (manifest?.manifest.feature_flags as Record<string, unknown> | undefined) || {};
+  const apiEndpoints = Array.isArray(manifest?.manifest.api_endpoints) ? (manifest?.manifest.api_endpoints as string[]) : [];
+  const capabilitySummary = catalogItem ? summarizeMarketplaceCapabilities(catalogItem) : null;
+
+  return (
+    <PlatformLayout title={catalogItem?.name || slug} subtitle="Focused module surface inside the STELLCODEX suite">
+      <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-6 px-4 py-6 lg:px-8">
+        {loading ? <EmptyPanel title="Loading module" description="Reading the catalog entry and app manifest." /> : null}
+        {error ? <EmptyPanel title="Module unavailable" description={error} /> : null}
+
+        {!loading && !error && catalogItem ? (
+          <>
+            <SectionCard title={integration?.headline || "Module"} description={integration?.note || "This module is registered in the platform inventory."}>
+              <div className="flex flex-wrap gap-3">
+                <StatusBadge label={catalogItem.enabled ? "enabled" : "disabled"} />
+                <span className="rounded-full border border-[#d7dfde] px-3 py-1 text-xs text-[#4b5563]">{catalogItem.tier}</span>
+                <span className="rounded-full border border-[#d7dfde] px-3 py-1 text-xs text-[#4b5563]">{normalizeMarketplaceCategory(catalogItem.category)}</span>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <Link href={resolveWorkspaceHref(workspaceId, "/apps")} className="rounded-2xl border border-[#d7dfde] px-5 py-3 text-sm text-[#1f2937] hover:bg-[#f4f7f6]">
+                  Back to applications catalog
+                </Link>
+                {integration?.coreAppId ? (
+                  <Link href={resolveAppHref(workspaceId, integration.coreAppId)} className="rounded-2xl bg-[#0f766e] px-5 py-3 text-sm font-medium text-white hover:bg-[#0c5f59]">
+                    Open integrated workspace
+                  </Link>
+                ) : null}
+              </div>
+            </SectionCard>
+
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_360px]">
+              <SectionCard title="Module Manifest" description="Manifest fields remain the source of truth for module registration, capabilities, and dependencies.">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-[24px] border border-[#d7dfde] bg-white p-4">
+                    <div className="text-xs uppercase tracking-[0.2em] text-[#6b7280]">Capabilities</div>
+                    <div className="mt-3 text-sm text-[#374151]">{capabilitySummary?.capabilities || "No capability list"}</div>
+                  </div>
+                  <div className="rounded-[24px] border border-[#d7dfde] bg-white p-4">
+                    <div className="text-xs uppercase tracking-[0.2em] text-[#6b7280]">Formats</div>
+                    <div className="mt-3 text-sm text-[#374151]">{capabilitySummary?.formats || "No format list"}</div>
+                  </div>
+                </div>
+                <pre className="mt-4 overflow-x-auto rounded-[24px] border border-[#d7dfde] bg-white p-4 text-xs text-[#4b5563]">
+                  {JSON.stringify(manifest?.manifest || {}, null, 2)}
+                </pre>
+              </SectionCard>
+
+              <div className="space-y-6">
+                <SectionCard title="Permissions" description="Role and access expectations from the app manifest.">
+                  <pre className="overflow-x-auto whitespace-pre-wrap text-xs text-[#4b5563]">{JSON.stringify(permissions, null, 2)}</pre>
+                </SectionCard>
+                <SectionCard title="Dependencies" description="Runtime dependencies declared by the manifest.">
+                  <pre className="overflow-x-auto whitespace-pre-wrap text-xs text-[#4b5563]">{JSON.stringify(dependencies, null, 2)}</pre>
+                </SectionCard>
+                <SectionCard title="Feature Flags" description="Feature flag state and environment override names stay visible here.">
+                  <pre className="overflow-x-auto whitespace-pre-wrap text-xs text-[#4b5563]">{JSON.stringify(featureFlags, null, 2)}</pre>
+                </SectionCard>
+                <SectionCard title="API Endpoints" description="Registered API surface for this module.">
+                  <div className="space-y-2 text-sm text-[#4b5563]">
+                    {apiEndpoints.length > 0 ? apiEndpoints.map((endpoint) => <div key={endpoint}>{endpoint}</div>) : <div>No explicit API endpoint list.</div>}
+                  </div>
+                </SectionCard>
+              </div>
+            </div>
+          </>
+        ) : null}
       </div>
     </PlatformLayout>
   );
@@ -553,7 +899,7 @@ function ProjectsScreen() {
       setProjects(rows);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Projeler yuklenemedi.");
+      setError(err instanceof Error ? err.message : "Projects could not be loaded.");
     }
   }
 
@@ -570,7 +916,7 @@ function ProjectsScreen() {
       setName("");
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Proje olusturulamadi.");
+      setError(err instanceof Error ? err.message : "The project could not be created.");
     } finally {
       setBusy(false);
     }
@@ -585,7 +931,7 @@ function ProjectsScreen() {
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="Injection tooling package"
-              className="h-12 flex-1 rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none placeholder:text-[#94a3b8]"
+              className="h-12 flex-1 rounded-2xl border border-[#d7dfde] bg-white px-4 text-sm text-[#111827] outline-none placeholder:text-[#111827]/30"
             />
             <button
               type="button"
@@ -596,7 +942,7 @@ function ProjectsScreen() {
               {busy ? "Creating..." : "Create project"}
             </button>
           </div>
-          {error ? <div className="mt-3 text-sm text-red-200">{error}</div> : null}
+          {error ? <div className="mt-3 text-sm text-[#b42318]">{error}</div> : null}
         </SectionCard>
 
         <SectionCard title="Project Index" description="All project-backed uploads and exports remain retrievable later.">
@@ -605,11 +951,11 @@ function ProjectsScreen() {
               <Link
                 key={project.id}
                 href={resolveProjectHref(workspaceId, project.id)}
-                className="rounded-[24px] border border-[#e5e7eb] bg-white p-5 transition hover:border-[#d1d5db] hover:bg-[#f9fafb]"
+                className="rounded-[24px] border border-[#d7dfde] bg-white p-5 transition hover:border-[#bcc9c7] hover:bg-[#f4f7f6]"
               >
                 <div className="flex items-center justify-between">
                   <div className="text-base font-semibold text-[#111827]">{project.name}</div>
-                  <div className="text-xs text-[#94a3b8]">{project.file_count} files</div>
+                  <div className="text-xs text-[#6b7280]">{project.file_count} files</div>
                 </div>
                 <div className="mt-3 text-sm text-[#6b7280]">Updated {formatDate(project.updated_at)}</div>
               </Link>
@@ -625,6 +971,7 @@ function ProjectsScreen() {
 }
 
 function ProjectScreen({ projectId }: { projectId: string }) {
+  const router = useRouter();
   const workspaceId = extractWorkspaceId(usePathname());
   const [project, setProject] = useState<ProjectSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -636,7 +983,7 @@ function ProjectScreen({ projectId }: { projectId: string }) {
       setProject(row);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Proje yuklenemedi.");
+      setError(err instanceof Error ? err.message : "The project could not be loaded.");
     }
   }
 
@@ -649,10 +996,16 @@ function ProjectScreen({ projectId }: { projectId: string }) {
     if (!file) return;
     setUploading(true);
     try {
-      await uploadDirect(file, projectId);
+      const result = await uploadDirect(file, projectId);
       await refresh();
+      const destination = resolveUploadedFileDestination(
+        workspaceId,
+        { original_filename: file.name, content_type: file.type || null },
+        result.file_id
+      );
+      router.push(destination.href);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Yukleme basarisiz.");
+      setError(err instanceof Error ? err.message : "Upload failed.");
     } finally {
       setUploading(false);
     }
@@ -661,32 +1014,32 @@ function ProjectScreen({ projectId }: { projectId: string }) {
   return (
     <PlatformLayout title={project?.name || "Project"} subtitle={projectId}>
       <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-6 px-4 py-6 lg:px-8">
-        <SectionCard title="Project Upload" description="Files uploaded here stay attached to this project id.">
-          <label className="flex cursor-pointer flex-col items-center justify-center rounded-[28px] border border-dashed border-[#e5e7eb] bg-white px-6 py-12 text-center">
+        <SectionCard title="Project Upload" description="Uploads stay attached to this project and open the responsible application immediately.">
+          <label className="flex cursor-pointer flex-col items-center justify-center rounded-[28px] border border-dashed border-[#d7dfde] bg-white px-6 py-12 text-center">
             <div className="text-sm font-medium text-[#111827]">{uploading ? "Uploading..." : "Upload file to project"}</div>
             <div className="mt-2 text-sm text-[#6b7280]">STEP, STL, DXF, PDF, images or JSON records</div>
             <input type="file" className="hidden" onChange={(event) => void onUpload(event.target.files)} />
           </label>
-          {error ? <div className="mt-3 text-sm text-red-200">{error}</div> : null}
+          {error ? <div className="mt-3 text-sm text-[#b42318]">{error}</div> : null}
         </SectionCard>
 
         <SectionCard title="Project Files" description="Outputs, uploads and generated artifacts are listed together.">
           <div className="grid gap-4 lg:grid-cols-2">
             {(project?.files || []).map((file) => (
-              <div key={file.file_id} className="rounded-[24px] border border-[#e5e7eb] bg-white p-4">
+              <div key={file.file_id} className="rounded-[24px] border border-[#d7dfde] bg-white p-4">
                 <div className="flex items-center justify-between gap-4">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-semibold text-[#111827]">{file.original_filename}</div>
-                    <div className="mt-1 text-xs text-[#94a3b8]">{file.kind || "file"} / {file.mode || "default"}</div>
+                    <div className="mt-1 text-xs text-[#6b7280]">{file.kind || "file"} / {file.mode || "default"}</div>
                   </div>
                   <StatusBadge label={file.status} />
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Link href={resolveFileOpenHref(workspaceId, file.file_id)} className="rounded-full border border-[#e5e7eb] px-3 py-1 text-xs text-[#334155] hover:bg-[#f3f4f6]">
-                    Open viewer
+                  <Link href={resolveFileOpenHref(workspaceId, file.file_id)} className="rounded-full border border-[#d7dfde] px-3 py-1 text-xs text-[#374151] hover:bg-[#f4f7f6]">
+                    Open deep viewer
                   </Link>
-                  <Link href={resolveAppHref(workspaceId, appForFile(file), file.file_id)} className="rounded-full border border-[#e5e7eb] px-3 py-1 text-xs text-[#334155] hover:bg-[#f3f4f6]">
-                    Open runner
+                  <Link href={resolveAppHref(workspaceId, appForFile(file), file.file_id)} className="rounded-full border border-[#d7dfde] px-3 py-1 text-xs text-[#374151] hover:bg-[#f4f7f6]">
+                    Open responsible app
                   </Link>
                 </div>
               </div>
@@ -700,6 +1053,7 @@ function ProjectScreen({ projectId }: { projectId: string }) {
 }
 
 function FilesScreen() {
+  const router = useRouter();
   const workspaceId = extractWorkspaceId(usePathname());
   const workspace = useWorkspaceData();
   const [selectedProjectId, setSelectedProjectId] = useState("all");
@@ -719,11 +1073,17 @@ function FilesScreen() {
     if (!file) return;
     setUploading(true);
     try {
-      await uploadDirect(file, projectId);
+      const result = await uploadDirect(file, projectId);
       await workspace.refresh();
       setError(null);
+      const destination = resolveUploadedFileDestination(
+        workspaceId,
+        { original_filename: file.name, content_type: file.type || null },
+        result.file_id
+      );
+      router.push(destination.href);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Yukleme basarisiz.");
+      setError(err instanceof Error ? err.message : "Upload failed.");
     } finally {
       setUploading(false);
     }
@@ -734,19 +1094,19 @@ function FilesScreen() {
       const result = await createShare(fileId, 7 * 24 * 60 * 60);
       setShareLinks((prev) => ({ ...prev, [fileId]: `${window.location.origin}/s/${result.token}` }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Share olusturulamadi.");
+      setError(err instanceof Error ? err.message : "The share link could not be created.");
     }
   }
 
   return (
-    <PlatformLayout title="Files" subtitle="Upload, view, share and track processing state">
+    <PlatformLayout title="Files" subtitle="Upload, route, share, and track processing state">
       <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-6 px-4 py-6 lg:px-8">
-        <SectionCard title="Upload" description="Uploads return file_id and immediately attach to the selected project.">
+        <SectionCard title="Upload" description="Uploads attach to the selected project and open the responsible application automatically.">
           <div className="flex flex-col gap-3 md:flex-row">
             <select
               value={selectedProjectId}
               onChange={(event) => setSelectedProjectId(event.target.value)}
-              className="h-12 rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none"
+              className="h-12 rounded-2xl border border-[#d7dfde] bg-white px-4 text-sm text-[#111827] outline-none"
             >
               <option value="all">All projects</option>
               {workspace.projects.map((project) => (
@@ -764,44 +1124,44 @@ function FilesScreen() {
               />
             </label>
           </div>
-          {error ? <div className="mt-3 text-sm text-red-200">{error}</div> : null}
+          {error ? <div className="mt-3 text-sm text-[#b42318]">{error}</div> : null}
         </SectionCard>
 
-        <SectionCard title="File Ledger" description="Only live actions are shown: open viewer, open runner and create share.">
+        <SectionCard title="File Ledger" description="Only live actions are shown: open the responsible app, open the deep viewer, or create a share.">
           {workspace.loading ? <div className="text-sm text-[#6b7280]">Loading files...</div> : null}
           {!workspace.loading ? (
             <div className="grid gap-4 lg:grid-cols-2">
               {filteredFiles.map((file) => (
-                <div key={file.file_id} className="rounded-[24px] border border-[#e5e7eb] bg-white p-4">
+                <div key={file.file_id} className="rounded-[24px] border border-[#d7dfde] bg-white p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-semibold text-[#111827]">{file.original_filename}</div>
-                      <div className="mt-1 text-xs text-[#94a3b8]">
+                      <div className="mt-1 text-xs text-[#6b7280]">
                         {file.kind} / {file.mode || "default"} / {formatBytes(file.size_bytes)}
                       </div>
                     </div>
                     <StatusBadge label={file.status} />
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <Link href={resolveFileOpenHref(workspaceId, file.file_id)} className="rounded-full border border-[#e5e7eb] px-3 py-1 text-xs text-[#334155] hover:bg-[#f3f4f6]">
-                      View
+                    <Link href={resolveFileOpenHref(workspaceId, file.file_id)} className="rounded-full border border-[#d7dfde] px-3 py-1 text-xs text-[#374151] hover:bg-[#f4f7f6]">
+                      Open deep viewer
                     </Link>
                     <Link
                       href={resolveAppHref(workspaceId, appForFile(file), file.file_id)}
-                      className="rounded-full border border-[#e5e7eb] px-3 py-1 text-xs text-[#334155] hover:bg-[#f3f4f6]"
+                      className="rounded-full border border-[#d7dfde] px-3 py-1 text-xs text-[#374151] hover:bg-[#f4f7f6]"
                     >
-                      Open in app
+                      Open responsible app
                     </Link>
                     <button
                       type="button"
                       onClick={() => void onShare(file.file_id)}
-                      className="rounded-full border border-[#e5e7eb] px-3 py-1 text-xs text-[#334155] hover:bg-[#f3f4f6]"
+                      className="rounded-full border border-[#d7dfde] px-3 py-1 text-xs text-[#374151] hover:bg-[#f4f7f6]"
                     >
                       Create share
                     </button>
                   </div>
                   {shareLinks[file.file_id] ? (
-                    <div className="mt-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/8 px-3 py-2 text-xs text-emerald-100">
+                    <div className="mt-3 rounded-2xl border border-[#b7d9d5] bg-[#eef8f6] px-3 py-2 text-xs text-[#0f766e]">
                       {shareLinks[file.file_id]}
                     </div>
                   ) : null}
@@ -829,7 +1189,7 @@ function LibraryScreen() {
       setFeed(data.items);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Library feed yuklenemedi.");
+      setError(err instanceof Error ? err.message : "The library feed could not be loaded.");
     }
   }
 
@@ -849,7 +1209,7 @@ function LibraryScreen() {
       setTitle("");
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Publish basarisiz.");
+      setError(err instanceof Error ? err.message : "Publish failed.");
     }
   }
 
@@ -861,7 +1221,7 @@ function LibraryScreen() {
             <select
               value={publishFileId}
               onChange={(event) => setPublishFileId(event.target.value)}
-              className="h-12 rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none"
+              className="h-12 rounded-2xl border border-[#d7dfde] bg-white px-4 text-sm text-[#111827] outline-none"
             >
               <option value="">Select ready file</option>
               {workspace.files
@@ -876,22 +1236,22 @@ function LibraryScreen() {
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               placeholder="Public library title"
-              className="h-12 rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none placeholder:text-[#94a3b8]"
+              className="h-12 rounded-2xl border border-[#d7dfde] bg-white px-4 text-sm text-[#111827] outline-none placeholder:text-[#111827]/30"
             />
             <button type="button" onClick={() => void onPublish()} className="h-12 rounded-2xl bg-white px-5 text-sm font-medium text-black hover:bg-white/90">
               Publish
             </button>
           </div>
-          {error ? <div className="mt-3 text-sm text-red-200">{error}</div> : null}
+          {error ? <div className="mt-3 text-sm text-[#b42318]">{error}</div> : null}
         </SectionCard>
 
         <SectionCard title="Feed" description="Public catalog items returned from the backend feed endpoint.">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {feed.map((item) => (
-              <div key={item.id} className="rounded-[24px] border border-[#e5e7eb] bg-white p-5">
+              <div key={item.id} className="rounded-[24px] border border-[#d7dfde] bg-white p-5">
                 <div className="text-sm font-semibold text-[#111827]">{item.title}</div>
                 <div className="mt-2 text-sm text-[#6b7280]">{item.description || "No description"}</div>
-                <div className="mt-4 text-xs text-[#94a3b8]">{item.slug}</div>
+                <div className="mt-4 text-xs text-[#6b7280]">{item.slug}</div>
               </div>
             ))}
             {feed.length === 0 ? <EmptyPanel title="Library is empty" description="Publish a ready file to make the first catalog item visible." /> : null}
@@ -904,33 +1264,41 @@ function LibraryScreen() {
 
 function SettingsScreen() {
   const { user, isAuthenticated } = useUser();
-  const plans = [
-    { name: "Free", price: "$0", description: "Core workspace, uploads and viewer access." },
-    { name: "Plus", price: "$29", description: "Expanded usage and application access." },
-    { name: "Pro", price: "$99", description: "Team workflows, advanced jobs and catalogs." },
-    { name: "Enterprise", price: "Custom", description: "Governance, audit routing and managed deployment." },
-  ];
 
   return (
-    <PlatformLayout title="Settings" subtitle="Plan tiers and workspace identity">
+    <PlatformLayout title="Plans" subtitle="Suite identity, access tiers, and packaging rules">
       <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-6 px-4 py-6 lg:px-8">
         <SectionCard title="Workspace Identity" description="Guest and authenticated sessions use the same platform shell.">
-          <div className="rounded-[24px] border border-[#e5e7eb] bg-white p-5 text-sm text-[#334155]">
+          <div className="rounded-[24px] border border-[#d7dfde] bg-white p-5 text-sm text-[#1f2937]">
             <div>User: {user.name}</div>
             <div className="mt-2">Mode: {isAuthenticated ? "Authenticated" : "Guest"}</div>
             <div className="mt-2">Role: {user.role}</div>
           </div>
         </SectionCard>
 
-        <SectionCard title="Plans" description="Business model is locked to Free / Plus / Pro / Enterprise.">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {plans.map((plan) => (
-              <div key={plan.name} className="rounded-[24px] border border-[#e5e7eb] bg-white p-5">
+        <SectionCard title="Plans" description="The suite stays on Free / Plus / Pro. Pricing stays secondary to the product workflow.">
+          <div className="grid gap-4 md:grid-cols-3">
+            {SUITE_PLAN_ROWS.map((plan) => (
+              <div key={plan.name} className="rounded-[24px] border border-[#d7dfde] bg-white p-5">
                 <div className="text-lg font-semibold text-[#111827]">{plan.name}</div>
-                <div className="mt-2 text-3xl font-semibold text-[#111827]">{plan.price}</div>
+                <div className="mt-2 text-sm font-medium uppercase tracking-[0.2em] text-[#6b7280]">{plan.headline}</div>
                 <div className="mt-3 text-sm text-[#6b7280]">{plan.description}</div>
               </div>
             ))}
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Suite Packaging" description="Apps can ship separately without turning STELLCODEX into disconnected products.">
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="rounded-[24px] border border-[#d7dfde] bg-white p-5 text-sm text-[#4b5563]">
+              One shared core keeps files, projects, identity, routing, and access rules consistent across every app.
+            </div>
+            <div className="rounded-[24px] border border-[#d7dfde] bg-white p-5 text-sm text-[#4b5563]">
+              Separate mobile packages can expose one focused app surface while the main STELLCODEX suite remains the canonical experience.
+            </div>
+            <div className="rounded-[24px] border border-[#d7dfde] bg-white p-5 text-sm text-[#4b5563]">
+              The interface stays ad-free and workflow-first. Plans describe access scope, not in-product sales clutter.
+            </div>
           </div>
         </SectionCard>
       </div>
@@ -963,15 +1331,15 @@ function AdminScreen() {
       <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-6 px-4 py-6 lg:px-8">
         <SectionCard title="Release Gate" description="Deploy proof and health endpoints visible from the admin route.">
           <div className="grid gap-4 lg:grid-cols-3">
-            <div className="rounded-[24px] border border-[#e5e7eb] bg-white p-5">
+            <div className="rounded-[24px] border border-[#d7dfde] bg-white p-5">
               <div className="text-sm font-semibold text-[#111827]">build_id.txt</div>
               <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-[#4b5563]">{buildId}</pre>
             </div>
-            <div className="rounded-[24px] border border-[#e5e7eb] bg-white p-5">
+            <div className="rounded-[24px] border border-[#d7dfde] bg-white p-5">
               <div className="text-sm font-semibold text-[#111827]">/api/v1/health</div>
               <pre className="mt-3 whitespace-pre-wrap text-xs text-[#4b5563]">{apiHealth}</pre>
             </div>
-            <div className="rounded-[24px] border border-[#e5e7eb] bg-white p-5">
+            <div className="rounded-[24px] border border-[#d7dfde] bg-white p-5">
               <div className="text-sm font-semibold text-[#111827]">/stell/health</div>
               <pre className="mt-3 whitespace-pre-wrap text-xs text-[#4b5563]">{stellHealth}</pre>
             </div>
@@ -1011,7 +1379,7 @@ function ViewerScreen({ fileId }: { fileId: string }) {
         setError(null);
       } catch (err) {
         if (!mounted) return;
-        setError(err instanceof Error ? err.message : "Viewer yuklenemedi.");
+        setError(err instanceof Error ? err.message : "The viewer could not be loaded.");
       }
     }
     void load();
@@ -1022,25 +1390,27 @@ function ViewerScreen({ fileId }: { fileId: string }) {
 
   const ready = file?.status === "ready" || status === "succeeded" || status === "ready";
   const appId = file ? appForFile(file) : "viewer3d";
+  const viewerCopy = viewerSurfaceContent(appId);
 
   return (
-    <PlatformLayout title={file?.original_filename || "Viewer"} subtitle={`Deep link for ${fileId}`}>
+    <PlatformLayout title={file?.original_filename || viewerCopy.label} subtitle={viewerCopy.description}>
       <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-6 px-4 py-6 lg:px-8">
         {error ? <EmptyPanel title="Viewer unavailable" description={error} /> : null}
         {!error && !ready ? (
-          <SectionCard title="Processing" description="Viewer opens as soon as the backend marks the file ready.">
+          <SectionCard title="Processing" description={viewerCopy.stageDescription}>
             <div className="text-sm text-[#4b5563]">Current state: {status}</div>
           </SectionCard>
         ) : null}
         {ready ? (
-          <SectionCard title="Embedded Viewer" description="Deep-linked into the workspace viewer context.">
-            <div className="overflow-hidden rounded-[28px] border border-[#e5e7eb] bg-white">
-              <iframe src={`/view/${fileId}`} className="h-[760px] w-full bg-white" title="STELLCODEX viewer" />
+          <SectionCard title={viewerCopy.stageTitle} description="Deep-linked into the workspace viewer context.">
+            <div className="overflow-hidden rounded-[28px] border border-[#d7dfde] bg-[#fbfcfc]">
+              <iframe src={`/view/${fileId}`} className="h-[760px] w-full bg-[#111]" title="STELLCODEX viewer" />
             </div>
-            <div className="mt-4">
-              <Link href={resolveAppHref(workspaceId, appId, fileId)} className="rounded-full border border-[#e5e7eb] px-4 py-2 text-sm text-[#334155] hover:bg-[#f3f4f6]">
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link href={resolveAppHref(workspaceId, appId, fileId)} className="rounded-full border border-[#d7dfde] px-4 py-2 text-sm text-[#374151] hover:bg-[#f4f7f6]">
                 Open same file in application runner
               </Link>
+              <span className="rounded-full border border-[#d7dfde] px-4 py-2 text-sm text-[#6b7280]">{viewerCopy.label}</span>
             </div>
           </SectionCard>
         ) : null}
@@ -1085,7 +1455,7 @@ function RecordWorkspace({
       setRecords(rows);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Kayitlar yuklenemedi.");
+      setError(err instanceof Error ? err.message : "Records could not be loaded.");
     }
   }
 
@@ -1113,7 +1483,7 @@ function RecordWorkspace({
       setPayload(initialPayload);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Kayit saklanamadi.");
+      setError(err instanceof Error ? err.message : "The record could not be saved.");
     } finally {
       setBusy(false);
     }
@@ -1136,7 +1506,7 @@ function RecordWorkspace({
       setPayload(initialPayload);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Kayit silinemedi.");
+      setError(err instanceof Error ? err.message : "The record could not be deleted.");
     } finally {
       setBusy(false);
     }
@@ -1193,20 +1563,20 @@ function RecordWorkspace({
         <div className="space-y-3">
           {fields.map((field) => (
             <label key={field.key} className="block">
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">{field.label}</div>
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#6b7280]">{field.label}</div>
               {field.type === "textarea" ? (
                 <textarea
                   value={String(payload[field.key] || "")}
                   onChange={(event) => setPayload((prev) => ({ ...prev, [field.key]: event.target.value }))}
                   rows={5}
                   placeholder={field.placeholder}
-                  className="w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm text-[#111827] outline-none placeholder:text-[#94a3b8]"
+                  className="w-full rounded-2xl border border-[#d7dfde] bg-white px-4 py-3 text-sm text-[#111827] outline-none placeholder:text-[#111827]/30"
                 />
               ) : field.type === "select" ? (
                 <select
                   value={String(payload[field.key] || "")}
                   onChange={(event) => setPayload((prev) => ({ ...prev, [field.key]: event.target.value }))}
-                  className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none"
+                  className="h-12 w-full rounded-2xl border border-[#d7dfde] bg-white px-4 text-sm text-[#111827] outline-none"
                 >
                   {field.options?.map((option) => (
                     <option key={option} value={option}>
@@ -1225,54 +1595,54 @@ function RecordWorkspace({
                     }))
                   }
                   placeholder={field.placeholder}
-                  className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none placeholder:text-[#94a3b8]"
+                  className="h-12 w-full rounded-2xl border border-[#d7dfde] bg-white px-4 text-sm text-[#111827] outline-none placeholder:text-[#111827]/30"
                 />
               )}
             </label>
           ))}
           <div className="flex flex-wrap gap-3">
-            <button type="button" onClick={() => void onSave()} disabled={busy} className="rounded-2xl bg-white px-5 py-3 text-sm font-medium text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60">
+            <button type="button" onClick={() => void onSave()} disabled={busy} className="rounded-2xl bg-[#0f766e] px-5 py-3 text-sm font-medium text-white hover:bg-[#0c5f59] disabled:cursor-not-allowed disabled:opacity-60">
               {busy ? "Saving..." : editingRecordId ? "Update record" : "Save record"}
             </button>
             {publishBuilder ? (
-              <button type="button" onClick={() => void onPublish()} disabled={busy || publishing} className="rounded-2xl border border-emerald-500/20 px-5 py-3 text-sm font-medium text-emerald-100 hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-60">
+              <button type="button" onClick={() => void onPublish()} disabled={busy || publishing} className="rounded-2xl border border-[#b7d9d5] px-5 py-3 text-sm font-medium text-[#0f766e] hover:bg-[#eef8f6] disabled:cursor-not-allowed disabled:opacity-60">
                 {publishing ? "Publishing..." : "Publish live page"}
               </button>
             ) : null}
-            <button type="button" onClick={onReset} disabled={busy} className="rounded-2xl border border-[#e5e7eb] px-5 py-3 text-sm font-medium text-[#1f2937] hover:bg-[#f3f4f6] disabled:cursor-not-allowed disabled:opacity-60">
+            <button type="button" onClick={onReset} disabled={busy} className="rounded-2xl border border-[#d7dfde] px-5 py-3 text-sm font-medium text-[#1f2937] hover:bg-[#f4f7f6] disabled:cursor-not-allowed disabled:opacity-60">
               New record
             </button>
             {editingRecordId ? (
-              <button type="button" onClick={() => void onDelete()} disabled={busy} className="rounded-2xl border border-red-500/20 px-5 py-3 text-sm font-medium text-red-200 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-60">
+              <button type="button" onClick={() => void onDelete()} disabled={busy} className="rounded-2xl border border-[#f1c9c9] px-5 py-3 text-sm font-medium text-[#b42318] hover:bg-[#fff5f5] disabled:cursor-not-allowed disabled:opacity-60">
                 Delete record
               </button>
             ) : null}
           </div>
-          {publishDescription ? <div className="text-xs text-[#94a3b8]">{publishDescription}</div> : null}
-          {error ? <div className="text-sm text-red-200">{error}</div> : null}
+          {publishDescription ? <div className="text-xs text-[#6b7280]">{publishDescription}</div> : null}
+          {error ? <div className="text-sm text-[#b42318]">{error}</div> : null}
           {publishedUrl ? (
-            <div className="rounded-[20px] border border-emerald-500/20 bg-emerald-500/8 p-4 text-sm text-emerald-100">
+            <div className="rounded-[20px] border border-[#b7d9d5] bg-[#eef8f6] p-4 text-sm text-[#0f766e]">
               <div className="font-semibold">Published link is live</div>
-              <a href={publishedUrl} target="_blank" rel="noreferrer" className="mt-2 block break-all text-emerald-50 underline underline-offset-4">
+              <a href={publishedUrl} target="_blank" rel="noreferrer" className="mt-2 block break-all text-[#0f766e] underline underline-offset-4">
                 {publishedUrl}
               </a>
-              {publishedFileId ? <div className="mt-2 text-xs text-emerald-100/80">artifact file_id: {publishedFileId}</div> : null}
+              {publishedFileId ? <div className="mt-2 text-xs text-[#0f766e]/80">artifact file_id: {publishedFileId}</div> : null}
             </div>
           ) : null}
         </div>
         <div className="space-y-3">
           {records.map((record) => (
-            <div key={record.record_id} className="rounded-[20px] border border-[#e5e7eb] bg-white p-4">
+            <div key={record.record_id} className="rounded-[20px] border border-[#d7dfde] bg-white p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold text-[#111827]">{record.title}</div>
-                  <div className="mt-1 text-xs text-[#94a3b8]">{formatDate(record.saved_at)}</div>
+                  <div className="mt-1 text-xs text-[#6b7280]">{formatDate(record.saved_at)}</div>
                 </div>
-                <button type="button" onClick={() => onEdit(record)} className="rounded-full border border-[#e5e7eb] px-3 py-1 text-xs text-[#334155] hover:bg-[#f3f4f6]">
+                <button type="button" onClick={() => onEdit(record)} className="rounded-full border border-[#d7dfde] px-3 py-1 text-xs text-[#374151] hover:bg-[#f4f7f6]">
                   Edit
                 </button>
               </div>
-              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-[#6b7280]">{JSON.stringify(record.payload, null, 2)}</pre>
+              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-[#4b5563]">{JSON.stringify(record.payload, null, 2)}</pre>
             </div>
           ))}
           {records.length === 0 ? <EmptyPanel title="No saved records" description="Saving creates a real backend file artifact tied to the selected project." /> : null}
@@ -1288,12 +1658,14 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
   const searchParams = useSearchParams();
   const workspace = useWorkspaceData();
   const { user } = useUser();
-  const app = getPlatformApp(appId);
-  const [activeTab, setActiveTab] = useState<RunnerTab>("Overview");
+  const resolvedAppId = getPlatformApp(appId)?.id || resolveMarketplaceCoreAppId(appId) || appId;
+  const app = getPlatformApp(resolvedAppId);
+  const isMarketplaceAlias = appId !== resolvedAppId;
   const [selectedProjectId, setSelectedProjectId] = useState("default");
   const searchFileId = searchParams.get("file_id") || "";
   const [selectedFileId, setSelectedFileId] = useState(fileId || searchFileId);
   const [selectedFile, setSelectedFile] = useState<FileDetail | null>(null);
+  const [marketplaceItem, setMarketplaceItem] = useState<AppsCatalogItem | null>(null);
   const [job, setJob] = useState<JobStatus | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1304,19 +1676,6 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
   const [moldHeight, setMoldHeight] = useState(240);
   const [moldThickness, setMoldThickness] = useState(24);
   const [moldMaterial, setMoldMaterial] = useState("1.2311");
-  const [analysisBusy, setAnalysisBusy] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<StellAnalysisResult | null>(null);
-  const [analysisWebQuery, setAnalysisWebQuery] = useState("");
-  const [analysisIncludeWeb, setAnalysisIncludeWeb] = useState(false);
-  const [agentCatalog, setAgentCatalog] = useState<StellAgentDescriptor[]>([]);
-  const [selectedAgentId, setSelectedAgentId] = useState("geometry_agent");
-  const [agentPrompt, setAgentPrompt] = useState("");
-  const [agentIncludeWeb, setAgentIncludeWeb] = useState(false);
-  const [agentWebQuery, setAgentWebQuery] = useState("");
-  const [agentBusy, setAgentBusy] = useState(false);
-  const [agentResult, setAgentResult] = useState<StellAgentRunResult | null>(null);
-  const [agentOrchestrationSummary, setAgentOrchestrationSummary] = useState<string | null>(null);
-  const [knowledgeResults, setKnowledgeResults] = useState<StellKnowledgeResult[]>([]);
   const completedJobRef = useRef<string | null>(null);
   const workspaceId = extractWorkspaceId(pathname);
 
@@ -1350,40 +1709,12 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
       })
       .catch((err) => {
         if (!mounted) return;
-        setError(err instanceof Error ? err.message : "Dosya yuklenemedi.");
+        setError(err instanceof Error ? err.message : "The file could not be loaded.");
       });
     return () => {
       mounted = false;
     };
   }, [selectedFileId]);
-
-  useEffect(() => {
-    if (app?.id !== "agentdashboard") return;
-    let mounted = true;
-    listStellAgents()
-      .then((items) => {
-        if (!mounted) return;
-        setAgentCatalog(items);
-        if (items.length > 0 && !items.some((row) => row.agent_id === selectedAgentId)) {
-          setSelectedAgentId(items[0].agent_id);
-        }
-      })
-      .catch((err) => {
-        if (!mounted) return;
-        setError(err instanceof Error ? err.message : "Agent listesi alinamadi.");
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [app?.id, selectedAgentId]);
-
-  useEffect(() => {
-    setAnalysisResult(null);
-    setAgentResult(null);
-    setKnowledgeResults([]);
-    setAgentOrchestrationSummary(null);
-    setError(null);
-  }, [app?.id]);
 
   useEffect(() => {
     if (!jobId) return;
@@ -1399,7 +1730,7 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
         }
       } catch (err) {
         if (!mounted) return;
-        setError(err instanceof Error ? err.message : "Job durumu alinamadi.");
+        setError(err instanceof Error ? err.message : "The job status could not be loaded.");
       }
     }
     void poll();
@@ -1412,18 +1743,33 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
     };
   }, [jobId, workspace]);
 
+  useEffect(() => {
+    if (!isMarketplaceAlias) {
+      setMarketplaceItem(null);
+      return;
+    }
+    let active = true;
+    listAppsCatalog(true)
+      .then((rows) => {
+        if (!active) return;
+        setMarketplaceItem(rows.find((item) => item.slug === appId) || null);
+      })
+      .catch(() => {
+        if (!active) return;
+        setMarketplaceItem(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [appId, isMarketplaceAlias]);
+
   if (!app) {
-    return (
-      <PlatformLayout title="Application not found" subtitle={appId}>
-        <div className="mx-auto w-full max-w-[900px] px-4 py-8 lg:px-8">
-          <EmptyPanel title="Unknown application" description="Only allowed catalog applications are routable." />
-        </div>
-      </PlatformLayout>
-    );
+    return <MarketplaceModuleScreen slug={appId} />;
   }
 
   const projectOptions = workspace.projects.length > 0 ? workspace.projects : [{ id: "default", name: "Default Project", file_count: 0 }];
   const selectedProject = projectOptions.find((project) => project.id === selectedProjectId) || projectOptions[0];
+  const surface = app.surface;
   const relevantFiles = workspace.files.filter((file) => {
     if (app.id === "viewer2d") return appForFile(file) === "viewer2d";
     if (app.id === "docviewer") return appForFile(file) === "docviewer";
@@ -1433,58 +1779,13 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
   const familyConfig = getMoldFamilyConfig(moldCategory, moldFamily);
   const moldConfigId = `${moldCategory}-${moldFamily}-${moldWidth}x${moldHeight}-${moldThickness}-${moldMaterial}`.toLowerCase();
   const outputFileId = extractOutputFileId(job);
+  const viewerCopy = viewerSurfaceContent(surface);
+  const readyViewerFileId = outputFileId || selectedFileId;
 
   async function onRun() {
     setError(null);
     setShareUrl(null);
     try {
-      if (app.id === "dataanalyzer") {
-        if (!selectedFileId) {
-          setError("Analyze icin bir kaynak dosya secin.");
-          setActiveTab("Inputs");
-          return;
-        }
-        setAnalysisBusy(true);
-        const analysis = await getStellAnalysis(selectedFileId, {
-          includeWebContext: analysisIncludeWeb,
-          webQuery: analysisWebQuery || undefined,
-        });
-        setAnalysisResult(analysis);
-        setActiveTab("Output");
-        setAnalysisBusy(false);
-        return;
-      }
-      if (app.id === "agentdashboard") {
-        if (!selectedAgentId) {
-          setError("Calistirilacak agent secilemedi.");
-          return;
-        }
-        if (["geometry_agent", "manufacturing_agent", "cad_repair_agent", "document_agent", "data_analysis_agent"].includes(selectedAgentId) && !selectedFileId) {
-          setError("Bu agent icin file secimi zorunlu.");
-          setActiveTab("Inputs");
-          return;
-        }
-        setAgentBusy(true);
-        const run = await runStellAgent({
-          agent_id: selectedAgentId,
-          file_id: selectedFileId || undefined,
-          prompt: agentPrompt || undefined,
-          include_web_context: agentIncludeWeb,
-          web_query: agentWebQuery || undefined,
-        });
-        setAgentResult(run);
-        if (agentIncludeWeb) {
-          const refs = await searchStellKnowledge(agentWebQuery || agentPrompt || selectedFile?.original_filename || "engineering reference", 5);
-          setKnowledgeResults(refs);
-        } else {
-          setKnowledgeResults([]);
-        }
-        setActiveTab("Output");
-        setAgentBusy(false);
-        return;
-      }
-
-      setActiveTab("Progress");
       if (app.id === "convert" && selectedFileId) {
         const next = await enqueueConvert(selectedFileId);
         setJobId(next.job_id);
@@ -1541,7 +1842,6 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
         return;
       }
       if (["viewer3d", "viewer2d", "docviewer"].includes(app.id) && selectedFileId) {
-        setActiveTab("Output");
         return;
       }
       if (app.id === "library") {
@@ -1560,43 +1860,7 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
         router.push(resolveWorkspaceHref(workspaceId, "/admin"));
       }
     } catch (err) {
-      setAnalysisBusy(false);
-      setAgentBusy(false);
       setError(err instanceof Error ? err.message : "Run failed.");
-    }
-  }
-
-  async function onRunAgentOrchestration() {
-    if (!selectedFileId) {
-      setError("Orchestration icin bir kaynak dosya secin.");
-      setActiveTab("Inputs");
-      return;
-    }
-    setError(null);
-    setAgentBusy(true);
-    try {
-      const result = await orchestrateStellAgents({
-        tasks: [
-          { agent_id: "geometry_agent", file_id: selectedFileId, prompt: agentPrompt || undefined },
-          { agent_id: "manufacturing_agent", file_id: selectedFileId, prompt: agentPrompt || undefined },
-          { agent_id: "cad_repair_agent", file_id: selectedFileId, prompt: agentPrompt || undefined },
-        ],
-        include_web_context: agentIncludeWeb,
-        web_query: agentWebQuery || undefined,
-      });
-      setAgentOrchestrationSummary(result.summary);
-      setAgentResult(result.runs[0] || null);
-      if (agentIncludeWeb) {
-        const refs = await searchStellKnowledge(agentWebQuery || agentPrompt || selectedFile?.original_filename || "engineering reference", 5);
-        setKnowledgeResults(refs);
-      } else {
-        setKnowledgeResults([]);
-      }
-      setActiveTab("Output");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Agent orchestration failed.");
-    } finally {
-      setAgentBusy(false);
     }
   }
 
@@ -1606,7 +1870,7 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
       const result = await createShare(selectedFileId, 7 * 24 * 60 * 60);
       setShareUrl(`${window.location.origin}/s/${result.token}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Share olusturulamadi.");
+      setError(err instanceof Error ? err.message : "The share link could not be created.");
     }
   }
 
@@ -1615,22 +1879,75 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
       const blobUrl = await fetchAuthedBlobUrl(`/api/v1/files/${encodeURIComponent(fileId)}/download`);
       window.open(blobUrl, "_blank", "noopener,noreferrer");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Download basarisiz.");
+      setError(err instanceof Error ? err.message : "Download failed.");
     }
+  }
+
+  function renderProjectSelector(description: string) {
+    return (
+      <SectionCard title="Project Context" description={description}>
+        <label className="block">
+          <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#6b7280]">Project</div>
+          <select value={selectedProject.id} onChange={(event) => setSelectedProjectId(event.target.value)} className="h-12 w-full rounded-2xl border border-[#d7dfde] bg-white px-4 text-sm text-[#111827] outline-none">
+            {projectOptions.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="mt-4 rounded-[20px] border border-[#d7dfde] bg-white p-4">
+          <div className="text-sm font-semibold text-[#111827]">{selectedProject.name}</div>
+          <div className="mt-1 text-xs text-[#6b7280]">{selectedProject.id}</div>
+          <div className="mt-3 text-xs text-[#4b5563]">{selectedProject.file_count || 0} linked files in the current project scope.</div>
+        </div>
+      </SectionCard>
+    );
+  }
+
+  function renderFileSelector(title: string, description: string) {
+    return (
+      <SectionCard title={title} description={description}>
+        <label className="block">
+          <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#6b7280]">Source file</div>
+          <select value={selectedFileId} onChange={(event) => setSelectedFileId(event.target.value)} className="h-12 w-full rounded-2xl border border-[#d7dfde] bg-white px-4 text-sm text-[#111827] outline-none">
+            <option value="">Select file</option>
+            {relevantFiles.map((file) => (
+              <option key={file.file_id} value={file.file_id}>
+                {file.original_filename}
+              </option>
+            ))}
+          </select>
+        </label>
+        {selectedFile ? (
+          <div className="mt-4 rounded-[20px] border border-[#d7dfde] bg-white p-4">
+            <div className="truncate text-sm font-semibold text-[#111827]">{selectedFile.original_filename}</div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <StatusBadge label={selectedFile.status || "unknown"} />
+              <span className="rounded-full border border-[#d7dfde] px-2.5 py-1 text-xs text-[#4b5563]">{titleCase(selectedFile.kind || "file")}</span>
+              <span className="rounded-full border border-[#d7dfde] px-2.5 py-1 text-xs text-[#4b5563]">{titleCase(selectedFile.mode || "default")}</span>
+            </div>
+            <div className="mt-3 text-xs text-[#6b7280]">file_id: {selectedFile.file_id}</div>
+          </div>
+        ) : (
+          <div className="mt-4 text-sm text-[#6b7280]">Only files that match this application surface are listed here.</div>
+        )}
+      </SectionCard>
+    );
   }
 
   function renderOverview() {
     return (
       <SectionCard title={app.name} description={app.description}>
         <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-[24px] border border-[#e5e7eb] bg-white p-5">
-            <div className="text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Application Summary</div>
-            <div className="mt-3 text-sm text-[#4b5563]">{app.summary}</div>
+          <div className="rounded-[24px] border border-[#d7dfde] bg-white p-5">
+            <div className="text-xs uppercase tracking-[0.2em] text-[#6b7280]">Application Summary</div>
+            <div className="mt-3 text-sm text-[#374151]">{app.summary}</div>
           </div>
-          <div className="rounded-[24px] border border-[#e5e7eb] bg-white p-5">
-            <div className="text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Project Context</div>
-            <div className="mt-3 text-sm text-[#4b5563]">{selectedProject.name}</div>
-            <div className="mt-1 text-xs text-[#94a3b8]">{selectedProject.id}</div>
+          <div className="rounded-[24px] border border-[#d7dfde] bg-white p-5">
+            <div className="text-xs uppercase tracking-[0.2em] text-[#6b7280]">Project Context</div>
+            <div className="mt-3 text-sm text-[#374151]">{selectedProject.name}</div>
+            <div className="mt-1 text-xs text-[#6b7280]">{selectedProject.id}</div>
           </div>
         </div>
       </SectionCard>
@@ -1643,8 +1960,8 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
         <SectionCard title="Inputs" description="Category, family and validated dimensions feed the export job.">
           <div className="grid gap-4 lg:grid-cols-2">
             <label className="block">
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Project</div>
-              <select value={selectedProject.id} onChange={(event) => setSelectedProjectId(event.target.value)} className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none">
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#6b7280]">Project</div>
+              <select value={selectedProject.id} onChange={(event) => setSelectedProjectId(event.target.value)} className="h-12 w-full rounded-2xl border border-[#d7dfde] bg-white px-4 text-sm text-[#111827] outline-none">
                 {projectOptions.map((project) => (
                   <option key={project.id} value={project.id}>
                     {project.name}
@@ -1653,13 +1970,13 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
               </select>
             </label>
             <label className="block">
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Category</div>
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#6b7280]">Category</div>
               <select value={moldCategory} onChange={(event) => {
                 const nextCategory = event.target.value as keyof typeof MOLD_CATALOG;
                 const nextFamily = Object.keys(MOLD_CATALOG[nextCategory].families)[0];
                 setMoldCategory(nextCategory);
                 setMoldFamily(nextFamily);
-              }} className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none">
+              }} className="h-12 w-full rounded-2xl border border-[#d7dfde] bg-white px-4 text-sm text-[#111827] outline-none">
                 {Object.entries(MOLD_CATALOG).map(([key, value]) => (
                   <option key={key} value={key}>
                     {value.label}
@@ -1668,8 +1985,8 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
               </select>
             </label>
             <label className="block">
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Family</div>
-              <select value={moldFamily} onChange={(event) => setMoldFamily(event.target.value)} className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none">
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#6b7280]">Family</div>
+              <select value={moldFamily} onChange={(event) => setMoldFamily(event.target.value)} className="h-12 w-full rounded-2xl border border-[#d7dfde] bg-white px-4 text-sm text-[#111827] outline-none">
                 {Object.entries(MOLD_CATALOG[moldCategory].families).map(([key, value]) => (
                   <option key={key} value={key}>
                     {value.label}
@@ -1677,142 +1994,28 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
                 ))}
               </select>
             </label>
-            <div className="rounded-[24px] border border-[#e5e7eb] bg-white p-4 text-sm text-[#4b5563]">
+            <div className="rounded-[24px] border border-[#d7dfde] bg-white p-4 text-sm text-[#4b5563]">
               configId: <span className="text-[#111827]">{moldConfigId}</span>
             </div>
             <label className="block">
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Width (mm)</div>
-              <input type="number" value={moldWidth} onChange={(event) => setMoldWidth(Number(event.target.value || 0))} className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none" />
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#6b7280]">Width (mm)</div>
+              <input type="number" value={moldWidth} onChange={(event) => setMoldWidth(Number(event.target.value || 0))} className="h-12 w-full rounded-2xl border border-[#d7dfde] bg-white px-4 text-sm text-[#111827] outline-none" />
             </label>
             <label className="block">
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Height (mm)</div>
-              <input type="number" value={moldHeight} onChange={(event) => setMoldHeight(Number(event.target.value || 0))} className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none" />
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#6b7280]">Height (mm)</div>
+              <input type="number" value={moldHeight} onChange={(event) => setMoldHeight(Number(event.target.value || 0))} className="h-12 w-full rounded-2xl border border-[#d7dfde] bg-white px-4 text-sm text-[#111827] outline-none" />
             </label>
             <label className="block">
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Thickness (mm)</div>
-              <input type="number" value={moldThickness} onChange={(event) => setMoldThickness(Number(event.target.value || 0))} className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none" />
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#6b7280]">Thickness (mm)</div>
+              <input type="number" value={moldThickness} onChange={(event) => setMoldThickness(Number(event.target.value || 0))} className="h-12 w-full rounded-2xl border border-[#d7dfde] bg-white px-4 text-sm text-[#111827] outline-none" />
             </label>
             <label className="block">
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Material</div>
-              <input value={moldMaterial} onChange={(event) => setMoldMaterial(event.target.value)} className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none" />
+              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#6b7280]">Material</div>
+              <input value={moldMaterial} onChange={(event) => setMoldMaterial(event.target.value)} className="h-12 w-full rounded-2xl border border-[#d7dfde] bg-white px-4 text-sm text-[#111827] outline-none" />
             </label>
           </div>
-          <div className="mt-4 text-xs text-[#94a3b8]">
+          <div className="mt-4 text-xs text-[#6b7280]">
             Allowed range: {familyConfig.minWidth}-{familyConfig.maxWidth} mm width, {familyConfig.minHeight}-{familyConfig.maxHeight} mm height, {familyConfig.minThickness}-{familyConfig.maxThickness} mm thickness.
-          </div>
-        </SectionCard>
-      );
-    }
-
-    if (app.id === "agentdashboard") {
-      return (
-        <SectionCard title="Inputs" description="Select an agent, optional source file, prompt and web-context options.">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <label className="block">
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Agent</div>
-              <select
-                value={selectedAgentId}
-                onChange={(event) => setSelectedAgentId(event.target.value)}
-                className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none"
-              >
-                {(agentCatalog.length > 0 ? agentCatalog : [{ agent_id: "geometry_agent", name: "Geometry Agent", description: "", capabilities: [] }]).map((agent) => (
-                  <option key={agent.agent_id} value={agent.agent_id}>
-                    {agent.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Source file</div>
-              <select
-                value={selectedFileId}
-                onChange={(event) => setSelectedFileId(event.target.value)}
-                className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none"
-              >
-                <option value="">Optional</option>
-                {workspace.files.map((file) => (
-                  <option key={file.file_id} value={file.file_id}>
-                    {file.original_filename}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <div className="mt-4 grid gap-3">
-            <label className="block">
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Prompt</div>
-              <textarea
-                value={agentPrompt}
-                onChange={(event) => setAgentPrompt(event.target.value)}
-                rows={4}
-                className="w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm text-[#111827] outline-none"
-                placeholder="Agent execution context..."
-              />
-            </label>
-            <label className="flex items-center gap-3 text-sm text-[#334155]">
-              <input
-                type="checkbox"
-                checked={agentIncludeWeb}
-                onChange={(event) => setAgentIncludeWeb(event.target.checked)}
-              />
-              Include web knowledge context
-            </label>
-            {agentIncludeWeb ? (
-              <input
-                value={agentWebQuery}
-                onChange={(event) => setAgentWebQuery(event.target.value)}
-                className="h-11 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none"
-                placeholder="Web query (optional)"
-              />
-            ) : null}
-          </div>
-        </SectionCard>
-      );
-    }
-
-    if (app.id === "dataanalyzer") {
-      return (
-        <SectionCard title="Inputs" description="Select a file and optional web context for engineering analysis.">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <label className="block">
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Project</div>
-              <select value={selectedProject.id} onChange={(event) => setSelectedProjectId(event.target.value)} className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none">
-                {projectOptions.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Source file</div>
-              <select value={selectedFileId} onChange={(event) => setSelectedFileId(event.target.value)} className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none">
-                <option value="">Select file</option>
-                {workspace.files.map((file) => (
-                  <option key={file.file_id} value={file.file_id}>
-                    {file.original_filename}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <div className="mt-4 grid gap-3">
-            <label className="flex items-center gap-3 text-sm text-[#334155]">
-              <input
-                type="checkbox"
-                checked={analysisIncludeWeb}
-                onChange={(event) => setAnalysisIncludeWeb(event.target.checked)}
-              />
-              Include web knowledge context
-            </label>
-            {analysisIncludeWeb ? (
-              <input
-                value={analysisWebQuery}
-                onChange={(event) => setAnalysisWebQuery(event.target.value)}
-                className="h-11 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none"
-                placeholder="Web query (optional)"
-              />
-            ) : null}
           </div>
         </SectionCard>
       );
@@ -1828,7 +2031,7 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
           />
           <EmptyPanel
             title="Inputs are saved through record workspaces"
-            description="Use the Output tab to store draft accounts and scheduler records without exposing non-working OAuth actions."
+            description="Use the records section below to store draft accounts and scheduler records without exposing non-working OAuth actions."
           />
         </>
       );
@@ -1838,81 +2041,20 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
       return (
         <EmptyPanel
           title="Inputs are saved through record workspaces"
-          description="Use the Output tab to edit and persist records into project-backed JSON artifacts."
+          description="Use the records section below to edit and persist records into project-backed JSON artifacts."
         />
       );
     }
 
     return (
-      <SectionCard title="Inputs" description="Select the project and source file when the app operates on file-backed workflows.">
-        <div className="grid gap-4 lg:grid-cols-2">
-          <label className="block">
-            <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Project</div>
-            <select value={selectedProject.id} onChange={(event) => setSelectedProjectId(event.target.value)} className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none">
-              {projectOptions.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <div className="mb-2 text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Source file</div>
-            <select value={selectedFileId} onChange={(event) => setSelectedFileId(event.target.value)} className="h-12 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none">
-              <option value="">Select file</option>
-              {relevantFiles.map((file) => (
-                <option key={file.file_id} value={file.file_id}>
-                  {file.original_filename}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        {selectedFile ? (
-          <div className="mt-4 rounded-[24px] border border-[#e5e7eb] bg-white p-4">
-            <div className="text-sm font-semibold text-[#111827]">{selectedFile.original_filename}</div>
-            <div className="mt-1 text-xs text-[#94a3b8]">
-              {selectedFile.kind} / {selectedFile.mode || "default"} / {selectedFile.status}
-            </div>
-          </div>
-        ) : null}
-      </SectionCard>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {renderProjectSelector("Keep every run attached to a real project scope.")}
+        {renderFileSelector("Source File", "Pick the exact source file that this application should process.")}
+      </div>
     );
   }
 
   function renderRun() {
-    if (app.id === "dataanalyzer") {
-      return (
-        <SectionCard title="Run" description="Execute STELL-AI engineering analysis for the selected file.">
-          <div className="flex flex-wrap gap-3">
-            <button type="button" onClick={() => void onRun()} className="rounded-2xl bg-white px-5 py-3 text-sm font-medium text-black hover:bg-white/90">
-              {analysisBusy ? "Analyzing..." : "Run Analysis"}
-            </button>
-          </div>
-          {error ? <div className="mt-4 text-sm text-red-200">{error}</div> : null}
-        </SectionCard>
-      );
-    }
-
-    if (app.id === "agentdashboard") {
-      return (
-        <SectionCard title="Run" description="Run single-agent or orchestrated multi-agent workflows.">
-          <div className="flex flex-wrap gap-3">
-            <button type="button" onClick={() => void onRun()} className="rounded-2xl bg-white px-5 py-3 text-sm font-medium text-black hover:bg-white/90">
-              {agentBusy ? "Running..." : "Run Agent"}
-            </button>
-            <button type="button" onClick={() => void onRunAgentOrchestration()} className="rounded-2xl border border-[#e5e7eb] px-5 py-3 text-sm text-[#334155] hover:bg-[#f3f4f6]">
-              {agentBusy ? "Orchestrating..." : "Run Orchestration"}
-            </button>
-          </div>
-          {agentOrchestrationSummary ? (
-            <div className="mt-4 rounded-[20px] border border-[#e5e7eb] bg-white px-4 py-3 text-sm text-[#334155]">{agentOrchestrationSummary}</div>
-          ) : null}
-          {error ? <div className="mt-4 text-sm text-red-200">{error}</div> : null}
-        </SectionCard>
-      );
-    }
-
     if (["socialmanager", "feedpublisher"].includes(app.id)) {
       return (
         <SectionCard title="Run" description="Blocked actions stay hidden until the provider credentials are available.">
@@ -1928,8 +2070,8 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
     if (["accounting", "webbuilder", "cms"].includes(app.id)) {
       return (
         <SectionCard title="Run" description="These MVP apps persist records directly; no worker execution is required.">
-          <div className="text-sm text-[#6b7280]">
-            Use the Output tab to create or update persisted records.
+          <div className="text-sm text-[#4b5563]">
+            Use the records section below to create or update persisted records.
             {["webbuilder", "cms"].includes(app.id) ? " Web apps can also publish a real /s token link from the current draft." : ""}
           </div>
         </SectionCard>
@@ -1938,17 +2080,17 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
     return (
       <SectionCard title="Run" description="Only working actions are exposed.">
         <div className="flex flex-wrap gap-3">
-          <button type="button" onClick={() => void onRun()} className="rounded-2xl bg-white px-5 py-3 text-sm font-medium text-black hover:bg-white/90">
-            {["viewer3d", "viewer2d", "docviewer"].includes(app.id) ? "Open output" : "Run"}
+          <button type="button" onClick={() => void onRun()} className="rounded-2xl bg-[#0f766e] px-5 py-3 text-sm font-medium text-white hover:bg-[#0c5f59]">
+            {["viewer3d", "viewer2d", "docviewer"].includes(app.id) ? "Open viewer" : "Run"}
           </button>
           {selectedFileId ? (
-            <button type="button" onClick={() => void onCreateShare()} className="rounded-2xl border border-[#e5e7eb] px-5 py-3 text-sm text-[#334155] hover:bg-[#f3f4f6]">
+            <button type="button" onClick={() => void onCreateShare()} className="rounded-2xl border border-[#d7dfde] px-5 py-3 text-sm text-[#1f2937] hover:bg-[#f4f7f6]">
               Create share
             </button>
           ) : null}
         </div>
-        {shareUrl ? <div className="mt-4 rounded-[24px] border border-emerald-500/20 bg-emerald-500/8 px-4 py-3 text-sm text-emerald-100">{shareUrl}</div> : null}
-        {error ? <div className="mt-4 text-sm text-red-200">{error}</div> : null}
+        {shareUrl ? <div className="mt-4 rounded-[24px] border border-[#b7d9d5] bg-[#eef8f6] px-4 py-3 text-sm text-[#0f766e]">{shareUrl}</div> : null}
+        {error ? <div className="mt-4 text-sm text-[#b42318]">{error}</div> : null}
       </SectionCard>
     );
   }
@@ -1960,17 +2102,17 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
     return (
       <SectionCard title="Progress" description="Worker status returned from /api/v1/jobs/:job_id">
         <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-[24px] border border-[#e5e7eb] bg-white p-5">
-            <div className="text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Job</div>
+          <div className="rounded-[24px] border border-[#d7dfde] bg-white p-5">
+            <div className="text-xs uppercase tracking-[0.2em] text-[#6b7280]">Job</div>
             <div className="mt-3 text-sm text-[#111827]">{job.job_id}</div>
             <div className="mt-2"><StatusBadge label={job.status} /></div>
-            <div className="mt-3 text-xs text-[#94a3b8]">Queued: {formatDate(job.enqueued_at)}</div>
-            <div className="mt-1 text-xs text-[#94a3b8]">Started: {formatDate(job.started_at)}</div>
-            <div className="mt-1 text-xs text-[#94a3b8]">Ended: {formatDate(job.ended_at)}</div>
+            <div className="mt-3 text-xs text-[#6b7280]">Queued: {formatDate(job.enqueued_at)}</div>
+            <div className="mt-1 text-xs text-[#6b7280]">Started: {formatDate(job.started_at)}</div>
+            <div className="mt-1 text-xs text-[#6b7280]">Ended: {formatDate(job.ended_at)}</div>
           </div>
-          <div className="rounded-[24px] border border-[#e5e7eb] bg-white p-5">
-            <div className="text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Meta</div>
-            <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-[#6b7280]">{JSON.stringify(job.meta || {}, null, 2)}</pre>
+          <div className="rounded-[24px] border border-[#d7dfde] bg-white p-5">
+            <div className="text-xs uppercase tracking-[0.2em] text-[#6b7280]">Meta</div>
+            <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-[#4b5563]">{JSON.stringify(job.meta || {}, null, 2)}</pre>
           </div>
         </div>
         {job.error ? <div className="mt-4 rounded-[24px] border border-red-500/20 bg-red-500/8 px-4 py-3 text-sm text-red-100">{job.error}</div> : null}
@@ -1979,88 +2121,6 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
   }
 
   function renderOutput() {
-    if (app.id === "dataanalyzer") {
-      if (!analysisResult) {
-        return <EmptyPanel title="No analysis yet" description="Run Data Analyzer to produce geometry and manufacturing insights." />;
-      }
-      return (
-        <SectionCard title="Analysis Output" description="STELL-AI engineering analysis result">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-[20px] border border-[#e5e7eb] bg-white p-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Geometry</div>
-              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-[#4b5563]">{JSON.stringify(analysisResult.geometry || {}, null, 2)}</pre>
-            </div>
-            <div className="rounded-[20px] border border-[#e5e7eb] bg-white p-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Manufacturing</div>
-              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-[#4b5563]">{JSON.stringify(analysisResult.manufacturing || {}, null, 2)}</pre>
-            </div>
-            <div className="rounded-[20px] border border-[#e5e7eb] bg-white p-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Assembly</div>
-              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-[#4b5563]">{JSON.stringify(analysisResult.assembly || {}, null, 2)}</pre>
-            </div>
-            <div className="rounded-[20px] border border-[#e5e7eb] bg-white p-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Recommendations</div>
-              <ul className="mt-3 space-y-2 text-sm text-[#334155]">
-                {(analysisResult.recommendations || []).map((item) => (
-                  <li key={item}>• {item}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-          {(analysisResult.web_context || []).length > 0 ? (
-            <div className="mt-4 rounded-[20px] border border-[#e5e7eb] bg-white p-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Web Context</div>
-              <div className="mt-3 grid gap-3">
-                {analysisResult.web_context.map((item) => (
-                  <a key={`${item.url}-${item.title}`} href={item.url} target="_blank" rel="noreferrer" className="rounded-lg border border-[#e5e7eb] px-3 py-2 text-sm text-[#334155] hover:bg-[#f3f4f6]">
-                    <div className="font-semibold text-[#111827]">{item.title}</div>
-                    <div className="mt-1 text-xs text-[#6b7280]">{item.snippet}</div>
-                  </a>
-                ))}
-              </div>
-            </div>
-          ) : null}
-        </SectionCard>
-      );
-    }
-
-    if (app.id === "agentdashboard") {
-      if (!agentResult) {
-        return <EmptyPanel title="No agent output yet" description="Run an agent or orchestration to see findings." />;
-      }
-      return (
-        <SectionCard title="Agent Output" description={agentResult.summary || "Agent run result"}>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-[20px] border border-[#e5e7eb] bg-white p-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Findings</div>
-              <ul className="mt-3 space-y-2 text-sm text-[#334155]">
-                {(agentResult.findings || []).map((item) => (
-                  <li key={item}>• {item}</li>
-                ))}
-              </ul>
-            </div>
-            <div className="rounded-[20px] border border-[#e5e7eb] bg-white p-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Payload</div>
-              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-[#4b5563]">{JSON.stringify(agentResult.data || {}, null, 2)}</pre>
-            </div>
-          </div>
-          {knowledgeResults.length > 0 ? (
-            <div className="mt-4 rounded-[20px] border border-[#e5e7eb] bg-white p-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-[#94a3b8]">Knowledge Results</div>
-              <div className="mt-3 grid gap-3">
-                {knowledgeResults.map((item) => (
-                  <a key={`${item.url}-${item.title}`} href={item.url} target="_blank" rel="noreferrer" className="rounded-lg border border-[#e5e7eb] px-3 py-2 text-sm text-[#334155] hover:bg-[#f3f4f6]">
-                    <div className="font-semibold text-[#111827]">{item.title}</div>
-                    <div className="mt-1 text-xs text-[#6b7280]">{item.snippet}</div>
-                  </a>
-                ))}
-              </div>
-            </div>
-          ) : null}
-        </SectionCard>
-      );
-    }
-
     if (app.id === "accounting") {
       return (
         <RecordWorkspace
@@ -2183,9 +2243,9 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
         <SectionCard title="Drive Output" description="Inline drive view with the latest workspace files.">
           <div className="grid gap-3 md:grid-cols-2">
             {workspace.files.slice(0, 8).map((file) => (
-              <div key={file.file_id} className="rounded-[20px] border border-[#e5e7eb] bg-white p-4">
+              <div key={file.file_id} className="rounded-[20px] border border-[#d7dfde] bg-white p-4">
                 <div className="truncate text-sm font-semibold text-[#111827]">{file.original_filename}</div>
-                <div className="mt-2 text-xs text-[#94a3b8]">{file.kind} / {file.status}</div>
+                <div className="mt-2 text-xs text-[#6b7280]">{file.kind} / {file.status}</div>
               </div>
             ))}
           </div>
@@ -2196,7 +2256,7 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
     if (app.id === "library") {
       return (
         <SectionCard title="Library Output" description="Open the full library route for publish and feed management.">
-          <Link href={resolveWorkspaceHref(workspaceId, "/library")} className="rounded-2xl border border-[#e5e7eb] px-5 py-3 text-sm text-[#334155] hover:bg-[#f3f4f6]">
+          <Link href={resolveWorkspaceHref(workspaceId, "/library")} className="rounded-2xl border border-[#d7dfde] px-5 py-3 text-sm text-[#1f2937] hover:bg-[#f4f7f6]">
             Open library route
           </Link>
         </SectionCard>
@@ -2206,7 +2266,7 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
     if (app.id === "projects") {
       return (
         <SectionCard title="Projects Output" description="Open the full projects route for project CRUD.">
-          <Link href={resolveWorkspaceHref(workspaceId, "/projects")} className="rounded-2xl border border-[#e5e7eb] px-5 py-3 text-sm text-[#334155] hover:bg-[#f3f4f6]">
+          <Link href={resolveWorkspaceHref(workspaceId, "/projects")} className="rounded-2xl border border-[#d7dfde] px-5 py-3 text-sm text-[#1f2937] hover:bg-[#f4f7f6]">
             Open projects route
           </Link>
         </SectionCard>
@@ -2216,7 +2276,7 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
     if (app.id === "status" || app.id === "admin") {
       return (
         <SectionCard title="System Output" description="Use the admin route for release proof and health status.">
-          <Link href={resolveWorkspaceHref(workspaceId, "/admin")} className="rounded-2xl border border-[#e5e7eb] px-5 py-3 text-sm text-[#334155] hover:bg-[#f3f4f6]">
+          <Link href={resolveWorkspaceHref(workspaceId, "/admin")} className="rounded-2xl border border-[#d7dfde] px-5 py-3 text-sm text-[#1f2937] hover:bg-[#f4f7f6]">
             Open admin route
           </Link>
         </SectionCard>
@@ -2227,14 +2287,14 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
       const embeddedFileId = outputFileId || selectedFileId;
       return (
         <SectionCard title="Output" description="Embedded viewer plus download and deep-link actions.">
-          <div className="overflow-hidden rounded-[28px] border border-[#e5e7eb] bg-white">
-            <iframe src={`/view/${embeddedFileId}`} className="h-[760px] w-full bg-white" title="Embedded STELLCODEX output" />
+          <div className="overflow-hidden rounded-[28px] border border-[#d7dfde] bg-[#fbfcfc]">
+            <iframe src={`/view/${embeddedFileId}`} className="h-[760px] w-full bg-[#111]" title="Embedded STELLCODEX output" />
           </div>
           <div className="mt-4 flex flex-wrap gap-3">
-            <Link href={buildStandaloneViewerPath(embeddedFileId)} className="rounded-2xl border border-[#e5e7eb] px-5 py-3 text-sm text-[#334155] hover:bg-[#f3f4f6]">
+            <Link href={buildStandaloneViewerPath(embeddedFileId)} className="rounded-2xl border border-[#d7dfde] px-5 py-3 text-sm text-[#1f2937] hover:bg-[#f4f7f6]">
               Open deep link
             </Link>
-            <button type="button" onClick={() => void onDownloadOutput(embeddedFileId)} className="rounded-2xl border border-[#e5e7eb] px-5 py-3 text-sm text-[#334155] hover:bg-[#f3f4f6]">
+            <button type="button" onClick={() => void onDownloadOutput(embeddedFileId)} className="rounded-2xl border border-[#d7dfde] px-5 py-3 text-sm text-[#1f2937] hover:bg-[#f4f7f6]">
               Download output
             </button>
           </div>
@@ -2245,29 +2305,156 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
     return <EmptyPanel title="No output yet" description="Run the app or select a source file to populate output." />;
   }
 
-  return (
-    <PlatformLayout title={app.name} subtitle={app.summary}>
-      <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-6 px-4 py-6 lg:px-8">
-        <div className="flex flex-wrap gap-2">
-          {RUNNER_TABS.map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setActiveTab(tab)}
-              className={`rounded-full px-4 py-2 text-sm ${
-                activeTab === tab ? "bg-white text-black" : "border border-[#e5e7eb] text-[#4b5563] hover:bg-[#f3f4f6]"
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
+  function renderViewerSurface() {
+    return (
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_360px]">
+        <div className="space-y-6">
+          <SectionCard title={viewerCopy.label} description={viewerCopy.description}>
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full border border-[#d7dfde] px-3 py-1 text-xs tracking-[0.16em] text-[#4b5563]">{app.name}</span>
+              <span className="rounded-full border border-[#d7dfde] px-3 py-1 text-xs tracking-[0.16em] text-[#4b5563]">{selectedProject.name}</span>
+              {selectedFile ? <StatusBadge label={selectedFile.status || "unknown"} /> : null}
+            </div>
+            <div className="mt-5 overflow-hidden rounded-[28px] border border-[#d7dfde] bg-[#fbfcfc]">
+              {readyViewerFileId ? (
+                <iframe src={`/view/${readyViewerFileId}`} className="h-[760px] w-full bg-[#111]" title={`${app.name} workspace stage`} />
+              ) : (
+                <div className="grid h-[760px] place-items-center p-8">
+                  <EmptyPanel title={viewerCopy.emptyTitle} description={viewerCopy.emptyDescription} />
+                </div>
+              )}
+            </div>
+            <div className="mt-5 flex flex-wrap gap-3">
+              {readyViewerFileId ? (
+                <Link href={buildStandaloneViewerPath(readyViewerFileId)} className="rounded-2xl bg-[#0f766e] px-5 py-3 text-sm font-medium text-white hover:bg-[#0c5f59]">
+                  Open deep link
+                </Link>
+              ) : null}
+              {selectedFileId ? (
+                <button type="button" onClick={() => void onCreateShare()} className="rounded-2xl border border-[#d7dfde] px-5 py-3 text-sm text-[#1f2937] hover:bg-[#f4f7f6]">
+                  Create share
+                </button>
+              ) : null}
+              {readyViewerFileId ? (
+                <button type="button" onClick={() => void onDownloadOutput(readyViewerFileId)} className="rounded-2xl border border-[#d7dfde] px-5 py-3 text-sm text-[#1f2937] hover:bg-[#f4f7f6]">
+                  Download file
+                </button>
+              ) : null}
+            </div>
+            {shareUrl ? <div className="mt-4 rounded-[20px] border border-[#b7d9d5] bg-[#eef8f6] p-4 text-sm text-[#0f766e]">{shareUrl}</div> : null}
+            {error ? <div className="mt-4 text-sm text-[#b42318]">{error}</div> : null}
+          </SectionCard>
         </div>
 
-        {activeTab === "Overview" ? renderOverview() : null}
-        {activeTab === "Inputs" ? renderInputs() : null}
-        {activeTab === "Run" ? renderRun() : null}
-        {activeTab === "Progress" ? renderProgress() : null}
-        {activeTab === "Output" ? renderOutput() : null}
+        <div className="space-y-6">
+          {renderProjectSelector(viewerCopy.stageDescription)}
+          {renderFileSelector("Viewer Source", "Only files that belong to this viewer type are listed here.")}
+          <SectionCard title="Review Notes" description="Each viewer surface keeps a short, task-specific explanation.">
+            <div className="space-y-3">
+              {viewerCopy.tips.map((tip) => (
+                <div key={tip} className="rounded-[20px] border border-[#d7dfde] bg-white px-4 py-3 text-sm text-[#374151]">
+                  {tip}
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        </div>
+      </div>
+    );
+  }
+
+  function renderJobSurface() {
+    return (
+      <div className="space-y-6">
+        {renderOverview()}
+        {renderInputs()}
+        {renderRun()}
+        {jobId || error ? renderProgress() : null}
+        {outputFileId || shareUrl ? renderOutput() : <EmptyPanel title="No output yet" description="Run the job to generate a worker result and output artifact." />}
+      </div>
+    );
+  }
+
+  function renderConfiguratorSurface() {
+    return (
+      <div className="space-y-6">
+        {renderOverview()}
+        {renderInputs()}
+        {renderRun()}
+        {jobId || error ? renderProgress() : null}
+        {renderOutput()}
+      </div>
+    );
+  }
+
+  function renderRecordSurface() {
+    return (
+      <div className="space-y-6">
+        {renderOverview()}
+        {renderProjectSelector("Records stay bound to one project so the saved artifacts remain easy to find later.")}
+        {renderOutput()}
+      </div>
+    );
+  }
+
+  function renderRouteSurface() {
+    return (
+      <div className="space-y-6">
+        {renderOverview()}
+        <SectionCard title="Route Handoff" description="This application is a focused entry point into another live platform route.">
+          <div className="text-sm text-[#4b5563]">
+            The live route card below is the only primary action on this surface. This keeps route-driven apps short and avoids duplicate buttons.
+          </div>
+        </SectionCard>
+        {renderOutput()}
+      </div>
+    );
+  }
+
+  function renderCatalogSurface() {
+    return (
+      <div className="space-y-6">
+        {renderOverview()}
+        <SectionCard title="Applications Catalog" description="Open the full grouped registry of platform modules from the shared workspace shell.">
+          <div className="flex flex-wrap gap-3">
+            <Link href={resolveWorkspaceHref(workspaceId, "/apps")} className="rounded-2xl bg-[#0f766e] px-5 py-3 text-sm font-medium text-white hover:bg-[#0c5f59]">
+              Open applications catalog
+            </Link>
+          </div>
+        </SectionCard>
+      </div>
+    );
+  }
+
+  function renderSurface() {
+    if (surface === "catalog") return renderCatalogSurface();
+    if (surface === "viewer3d" || surface === "viewer2d" || surface === "docviewer") return renderViewerSurface();
+    if (surface === "job") return renderJobSurface();
+    if (surface === "configurator") return renderConfiguratorSurface();
+    if (surface === "records") return renderRecordSurface();
+    return renderRouteSurface();
+  }
+
+  function renderMarketplaceAliasBanner() {
+    if (!isMarketplaceAlias || !marketplaceItem) return null;
+    const integration = getMarketplaceIntegration(marketplaceItem);
+    return (
+      <SectionCard title={marketplaceItem.name} description="This marketplace module resolves into an existing workspace surface.">
+        <div className="flex flex-wrap gap-3">
+          <StatusBadge label={marketplaceItem.enabled ? "enabled" : "disabled"} />
+          <span className="rounded-full border border-[#d7dfde] px-3 py-1 text-xs text-[#4b5563]">{normalizeMarketplaceCategory(marketplaceItem.category)}</span>
+          <span className="rounded-full border border-[#d7dfde] px-3 py-1 text-xs text-[#4b5563]">{marketplaceItem.tier}</span>
+        </div>
+        <div className="mt-4 text-sm text-[#4b5563]">{integration.note}</div>
+      </SectionCard>
+    );
+  }
+
+  return (
+    <PlatformLayout title={marketplaceItem?.name || app.name} subtitle={isMarketplaceAlias ? `${app.name} workspace delivery` : app.summary}>
+      <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-6 px-4 py-6 lg:px-8">
+        {renderMarketplaceAliasBanner()}
+        {renderSurface()}
       </div>
     </PlatformLayout>
   );
@@ -2275,6 +2462,7 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
 
 export function PlatformClient({ view, appId = "", projectId = "", fileId = "" }: PlatformClientProps) {
   if (view === "home") return <HomeScreen />;
+  if (view === "apps") return <AppsCatalogScreen />;
   if (view === "projects") return <ProjectsScreen />;
   if (view === "project") return <ProjectScreen projectId={projectId} />;
   if (view === "files") return <FilesScreen />;

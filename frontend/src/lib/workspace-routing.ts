@@ -3,6 +3,8 @@ export type FileLike = {
   content_type?: string | null;
 };
 
+export type WorkspaceAppRoute = "viewer3d" | "viewer2d" | "docviewer";
+
 const DOC_EXTENSIONS = [
   ".pdf",
   ".doc",
@@ -14,13 +16,10 @@ const DOC_EXTENSIONS = [
   ".odp",
   ".rtf",
   ".txt",
-  ".md",
   ".csv",
   ".html",
   ".htm",
 ] as const;
-
-const ARCHIVE_EXTENSIONS = [".zip", ".rar", ".7z"] as const;
 
 const DOC_CONTENT_TYPES = [
   "application/pdf",
@@ -33,14 +32,8 @@ const DOC_CONTENT_TYPES = [
   "application/vnd.oasis.opendocument.presentation",
   "application/rtf",
   "text/plain",
-  "text/markdown",
   "text/csv",
   "text/html",
-  "application/zip",
-  "application/x-zip-compressed",
-  "application/x-rar-compressed",
-  "application/vnd.rar",
-  "application/x-7z-compressed",
 ] as const;
 
 function splitHref(href: string) {
@@ -82,7 +75,6 @@ export function extractWorkspaceId(pathname: string | null | undefined) {
 function isDocumentLike(name: string, contentType: string) {
   if (contentType.startsWith("image/")) return true;
   if (DOC_CONTENT_TYPES.includes(contentType as (typeof DOC_CONTENT_TYPES)[number])) return true;
-  if (ARCHIVE_EXTENSIONS.some((ext) => name.endsWith(ext))) return true;
   return DOC_EXTENSIONS.some((ext) => name.endsWith(ext));
 }
 
@@ -90,9 +82,22 @@ export function classifyWorkspaceApp(file: FileLike | null | undefined) {
   const name = (file?.original_filename || "").toLowerCase();
   const contentType = (file?.content_type || "").toLowerCase();
 
-  if (name.endsWith(".dxf") || name.endsWith(".dwg") || name.endsWith(".svg")) return "viewer2d" as const;
+  if (name.endsWith(".dxf")) return "viewer2d" as const;
   if (isDocumentLike(name, contentType)) return "docviewer" as const;
   return "viewer3d" as const;
+}
+
+export function buildFileAppPath(appId: WorkspaceAppRoute, fileId: string) {
+  return `/app/${encodeURIComponent(appId)}?file_id=${encodeURIComponent(fileId)}`;
+}
+
+export function resolveFileAppPath(workspaceId: string | null | undefined, file: FileLike | null | undefined, fileId: string) {
+  // Uploads should land in the focused app surface, not a generic catch-all page.
+  const appId = classifyWorkspaceApp(file);
+  return {
+    appId,
+    href: workspaceId ? buildWorkspaceAppPath(workspaceId, appId, fileId) : buildFileAppPath(appId, fileId),
+  };
 }
 
 export function buildWorkspaceOpenPath(workspaceId: string, fileId: string) {
@@ -114,7 +119,6 @@ export function resolveWorkspaceHref(workspaceId: string | null | undefined, hre
 
   const { path, search, hash } = splitHref(href);
 
-  if (path === "/workspace") return href;
   if (path === "/" || path === "") return joinHref(buildWorkspacePath(workspaceId), search, hash);
   if (path.startsWith("/workspace/")) return href;
   if (path.startsWith("/view/") || path.startsWith("/s/")) return href;
@@ -130,6 +134,13 @@ export function resolveWorkspaceHref(workspaceId: string | null | undefined, hre
     const appId = path.slice("/app/".length);
     const fileId = new URLSearchParams(search).get("file_id");
     return joinHref(buildWorkspaceAppPath(workspaceId, appId, fileId), "", hash);
+  }
+  if (path === "/apps") {
+    return joinHref(buildWorkspacePath(workspaceId, "/apps"), search, hash);
+  }
+  if (path.startsWith("/apps/")) {
+    const slug = path.slice("/apps/".length);
+    return joinHref(buildWorkspaceAppPath(workspaceId, slug), "", hash);
   }
   if (path === "/projects" || path.startsWith("/projects/")) {
     return joinHref(buildWorkspacePath(workspaceId, path), search, hash);

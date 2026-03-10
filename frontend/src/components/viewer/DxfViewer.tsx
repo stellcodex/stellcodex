@@ -39,7 +39,7 @@ export function DxfViewer({
 
   const isPendingError = (value: string) => {
     const msg = value.toLowerCase();
-    return msg.includes("not ready") || msg.includes("hazır değil") || msg.includes("hazirlaniyor") || msg.includes("hazırlanıyor");
+    return msg.includes("not ready") || msg.includes("processing") || msg.includes("preparing");
   };
 
   useEffect(() => {
@@ -69,7 +69,7 @@ export function DxfViewer({
         setError(null);
       } catch (e: any) {
         if (cancelled) return;
-        const message = e?.message || "DXF manifest alınamadı.";
+        const message = e?.message || "The DXF manifest could not be loaded.";
         if (isPendingError(message)) {
           setError(null);
           return;
@@ -108,7 +108,7 @@ export function DxfViewer({
         setError(null);
       } catch (e: any) {
         if (cancelled) return;
-        const message = e?.message || "DXF render başarısız.";
+        const message = e?.message || "DXF rendering failed.";
         if (isPendingError(message)) {
           setError(null);
           return;
@@ -224,7 +224,7 @@ export function DxfViewer({
         <div className={`p-4 text-sm ${isDark ? "text-red-200" : "text-red-600"}`}>{error}</div>
       ) : !svgUrl ? (
         <div className={`p-4 text-sm ${isDark ? "text-slate-300" : "text-slate-500"}`}>
-          {manifest && activeLayers.size === 0 ? "Görünür katman seçili değil." : "2D çizim hazırlanıyor..."}
+          {manifest && activeLayers.size === 0 ? "No visible layer is selected." : "Preparing 2D drawing..."}
         </div>
       ) : (
         <div className="absolute inset-0 flex items-center justify-center">
@@ -245,7 +245,7 @@ export function DxfViewer({
           ].join(" ")}
         >
           <div className="mb-1 flex items-center justify-between gap-2">
-            <div className={`font-semibold ${isDark ? "text-white" : "text-slate-900"}`}>Katmanlar</div>
+            <div className={`font-semibold ${isDark ? "text-white" : "text-slate-900"}`}>Layers</div>
             <button
               type="button"
               className={[

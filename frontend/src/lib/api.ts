@@ -8,58 +8,12 @@ import type {
   FileKind,
 } from "@/lib/stellcodex/types";
 
-const USER_TOKEN_KEY = "scx_token";
-const GUEST_TOKEN_KEY = "stellcodex_access_token";
-
-function getStoredToken(key: string): string | null {
-  if (typeof window === "undefined") return null;
-  const value = window.localStorage.getItem(key);
-  return value && value.trim() ? value.trim() : null;
-}
-
-function writeTokenCookie(key: string, token: string) {
-  if (typeof document === "undefined") return;
-  document.cookie = `${key}=${encodeURIComponent(token)}; path=/; max-age=86400; SameSite=Lax`;
-}
-
-async function ensureGuestToken(): Promise<string | null> {
-  const existing = getStoredToken(GUEST_TOKEN_KEY);
-  if (existing) {
-    writeTokenCookie(GUEST_TOKEN_KEY, existing);
-    return existing;
-  }
-  const res = await fetch("/api/v1/auth/guest", { method: "POST", cache: "no-store" }).catch(() => null);
-  if (!res || !res.ok) return null;
-  const payload = await res.json().catch(() => null);
-  const token =
-    payload && typeof payload === "object" && typeof (payload as { access_token?: unknown }).access_token === "string"
-      ? String((payload as { access_token: string }).access_token).trim()
-      : "";
-  if (!token) return null;
-  if (typeof window !== "undefined") window.localStorage.setItem(GUEST_TOKEN_KEY, token);
-  writeTokenCookie(GUEST_TOKEN_KEY, token);
-  return token;
-}
-
-async function getAccessToken(): Promise<string | null> {
-  const userToken = getStoredToken(USER_TOKEN_KEY);
-  if (userToken) {
-    writeTokenCookie(USER_TOKEN_KEY, userToken);
-    return userToken;
-  }
-  return ensureGuestToken();
-}
-
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = await getAccessToken();
-  const headers = new Headers(init?.headers || {});
-  if (token && !headers.has("Authorization")) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-
   const res = await fetch(path, {
     ...init,
-    headers,
+    headers: {
+      ...(init?.headers || {}),
+    },
     cache: "no-store",
   });
   const payload = await res.json().catch(() => null);
@@ -67,8 +21,6 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(
       (payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string"
         ? payload.error
-        : payload && typeof payload === "object" && "detail" in payload && typeof payload.detail === "string"
-        ? payload.detail
         : null) || `Request failed (${res.status})`
     );
   }
@@ -129,6 +81,22 @@ export async function extractArchive(fileId: string) {
   return api<{ newFolderId: string }>(`/api/archive/${fileId}/extract`, { method: "POST" });
 }
 
+export async function createFolder(input: { projectId: string; parentId?: string | null; name: string }) {
+  return api<{ folder: { id: string; name: string } }>(`/api/project/${input.projectId}/tree`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "createFolder", ...input }),
+  });
+}
+
+export async function moveFiles(input: { projectId: string; fileIds: string[]; folderId: string }) {
+  return api<{ moved: number }>(`/api/project/${input.projectId}/tree`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "moveFiles", ...input }),
+  });
+}
+
 export async function deleteFiles(input: { projectId: string; fileIds: string[] }) {
   return api<{ deleted: number }>(`/api/project/${input.projectId}/tree`, {
     method: "POST",
@@ -159,3 +127,4 @@ export async function getAdminSnapshot() {
     systemInfo: { ...systemInfo, queues },
   };
 }
+

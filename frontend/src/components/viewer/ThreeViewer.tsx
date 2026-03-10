@@ -656,7 +656,7 @@ export function ThreeViewer(props: ViewerProps) {
       {contextLost ? (
         <div className="pointer-events-none absolute inset-0 z-30 grid place-items-center bg-white/85">
           <div className="pointer-events-auto rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-center text-sm text-amber-800">
-            <div>WebGL context kayboldu.</div>
+            <div>WebGL context was lost.</div>
             <button
               type="button"
               className="mt-2 rounded-lg border border-amber-400 bg-white px-3 py-1 text-xs font-semibold text-amber-700"
@@ -665,7 +665,7 @@ export function ThreeViewer(props: ViewerProps) {
                 setCanvasEpoch((value) => value + 1);
               }}
             >
-              Viewer’ı yeniden yükle
+              Reload viewer
             </button>
           </div>
         </div>

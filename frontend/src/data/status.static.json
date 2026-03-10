@@ -1,12 +1,12 @@
 {
   "overall": "unknown",
-  "summary": "Durum verisi yapılandırılmadı.",
+  "summary": "Status data is not configured.",
   "updated_at": null,
   "components": [
-    { "name": "Yükleme", "status": "unknown" },
-    { "name": "Dönüşüm", "status": "unknown" },
-    { "name": "Görüntüleyici", "status": "unknown" },
-    { "name": "Paylaşım", "status": "unknown" }
+    { "name": "Upload", "status": "unknown" },
+    { "name": "Conversion", "status": "unknown" },
+    { "name": "Viewer", "status": "unknown" },
+    { "name": "Share", "status": "unknown" }
   ],
   "incidents": []
 }

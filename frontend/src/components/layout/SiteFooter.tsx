@@ -10,35 +10,35 @@ export function SiteFooter() {
           <div>
             <div className="text-sm font-semibold text-[#111827]">STELLCODEX</div>
             <div className="mt-2 text-xs text-[#6b7280]">
-              Görüntüle. İncele. Paylaş. CAD’siz mühendislik verisi.
+              Review. Inspect. Share. Engineering data without CAD installs.
             </div>
           </div>
 
           <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm md:justify-end">
             <Link className="text-[#4b5563] hover:text-[#111827]" href="/">
-              Ana Sayfa
+              Home
             </Link>
             <Link className="text-[#4b5563] hover:text-[#111827]" href="/docs">
-              Dokümanlar
+              Docs
             </Link>
-            <Link className="text-[#4b5563] hover:text-[#111827]" href="/dashboard">
-              Panel
+            <Link className="text-[#4b5563] hover:text-[#111827]" href="/">
+              Open Suite
             </Link>
             <Link className="text-[#4b5563] hover:text-[#111827]" href="/login">
-              Giriş
+              Sign In
             </Link>
             <Link className="text-[#4b5563] hover:text-[#111827]" href="/privacy">
-              Gizlilik
+              Privacy
             </Link>
             <Link className="text-[#4b5563] hover:text-[#111827]" href="/terms">
-              Şartlar
+              Terms
             </Link>
           </div>
         </div>
 
         <div className="mt-8 flex flex-wrap items-center justify-between gap-2 text-xs text-[#6b7280]">
           <span>© 2026 STELLCODEX</span>
-          <span>Görüntüle + Paylaş • Web + PWA</span>
+          <span>One suite • Separate apps • Web + PWA</span>
         </div>
       </div>
     </footer>

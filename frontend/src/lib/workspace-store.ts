@@ -17,10 +17,13 @@ export type WorkspaceProjectSummary = {
   fileCount: number;
 };
 
-const STORAGE_KEY = "scx_workspace_files_v1";
-export const DEFAULT_PROJECT_ID = "genel-proje";
-export const DEFAULT_PROJECT_NAME = "Genel Proje";
+const WORKSPACE_CACHE_SLOT = "scx_workspace_files_v1";
+export const DEFAULT_PROJECT_ID = "default";
+export const DEFAULT_PROJECT_NAME = "Default Project";
 const WORKSPACE_UPDATED_EVENT = "scx-workspace-updated";
+// Keep legacy default project identifiers readable so existing local workspace
+// data survives language and contract cleanups without manual resets.
+const LEGACY_DEFAULT_PROJECT_IDS = new Set(["default-project", "genel-proje"]);
 
 const MODE_2D_EXTENSIONS = new Set([
   "dxf",
@@ -51,15 +54,34 @@ function safeJsonParse(input: string | null): WorkspaceFileRecord[] {
   }
 }
 
+function canonicalProjectId(projectId?: string | null) {
+  const value = String(projectId || "").trim();
+  if (!value) return DEFAULT_PROJECT_ID;
+  if (LEGACY_DEFAULT_PROJECT_IDS.has(value)) return DEFAULT_PROJECT_ID;
+  return value;
+}
+
+function canonicalProjectName(projectId?: string | null, projectName?: string | null) {
+  const normalizedId = canonicalProjectId(projectId);
+  const value = String(projectName || "").trim();
+  if (!value || normalizedId === DEFAULT_PROJECT_ID) return DEFAULT_PROJECT_NAME;
+  return value;
+}
+
 function persist(records: WorkspaceFileRecord[]) {
   if (!canUseStorage()) return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+  window.localStorage.setItem(WORKSPACE_CACHE_SLOT, JSON.stringify(records));
   window.dispatchEvent(new CustomEvent(WORKSPACE_UPDATED_EVENT));
 }
 
 function normalized(records: WorkspaceFileRecord[]) {
   return records
     .filter((item) => typeof item.fileId === "string" && item.fileId.length > 0)
+    .map((item) => ({
+      ...item,
+      projectId: canonicalProjectId(item.projectId),
+      projectName: canonicalProjectName(item.projectId, item.projectName),
+    }))
     .sort((a, b) => (a.uploadedAt < b.uploadedAt ? 1 : -1));
 }
 
@@ -75,8 +97,11 @@ export function detectWorkspaceMode(fileName: string, contentType?: string | nul
 
 export function listWorkspaceFiles(): WorkspaceFileRecord[] {
   if (!canUseStorage()) return [];
-  const records = safeJsonParse(window.localStorage.getItem(STORAGE_KEY));
-  return normalized(records);
+  const records = safeJsonParse(window.localStorage.getItem(WORKSPACE_CACHE_SLOT));
+  const next = normalized(records);
+  const changed = JSON.stringify(records) !== JSON.stringify(next);
+  if (changed) persist(next);
+  return next;
 }
 
 export function getWorkspaceFileById(fileId: string): WorkspaceFileRecord | null {
@@ -125,8 +150,8 @@ export function registerUploadedFile(input: {
   projectId?: string;
   projectName?: string;
 }): WorkspaceFileRecord {
-  const projectId = input.projectId || DEFAULT_PROJECT_ID;
-  const projectName = input.projectName || DEFAULT_PROJECT_NAME;
+  const projectId = canonicalProjectId(input.projectId);
+  const projectName = canonicalProjectName(projectId, input.projectName);
   const mode = input.mode || detectWorkspaceMode(input.originalFilename, input.contentType || null);
 
   const next: WorkspaceFileRecord = {
@@ -148,7 +173,7 @@ export function formatWorkspaceDate(iso: string): string {
   if (!iso) return "-";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("tr-TR", {
+  return new Intl.DateTimeFormat("en-US", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -160,7 +185,7 @@ export function formatWorkspaceDate(iso: string): string {
 export function subscribeWorkspaceUpdates(listener: () => void) {
   if (typeof window === "undefined") return () => undefined;
   const onStorage = (event: StorageEvent) => {
-    if (event.key === STORAGE_KEY) listener();
+    if (event.key === WORKSPACE_CACHE_SLOT) listener();
   };
   const onCustom = () => listener();
 

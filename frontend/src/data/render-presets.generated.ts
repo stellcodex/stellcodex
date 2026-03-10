@@ -2,22 +2,22 @@
 export const RENDER_PRESETS = [
   {
     "name": "preview_low",
-    "label": "Önizleme Düşük",
+    "label": "Preview Low",
     "engine": "eevee"
   },
   {
     "name": "studio_soft",
-    "label": "Stüdyo Yumuşak",
+    "label": "Studio Soft",
     "engine": "cycles"
   },
   {
     "name": "technical_white",
-    "label": "Teknik Beyaz",
+    "label": "Technical White",
     "engine": "eevee"
   },
   {
     "name": "exploded_shadow",
-    "label": "Patlatma Gölge",
+    "label": "Exploded Shadow",
     "engine": "cycles"
   }
 ] as const;

@@ -14,23 +14,23 @@ type SharePageError = {
 function classifyShareError(error: unknown): SharePageError {
   if (error instanceof ApiHttpError) {
     if (error.status === 403) {
-      return { status: 403, title: "Erişim kapalı", description: error.message || "Bu paylaşım bağlantısı iptal edilmiş veya erişime kapatılmış." };
+      return { status: 403, title: "Access disabled", description: error.message || "This share link has been revoked or access was disabled." };
     }
     if (error.status === 404) {
-      return { status: 404, title: "Bağlantı bulunamadı", description: "Paylaşım bağlantısı geçersiz veya kaldırılmış." };
+      return { status: 404, title: "Link not found", description: "The share link is invalid or was removed." };
     }
     if (error.status === 410) {
-      return { status: 410, title: "Bağlantının süresi doldu", description: error.message || "Bu paylaşım bağlantısının süresi dolmuş." };
+      return { status: 410, title: "Link expired", description: error.message || "This share link has expired." };
     }
     if (error.status === 429) {
-      return { status: 429, title: "Çok fazla istek", description: error.message || "Biraz sonra tekrar deneyin." };
+      return { status: 429, title: "Too many requests", description: error.message || "Try again in a moment." };
     }
-    return { status: error.status, title: "Paylaşım yüklenemedi", description: error.message || "Beklenmeyen bir hata oluştu." };
+    return { status: error.status, title: "Share could not be loaded", description: error.message || "Unexpected error." };
   }
   if (error instanceof Error) {
-    return { status: 500, title: "Paylaşım yüklenemedi", description: error.message };
+    return { status: 500, title: "Share could not be loaded", description: error.message };
   }
-  return { status: 500, title: "Paylaşım yüklenemedi", description: "Beklenmeyen bir hata oluştu." };
+  return { status: 500, title: "Share could not be loaded", description: "Unexpected error." };
 }
 
 export default function PublicShareRoute({ params }: { params: { token: string } }) {
@@ -41,7 +41,7 @@ export default function PublicShareRoute({ params }: { params: { token: string }
   useEffect(() => {
     let active = true;
     if (!token) {
-      setError({ status: 404, title: "Bağlantı bulunamadı", description: "Paylaşım bağlantısı geçersiz." });
+      setError({ status: 404, title: "Link not found", description: "The share link is invalid." });
       return () => {
         active = false;
       };
@@ -75,7 +75,7 @@ export default function PublicShareRoute({ params }: { params: { token: string }
           </div>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link href="/" className="rounded-xl border border-[#334155] bg-[#111827] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1f2937]">
-              Ana Sayfa
+              Home
             </Link>
           </div>
         </div>

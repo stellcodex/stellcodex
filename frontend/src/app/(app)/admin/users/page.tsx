@@ -26,7 +26,7 @@ export default function AdminUsersPage() {
       })
       .catch((e: any) => {
         if (!active) return;
-        setError(e?.message || "Kullanıcılar alınamadı.");
+        setError(e?.message || "Users could not be loaded.");
       });
     return () => {
       active = false;
@@ -36,15 +36,15 @@ export default function AdminUsersPage() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Kullanıcı Yönetimi"
-        description="Roller, durum ve güvenlik aksiyonları."
-        crumbs={[{ label: "Yönetim", href: "/admin" }, { label: "Kullanıcılar" }]}
+        title="User Management"
+        description="Roles, status, and security actions."
+        crumbs={[{ label: "Admin", href: "/admin" }, { label: "Users" }]}
       />
       {error ? (
-        <EmptyState title="Kullanıcı verisi yok" description={error} />
+        <EmptyState title="No user data" description={error} />
       ) : (
         <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <div className="text-sm font-semibold text-slate-900">Kullanıcılar</div>
+          <div className="text-sm font-semibold text-slate-900">Users</div>
           <div className="mt-3 space-y-2 text-sm text-slate-700">
             {users.length ? (
               users.map((u) => (
@@ -54,12 +54,12 @@ export default function AdminUsersPage() {
                     <div className="text-xs text-slate-500">{u.role}</div>
                   </div>
                   <div className="text-xs text-slate-500">
-                    {u.is_suspended ? "Askıda" : "Aktif"}
+                    {u.is_suspended ? "Suspended" : "Active"}
                   </div>
                 </div>
               ))
             ) : (
-              <div className="text-sm text-slate-500">Kullanıcı yok.</div>
+              <div className="text-sm text-slate-500">No users are available.</div>
             )}
           </div>
         </div>

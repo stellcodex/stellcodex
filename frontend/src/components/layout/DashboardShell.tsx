@@ -8,10 +8,10 @@ import { clsx } from "clsx";
 import { Button } from "@/components/ui/Button";
 
 const nav = [
-  { href: "/dashboard", label: "Genel Bakış" },
-  { href: "/dashboard/files", label: "Dosyalar" },
-  { href: "/dashboard/shares", label: "Paylaşımlar" },
-  { href: "/dashboard/settings", label: "Ayarlar" },
+  { href: "/dashboard", label: "Suite Home" },
+  { href: "/dashboard/files", label: "Files" },
+  { href: "/dashboard/shares", label: "Shares" },
+  { href: "/dashboard/settings", label: "Settings" },
 ];
 
 function isActivePath(pathname: string, href: string) {
@@ -34,7 +34,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       <div className="flex">
         <aside className="hidden w-64 flex-col border-r border-slate-200 bg-white p-4 lg:flex">
           <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-            Panel
+            Suite Redirect
           </div>
           <nav className="mt-4 grid gap-1">
             {items.map((item) => (
@@ -54,7 +54,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           </nav>
           <div className="mt-auto grid gap-2 pt-6">
             <Button href="/" variant="ghost">
-              Ana Sayfa
+              Home
             </Button>
           </div>
         </aside>
@@ -66,19 +66,19 @@ export function DashboardShell({ children }: { children: ReactNode }) {
                 <button
                   className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white lg:hidden"
                   onClick={() => setOpen((s) => !s)}
-                  aria-label="Panel menüsünü aç"
+                  aria-label="Open suite menu"
                   aria-expanded={open}
                 >
                   ☰
                 </button>
-                <div className="text-sm font-semibold text-slate-900">Kullanıcı Paneli</div>
+                <div className="text-sm font-semibold text-slate-900">STELLCODEX Suite</div>
               </div>
               <div className="flex items-center gap-2">
-                <Button href="/dashboard" variant="secondary">
-                  Panel
+                <Button href="/" variant="secondary">
+                  Open Suite
                 </Button>
                 <div className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500">
-                  Oturum
+                  Session
                 </div>
               </div>
             </div>

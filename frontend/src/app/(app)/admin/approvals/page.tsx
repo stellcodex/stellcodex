@@ -5,13 +5,13 @@ export default function AdminApprovalsPage() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Onay Kuyruğu"
-        description="Kritik aksiyon incelemesi."
-        crumbs={[{ label: "Yönetim", href: "/admin" }, { label: "Onaylar" }]}
+        title="Approval Queue"
+        description="Review critical actions before execution."
+        crumbs={[{ label: "Admin", href: "/admin" }, { label: "Approvals" }]}
       />
       <EmptyState
-        title="Onay kuyruğu boş"
-        description="Uç nokta bağlandığında onaylar burada görünecek."
+        title="The approval queue is empty"
+        description="Approvals will appear here once the endpoint is connected."
       />
     </div>
   );

@@ -38,10 +38,9 @@ type StatusInfo = {
 
 function is2dFile(file: FileDetail) {
   const lower = file.original_filename.toLowerCase();
-  if (["2d", "doc", "image", "archive"].includes((file.kind || "").toLowerCase())) return true;
   if (file.content_type === "application/pdf") return true;
   if (file.content_type.startsWith("image/")) return true;
-  return lower.endsWith(".dxf") || lower.endsWith(".dwg") || lower.endsWith(".svg");
+  return lower.endsWith(".dxf");
 }
 
 function shortName(name: string) {
@@ -189,24 +188,24 @@ type ViewerError = {
 function classifyViewerError(error: unknown): ViewerError {
   if (error instanceof ApiHttpError) {
     if (error.status === 404) {
-      return { title: "Bulunamadı", description: "Dosya bulunamadı." };
+      return { title: "Not found", description: "The file could not be found." };
     }
     if (error.status === 401) {
-      return { title: "Yetkisiz / token alınamadı", description: error.message || "Misafir token alınamadı." };
+      return { title: "Unauthorized", description: error.message || "The guest token could not be issued." };
     }
     if (error.status === 403) {
-      return { title: "Erişim yok", description: error.message || "Bu dosyaya erişim izniniz yok." };
+      return { title: "Access denied", description: error.message || "You do not have permission to access this file." };
     }
-    return { title: "İşlem başarısız", description: error.message || "Beklenmeyen bir hata oluştu." };
+    return { title: "Request failed", description: error.message || "Unexpected error." };
   }
   if (error instanceof Error) {
     const text = error.message.toLowerCase();
-    if (text.includes("sunucuya erişilemedi") || text.includes("network") || text.includes("timeout")) {
-      return { title: "Bağlantı hatası", description: "Sunucuya bağlanılamadı. Ağı ve API yönlendirmesini kontrol edin." };
+    if (text.includes("network") || text.includes("timeout")) {
+      return { title: "Connection error", description: "The server could not be reached. Check the network and API routing." };
     }
-    return { title: "İşlem başarısız", description: error.message };
+    return { title: "Request failed", description: error.message };
   }
-  return { title: "İşlem başarısız", description: "Beklenmeyen bir hata oluştu." };
+  return { title: "Request failed", description: "Unexpected error." };
 }
 
 export default function ViewPage() {
@@ -283,7 +282,7 @@ export default function ViewPage() {
 
   useEffect(() => {
     if (!fileId || !SCX_ID_REGEX.test(fileId)) {
-      setError({ title: "Bulunamadı", description: "Geçersiz dosya kimliği." });
+      setError({ title: "Not found", description: "Invalid file identifier." });
       setLoading(false);
       setProcessing(false);
       setProcessingSince(null);
@@ -325,7 +324,7 @@ export default function ViewPage() {
           setProcessing(false);
           setProcessingSince(null);
           setLoading(false);
-          setError({ title: "İşlem başarısız", description: "Dönüştürme başarısız. Tekrar deneyin." });
+          setError({ title: "Operation failed", description: "Conversion failed. Try again." });
           return;
         }
         if (status.state !== "succeeded" && status.state !== "ready") {
@@ -356,15 +355,14 @@ export default function ViewPage() {
         setProcessingSince(null);
         setProcessingElapsedMs(0);
         if (is2dFile(f)) {
-          const resolvedContentType = (f.original_url || "").endsWith("/pdf") ? "application/pdf" : f.content_type;
-          setContentType(resolvedContentType);
+          setContentType(f.content_type);
           if (f.original_filename.toLowerCase().endsWith(".dxf")) {
             lastResolvedUrlRef.current = null;
             setBlobUrl(null);
             return;
           }
           if (!f.original_url) {
-            setError({ title: "İçerik hazır değil", description: "2D içerik hazır değil. Lütfen tekrar deneyin." });
+            setError({ title: "Content not ready", description: "2D content is not ready yet. Try again." });
             return;
           }
           if (lastResolvedUrlRef.current === f.original_url && objectUrlRef.current) {
@@ -383,7 +381,7 @@ export default function ViewPage() {
         }
         const target3dUrl = resolveTarget3dUrl(f, quality);
         if (!target3dUrl) {
-          setError({ title: "İçerik hazır değil", description: "3D içerik hazır değil. Lütfen tekrar deneyin." });
+          setError({ title: "Content not ready", description: "3D content is not ready yet. Try again." });
           return;
         }
         if (lastResolvedUrlRef.current === target3dUrl && objectUrlRef.current) {
@@ -445,7 +443,7 @@ export default function ViewPage() {
       const link = `${window.location.origin}/s/${res.token}`;
       setShareLink(link);
     } catch (e: any) {
-      setShareError((e?.message || "Paylaşım oluşturulamadı") + ". Tekrar deneyin.");
+      setShareError((e?.message || "The share link could not be created") + ". Try again.");
     } finally {
       setShareBusy(false);
     }
@@ -527,9 +525,7 @@ export default function ViewPage() {
     [mappedAssemblyRows]
   );
   const explodeAvailable = explodePartGroups.length > 0;
-  const canSelectRow = assemblyRows.length > 0;
   const canActOnSelection = selectedNodeIds.length > 0 && allViewerNodeIds.length > 0;
-  const partOpsDisabledReason = !canSelectRow ? "Assembly tree not available for this model yet." : "Düğüm seçin.";
   const effectivePartCount = partCount > 0 ? partCount : assemblyRows.length;
   const processingPercent = Math.max(
     1,
@@ -549,12 +545,6 @@ export default function ViewPage() {
     () => ({ key: zoomTick, direction: zoomDirection }),
     [zoomTick, zoomDirection]
   );
-
-  const handleSelectTreeNode = () => {
-    if (!selectedTreeKey && assemblyRows[0]) {
-      setSelectedTreeKey(assemblyRows[0].key);
-    }
-  };
 
   const handleHideShow = () => {
     if (!canActOnSelection) return;
@@ -595,186 +585,13 @@ export default function ViewPage() {
     }
   }, [explodeAvailable, explodeFactor]);
 
-  const leftPanelCard = (
-    <Card className="p-3">
-      <div className="grid grid-cols-3 gap-1 rounded-lg border border-[#d1d5db] bg-[#f8f8f8] p-1 text-[11px]">
-        <button className={`rounded px-1 py-1 ${leftTab === "assembly" ? "bg-white font-semibold" : ""}`} onClick={() => setLeftTab("assembly")}>Assembly Tree</button>
-        <button className={`rounded px-1 py-1 ${leftTab === "display" ? "bg-white font-semibold" : ""}`} onClick={() => setLeftTab("display")}>View/Display</button>
-        <button className={`rounded px-1 py-1 ${leftTab === "section" ? "bg-white font-semibold" : ""}`} onClick={() => setLeftTab("section")}>Section</button>
-      </div>
-      <div className="mt-2 rounded-lg border border-[#d1d5db] bg-[#f9fafb] px-2 py-1 text-[11px] text-[#4b5563]">
-        Parts: <span className="font-semibold text-[#111827]">{effectivePartCount}</span>
-      </div>
-
-      {leftTab === "assembly" ? (
-        <div className="mt-3">
-          <input
-            value={treeQuery}
-            onChange={(e) => setTreeQuery(e.target.value)}
-            placeholder="Ağaçta ara..."
-            disabled={assemblyTree.length === 0}
-            className="h-8 w-full rounded-lg border border-[#d1d5db] bg-white px-2 text-xs"
-          />
-          <div className="mt-2 grid grid-cols-3 gap-2">
-            <button
-              disabled={!canSelectRow}
-              title={!canSelectRow ? partOpsDisabledReason : undefined}
-              className={`rounded border px-2 py-1 text-[10px] ${
-                canSelectRow ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"
-              }`}
-              onClick={handleSelectTreeNode}
-            >
-              Select
-            </button>
-            <button
-              disabled={!canActOnSelection}
-              title={!canActOnSelection ? partOpsDisabledReason : undefined}
-              className={`rounded border px-2 py-1 text-[10px] ${
-                canActOnSelection ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"
-              }`}
-              onClick={handleHideShow}
-            >
-              Hide/Show
-            </button>
-            <button
-              disabled={!canActOnSelection}
-              title={!canActOnSelection ? partOpsDisabledReason : undefined}
-              className={`rounded border px-2 py-1 text-[10px] ${
-                canActOnSelection ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"
-              }`}
-              onClick={handleIsolate}
-            >
-              Isolate
-            </button>
-          </div>
-          <div className="mt-2 max-h-[min(56vh,calc(100dvh-18rem))] overflow-auto text-xs text-[#374151]">
-            {assemblyRows.length === 0 ? (
-              <div className="rounded-lg border border-[#d1d5db] bg-[#f9fafb] p-3 text-[#6b7280]">
-                Assembly tree not available for this model yet.
-              </div>
-            ) : (
-              assemblyRows.map((row) => (
-                <div key={row.key} className="py-0.5">
-                  <button
-                    className={`w-full truncate rounded px-1 py-1 text-left ${
-                      selectedTreeKey === row.key ? "bg-[#eef2ff] text-[#111827]" : "text-[#374151] hover:bg-[#f8fafc] hover:text-[#111827]"
-                    } ${row.nodeIds.length > 0 ? "" : "opacity-70"}`}
-                    style={{ paddingLeft: `${Math.min(row.depth * 12 + 4, 96)}px` }}
-                    title={row.nodeIds.length === 0 ? "Bu düğüm için eşleşen parça bulunamadı." : undefined}
-                    onClick={() => setSelectedTreeKey(row.key)}
-                  >
-                    {row.label}
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      ) : null}
-
-      {leftTab === "display" ? (
-        <div className="mt-3 grid gap-3 text-xs">
-          <div className="font-semibold text-[#111827]">Görünüm modu</div>
-          <div className="grid gap-2">
-            {VIEWER_MODE_ORDER.map((mode) => (
-              <button
-                key={mode}
-                className={`rounded-lg border px-2 py-1 text-left ${
-                  renderMode === mode ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white text-[#374151]"
-                }`}
-                onClick={() => setRenderMode(mode)}
-              >
-                {VIEWER_MODE_LABEL[mode]}
-              </button>
-            ))}
-          </div>
-          <div className="font-semibold text-[#111827]">Projeksiyon</div>
-          <div className="grid grid-cols-2 gap-2">
-            {(["perspective", "orthographic"] as ProjectionMode[]).map((mode) => (
-              <button
-                key={mode}
-                className={`rounded-lg border px-2 py-1 ${
-                  projection === mode ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white text-[#374151]"
-                }`}
-                onClick={() => setProjection(mode)}
-              >
-                {mode === "perspective" ? "Persp" : "Ortho"}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {leftTab === "section" ? (
-        <div className="mt-3 grid gap-3 text-xs">
-          <label className="flex items-center justify-between">
-            Kesit aktif
-            <input type="checkbox" checked={clip} onChange={(e) => setClip(e.target.checked)} />
-          </label>
-          <div className="grid grid-cols-4 gap-1">
-            {(["x", "y", "z", "free"] as const).map((axis) => (
-              <button
-                key={axis}
-                type="button"
-                onClick={() => setClipAxis(axis)}
-                className={`rounded border px-2 py-1 text-[11px] ${
-                  clipAxis === axis ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db] bg-white text-[#374151]"
-                }`}
-              >
-                {axis.toUpperCase()}
-              </button>
-            ))}
-          </div>
-          {clip ? (
-            <input
-              type="range"
-              min={-2}
-              max={2}
-              step={0.01}
-              value={clipOffset}
-              onChange={(e) => setClipOffset(Number(e.target.value))}
-            />
-          ) : null}
-          <div className="text-[11px] text-[#6b7280]">Aktif düzlem: {clipAxis.toUpperCase()} · offset: {clipOffset.toFixed(2)}</div>
-        </div>
-      ) : null}
-    </Card>
-  );
-
-  const rightPanelCard = (
-    <Card className="p-2">
-      <div className="grid gap-2">
-        <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs" onClick={() => setCameraPreset("iso")}>Orbit</button>
-        <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs">Pan</button>
-        <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs">Zoom +</button>
-        <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs">Zoom -</button>
-        <button className="rounded border border-[#d1d5db] px-2 py-2 text-xs" onClick={() => setCameraPreset("iso")}>Fit</button>
-        <button className={`rounded border px-2 py-2 text-xs ${clip ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db]"}`} onClick={() => setClip((v) => !v)}>Section</button>
-        <button
-          className={`rounded border px-2 py-2 text-xs ${
-            explodeAvailable ? "border-[#d1d5db]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"
-          }`}
-          onClick={() => explodeAvailable && setBottomTab("explode")}
-          disabled={!explodeAvailable}
-          title={explodeAvailable ? undefined : "Explode için assembly_meta/part mapping gerekli."}
-        >
-          Explode
-        </button>
-        <button className={`rounded border px-2 py-2 text-xs ${measureEnabled ? "border-[#111827] bg-[#111827] text-white" : "border-[#d1d5db]"}`} onClick={() => setMeasureEnabled((v) => !v)}>Measure</button>
-        <div className="rounded border border-[#e5e7eb] bg-[#f9fafb] px-2 py-1 text-[10px] text-[#6b7280]">
-          {measureValue !== null ? `${measureValue.toFixed(2)} mm` : "Mesafe: -"}
-        </div>
-      </div>
-    </Card>
-  );
-
   const viewerBody = useMemo(() => {
     if (!fileId) {
       return (
         <EmptyState
-          title="Dosya bulunamadı"
-          description="Dosya bulunamadı. Yeni yükleme yapın."
-          action={<SecondaryButton href="/">Workspace'e git</SecondaryButton>}
+          title="File not found"
+          description="The file could not be found. Start a new upload."
+          action={<SecondaryButton href="/">Go to workspace</SecondaryButton>}
         />
       );
     }
@@ -785,8 +602,8 @@ export default function ViewPage() {
           description={error.description}
           action={
             <div className="flex flex-wrap items-center gap-2">
-              <SecondaryButton onClick={() => setRetryTick((t) => t + 1)}>Tekrar dene</SecondaryButton>
-              <PrimaryButton href="/">Workspace'e git</PrimaryButton>
+              <SecondaryButton onClick={() => setRetryTick((t) => t + 1)}>Retry</SecondaryButton>
+              <PrimaryButton href="/">Go to workspace</PrimaryButton>
             </div>
           }
         />
@@ -804,13 +621,13 @@ export default function ViewPage() {
       const statusRaw = (statusInfo?.state || "running").toLowerCase();
       const status = statusRaw === "failed" ? "failed" : statusRaw === "succeeded" ? "ready" : statusRaw === "queued" ? "queued" : "running";
       const statusLabel = statusInfo?.progress_hint
-        ? `İşleniyor… (${statusInfo.progress_hint})`
-        : "İşleniyor…";
+        ? `Processing... (${statusInfo.progress_hint})`
+        : "Processing...";
       return (
         <Card className="p-5">
           <div className="mb-4 flex items-center gap-3">
             <StatusPill status={status} label={statusLabel} />
-            <span style={tokens.typography.body} className="text-[#6b7280]">Görüntüleme hazırlanıyor…</span>
+            <span style={tokens.typography.body} className="text-[#6b7280]">Preparing the viewer...</span>
           </div>
           <div className="mb-3 h-2 overflow-hidden rounded-full bg-[#e5e7eb]">
             <div className="h-full rounded-full bg-[#111827] transition-all" style={{ width: `${processingPercent}%` }} />
@@ -818,16 +635,16 @@ export default function ViewPage() {
           <div className="h-[60vh] w-full animate-pulse rounded-xl bg-[#e6e2d8]" />
           <div className="mt-4 grid gap-2 text-xs text-[#6b7280]">
             <span>
-              Durum güncelleniyor… {(processingElapsedMs / 1000).toFixed(0)}sn
-              {statusInfo?.stage ? ` · aşama: ${statusInfo.stage}` : ""}
+              Updating status... {(processingElapsedMs / 1000).toFixed(0)}s
+              {statusInfo?.stage ? ` · stage: ${statusInfo.stage}` : ""}
             </span>
             <div className="flex flex-wrap items-center gap-2">
-              <SecondaryButton href="/">Workspace'e don</SecondaryButton>
-              <SecondaryButton onClick={() => setRetryTick((t) => t + 1)}>Yeniden dene</SecondaryButton>
+              <SecondaryButton href="/">Back to workspace</SecondaryButton>
+              <SecondaryButton onClick={() => setRetryTick((t) => t + 1)}>Retry</SecondaryButton>
             </div>
             {processingTimedOut ? (
               <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-amber-700">
-                Hazırlama beklenenden uzun sürdü. Arka plandaki işi koruyarak yeniden deneme yapabilirsiniz.
+                Preparation is taking longer than expected. You can retry without discarding the background job.
               </div>
             ) : null}
           </div>
@@ -972,7 +789,7 @@ export default function ViewPage() {
               <div className="font-semibold text-[#111827]">Explode</div>
               {!explodeAvailable ? (
                 <div className="rounded border border-[#e5e7eb] bg-[#f9fafb] px-2 py-2 text-[11px] text-[#6b7280]">
-                  Explode devre dışı: assembly_meta mapping yok.
+                  Explode is disabled because assembly_meta mapping is missing.
                 </div>
               ) : null}
               <label className="grid gap-1">
@@ -1025,35 +842,12 @@ export default function ViewPage() {
           <input
             value={treeQuery}
             onChange={(e) => setTreeQuery(e.target.value)}
-            placeholder="Parça ara..."
+            placeholder="Search parts..."
             disabled={assemblyRows.length === 0}
             className="h-9 rounded-lg border border-[#d1d5db] bg-white px-2 text-xs"
           />
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              disabled={!canSelectRow}
-              onClick={handleSelectTreeNode}
-              className={`rounded border px-2 py-1 text-[11px] ${canSelectRow ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"}`}
-            >
-              Select
-            </button>
-            <button
-              type="button"
-              disabled={!canActOnSelection}
-              onClick={handleHideShow}
-              className={`rounded border px-2 py-1 text-[11px] ${canActOnSelection ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"}`}
-            >
-              Hide/Show
-            </button>
-            <button
-              type="button"
-              disabled={!canActOnSelection}
-              onClick={handleIsolate}
-              className={`rounded border px-2 py-1 text-[11px] ${canActOnSelection ? "border-[#d1d5db] bg-white text-[#374151]" : "cursor-not-allowed border-[#e5e7eb] bg-[#f3f4f6] text-[#9ca3af]"}`}
-            >
-              Isolate
-            </button>
+          <div className="rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-2 py-2 text-[11px] text-[#6b7280]">
+            Select a part in the tree, then use the top toolbar for isolate and visibility actions.
           </div>
           <div className="min-h-0 overflow-auto rounded-lg border border-[#e5e7eb] bg-[#f9fafb] p-2 text-xs text-[#374151]">
             {assemblyRows.length === 0 ? (
@@ -1068,7 +862,7 @@ export default function ViewPage() {
                   } ${row.nodeIds.length === 0 ? "opacity-60" : ""}`}
                   style={{ paddingLeft: `${Math.min(row.depth * 12 + 8, 84)}px` }}
                   onClick={() => setSelectedTreeKey(row.key)}
-                  title={row.nodeIds.length === 0 ? "Bu occurrence için gltf mapping yok." : undefined}
+                  title={row.nodeIds.length === 0 ? "No glTF mapping is available for this occurrence." : undefined}
                 >
                   {row.label}
                 </button>
@@ -1082,17 +876,17 @@ export default function ViewPage() {
         <div className="grid gap-2 text-xs text-[#374151]">
           <div className="font-semibold text-[#111827]">Share Link</div>
           <PrimaryButton onClick={handleShare} disabled={shareBusy}>
-            {shareBusy ? "Oluşturuluyor..." : "Link oluştur"}
+            {shareBusy ? "Creating..." : "Create link"}
           </PrimaryButton>
           {shareLink ? (
             <div className="grid gap-2">
               <input readOnly value={shareLink} className="h-9 rounded-lg border border-[#d1d5db] bg-white px-2 text-xs" />
-              <SecondaryButton onClick={handleCopy}>Kopyala</SecondaryButton>
+              <SecondaryButton onClick={handleCopy}>Copy</SecondaryButton>
             </div>
           ) : null}
           {shareError ? <div className="text-red-600">{shareError}</div> : null}
           <div className="rounded border border-[#e5e7eb] bg-[#f9fafb] px-2 py-2 text-[11px] text-[#6b7280]">
-            Varsayılan izin: view-only.
+            Default permission: view-only.
           </div>
         </div>
       ) : null}
@@ -1106,11 +900,13 @@ export default function ViewPage() {
           <Card className="p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <SecondaryButton href="/">Workspace'e don</SecondaryButton>
+                <SecondaryButton href="/">Back to workspace</SecondaryButton>
                 <div style={tokens.typography.body} className="max-w-[40vw] truncate text-[#6b7280] sm:max-w-none">
-                  {file ? shortName(file.original_filename) : "Görüntüleyici"}
+                  {file ? shortName(file.original_filename) : "Viewer"}
                 </div>
               </div>
+              {/* Keep the top toolbar as the single action surface to avoid duplicated
+                  controls across the viewer and side panels. */}
               <div className="flex flex-wrap items-center gap-2">
                 {CAMERA_PRESETS.map((preset) => (
                   <button
@@ -1135,7 +931,7 @@ export default function ViewPage() {
                 <button type="button" className="rounded border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={toggleFullscreen}>Full</button>
                 <button type="button" className="rounded border border-[#d1d5db] bg-white px-2 py-1 text-xs lg:hidden" onClick={() => setRightDrawerOpen(true)}>Panel</button>
                 <button type="button" className="rounded border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={() => setPanelCollapsed((v) => !v)}>
-                  {panelCollapsed ? "Panel Aç" : "Panel Kapat"}
+                  {panelCollapsed ? "Open panel" : "Close panel"}
                 </button>
                 <button type="button" className="rounded border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={() => { setZoomDirection("in"); setZoomTick((v) => v + 1); }}>Zoom+</button>
                 <button type="button" className="rounded border border-[#d1d5db] bg-white px-2 py-1 text-xs" onClick={() => { setZoomDirection("out"); setZoomTick((v) => v + 1); }}>Zoom-</button>
@@ -1160,13 +956,13 @@ export default function ViewPage() {
             type="button"
             className="absolute inset-0 bg-black/35"
             onClick={() => setRightDrawerOpen(false)}
-            aria-label="Panel kapat"
+            aria-label="Close panel"
           />
           <aside className="absolute bottom-0 left-0 right-0 max-h-[82vh] overflow-y-auto rounded-t-2xl border border-[#d1d5db] bg-white">
             <div className="sticky top-0 flex items-center justify-between border-b border-[#e5e7eb] bg-white px-3 py-2 text-xs font-semibold text-[#374151]">
               <span>Viewer Panel</span>
               <button type="button" className="rounded border border-[#d1d5db] px-2 py-1" onClick={() => setRightDrawerOpen(false)}>
-                Kapat
+                Close
               </button>
             </div>
             {panelContent}

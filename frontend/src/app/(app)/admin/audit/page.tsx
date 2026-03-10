@@ -27,7 +27,7 @@ export default function AdminAuditPage() {
       })
       .catch((e: any) => {
         if (!active) return;
-        setError(e?.message || "Denetim verisi alınamadı.");
+        setError(e?.message || "Audit data could not be loaded.");
       });
     return () => {
       active = false;
@@ -37,15 +37,15 @@ export default function AdminAuditPage() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Denetim Kaydı"
-        description="Son kritik aksiyonlar."
-        crumbs={[{ label: "Yönetim", href: "/admin" }, { label: "Denetim" }]}
+        title="Audit Log"
+        description="Recent critical actions."
+        crumbs={[{ label: "Admin", href: "/admin" }, { label: "Audit" }]}
       />
       {error ? (
-        <EmptyState title="Denetim verisi yok" description={error} />
+        <EmptyState title="No audit data" description={error} />
       ) : (
         <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <div className="text-sm font-semibold text-slate-900">Olaylar</div>
+          <div className="text-sm font-semibold text-slate-900">Events</div>
           <div className="mt-3 space-y-2 text-sm text-slate-700">
             {items.length ? (
               items.map((a) => (
@@ -57,7 +57,7 @@ export default function AdminAuditPage() {
                 </div>
               ))
             ) : (
-              <div className="text-sm text-slate-500">Denetim kaydı yok.</div>
+              <div className="text-sm text-slate-500">No audit events are available.</div>
             )}
           </div>
         </div>

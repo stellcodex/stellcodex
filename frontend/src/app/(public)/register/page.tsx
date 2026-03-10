@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getApiBase } from "@/lib/apiClient";
+import { AuthShell, authInputClassName, authPrimaryButtonClassName } from "@/components/auth/AuthShell";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -37,77 +38,61 @@ export default function RegisterPage() {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#1a1a1a] px-4 text-gray-100">
-      <div className="w-full max-w-md">
-        <div className="mb-10 text-center">
-          <span className="text-3xl font-bold tracking-tight text-white">STELL<span className="text-blue-500">CONSOLE</span></span>
+    <AuthShell
+      eyebrow="Account Setup"
+      title="Create account"
+      description="Set up a clean STELLCODEX workspace and keep files routed into the right application from the first upload."
+      footer={
+        <>
+          <span>Already registered?</span>{" "}
+          <Link href="/login" className="font-semibold text-[#0f766e] hover:underline">
+            Sign in
+          </Link>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+        <div>
+          <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[#6b7280]">Full name</label>
+          <input type="text" required value={name} onChange={(e) => setName(e.target.value)} placeholder="Jane Doe" className={authInputClassName} />
         </div>
 
-        <section className="rounded-2xl border border-gray-800 bg-[#2d2d2d] p-8 shadow-xl">
-          <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-blue-500 mb-2">Access Request</div>
-          <h1 className="text-2xl font-semibold text-white">Create Account</h1>
-          <p className="text-gray-400 text-sm mt-1">Join the engineering network.</p>
+        <div>
+          <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[#6b7280]">Email address</label>
+          <input
+            type="email"
+            required
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="engineer@stellcodex.com"
+            className={authInputClassName}
+          />
+        </div>
 
-          <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-5">
-            <div>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-gray-500">Full Name</label>
-              <input
-                type="text"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="John Doe"
-                className="w-full rounded-lg border border-gray-700 bg-black/30 px-4 py-3 text-sm text-white outline-none focus:border-blue-500 transition-colors"
-              />
-            </div>
+        <div>
+          <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[#6b7280]">Password</label>
+          <input
+            type="password"
+            required
+            autoComplete="new-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            className={authInputClassName}
+          />
+        </div>
 
-            <div>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-gray-500">Email Address</label>
-              <input
-                type="email"
-                required
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="engineer@stellcodex.com"
-                className="w-full rounded-lg border border-gray-700 bg-black/30 px-4 py-3 text-sm text-white outline-none focus:border-blue-500 transition-colors"
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-gray-500">Password</label>
-              <input
-                type="password"
-                required
-                autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full rounded-lg border border-gray-700 bg-black/30 px-4 py-3 text-sm text-white outline-none focus:border-blue-500 transition-colors"
-              />
-            </div>
-
-            {error && (
-              <div className="rounded-lg border border-red-900/50 bg-red-900/20 px-4 py-3 text-xs text-red-400">
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="mt-2 w-full rounded-lg bg-blue-600 py-3 text-sm font-bold text-white shadow-lg shadow-blue-900/20 hover:bg-blue-500 active:scale-[0.98] transition-all disabled:opacity-50"
-            >
-              {loading ? "CREATING..." : "REQUEST ACCESS"}
-            </button>
-          </form>
-
-          <div className="mt-8 flex items-center justify-center text-xs text-gray-500 border-t border-gray-800 pt-6">
-            <span>Already registered?</span>
-            <Link href="/login" className="ml-2 text-blue-500 hover:underline font-bold">Sign In</Link>
+        {error ? (
+          <div className="rounded-2xl border border-[#f1c9c9] bg-[#fff5f5] px-4 py-3 text-sm text-[#b42318]">
+            {error}
           </div>
-        </section>
-      </div>
-    </main>
+        ) : null}
+
+        <button type="submit" disabled={loading} className={authPrimaryButtonClassName}>
+          {loading ? "Creating account..." : "Create account"}
+        </button>
+      </form>
+    </AuthShell>
   );
 }

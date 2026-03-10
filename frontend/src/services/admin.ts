@@ -9,13 +9,13 @@ function getToken(): string | null {
 
 async function adminFetch<T = any>(path: string, init?: RequestInit): Promise<T> {
   const token = getToken();
-  if (!token) throw new Error("Token gerekli.");
+  if (!token) throw new Error("An access token is required.");
   const headers = new Headers(init?.headers || {});
   headers.set("Authorization", `Bearer ${token}`);
   if (!headers.has("Content-Type") && init?.body && !(init.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
-  return apiFetchJson<T>(path, { ...init, headers }, { fallbackMessage: "Yönetim isteği başarısız." });
+  return apiFetchJson<T>(path, { ...init, headers }, { fallbackMessage: "The admin request failed." });
 }
 
 export function fetchAdminHealth(): Promise<any> {
