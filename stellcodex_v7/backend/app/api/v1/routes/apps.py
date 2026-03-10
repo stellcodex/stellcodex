@@ -151,6 +151,7 @@ def list_apps_catalog(
 @router.get("/{slug}/manifest", response_model=AppManifestOut)
 def get_app_manifest(
     slug: str,
+    include_disabled: bool = Query(default=False),
     _principal: Principal = Depends(get_current_principal),
 ):
     slug = slug.strip().lower()
@@ -158,7 +159,7 @@ def get_app_manifest(
     row = next((item for item in catalog if item["slug"] == slug), None)
     if row is None:
         raise HTTPException(status_code=404, detail="app not found")
-    if not row["enabled"]:
+    if not row["enabled"] and not include_disabled:
         raise HTTPException(status_code=404, detail="app is disabled by feature flag")
 
     manifest = _manifest_for_slug(slug)

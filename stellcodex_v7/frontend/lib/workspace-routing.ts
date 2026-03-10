@@ -120,6 +120,13 @@ export function resolveWorkspaceHref(workspaceId: string | null | undefined, hre
     const fileId = new URLSearchParams(search).get("file_id");
     return joinHref(buildWorkspaceAppPath(workspaceId, appId, fileId), "", hash);
   }
+  if (path === "/apps") {
+    return joinHref(buildWorkspacePath(workspaceId, "/apps"), search, hash);
+  }
+  if (path.startsWith("/apps/")) {
+    const slug = path.slice("/apps/".length);
+    return joinHref(buildWorkspaceAppPath(workspaceId, slug), "", hash);
+  }
   if (path === "/projects" || path.startsWith("/projects/")) {
     return joinHref(buildWorkspacePath(workspaceId, path), search, hash);
   }

@@ -1,4 +1,4 @@
-import { AppModulePageClient } from "@/components/apps/AppModulePageClient";
+import { WorkspaceRedirect } from "@/components/workspace/WorkspaceRedirect";
 
 export default async function AppModulePage({
   params,
@@ -6,5 +6,5 @@ export default async function AppModulePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  return <AppModulePageClient slug={slug} />;
+  return <WorkspaceRedirect suffix={`/app/${slug}`} preserveSearch />;
 }

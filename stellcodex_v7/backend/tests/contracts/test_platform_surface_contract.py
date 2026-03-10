@@ -17,6 +17,7 @@ def test_platform_catalog_assigns_one_surface_per_app() -> None:
     surfaces = re.findall(r'surface:\s*"([^"]+)"', text)
 
     expected = {
+        "applications": "catalog",
         "viewer3d": "viewer3d",
         "viewer2d": "viewer2d",
         "docviewer": "docviewer",
@@ -44,11 +45,14 @@ def test_platform_client_renders_surface_specific_flows() -> None:
     text = CLIENT_PATH.read_text(encoding="utf-8")
 
     assert "const surface = app.surface;" in text
+    assert "function renderCatalogSurface()" in text
     assert "function renderViewerSurface()" in text
     assert "function renderJobSurface()" in text
     assert "function renderConfiguratorSurface()" in text
     assert "function renderRecordSurface()" in text
     assert "function renderRouteSurface()" in text
+    assert "function AppsCatalogScreen()" in text
+    assert "function MarketplaceModuleScreen(" in text
     assert "RUNNER_TABS" not in text
 
 

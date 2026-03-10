@@ -24,6 +24,7 @@ export default async function WorkspacePage({
   }
 
   if (!section) return <PlatformClient view="home" />;
+  if (section === "apps") return <PlatformClient view="apps" />;
   if (section === "files") return <PlatformClient view="files" />;
   if (section === "library") return <PlatformClient view="library" />;
   if (section === "settings") return <PlatformClient view="settings" />;

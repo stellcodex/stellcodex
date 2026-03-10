@@ -1,5 +1,5 @@
-import { AppsMarketplacePageClient } from "@/components/apps/AppsMarketplacePageClient";
+import { WorkspaceRedirect } from "@/components/workspace/WorkspaceRedirect";
 
 export default function AppsMarketplacePage() {
-  return <AppsMarketplacePageClient />;
+  return <WorkspaceRedirect suffix="/apps" />;
 }

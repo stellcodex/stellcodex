@@ -562,8 +562,9 @@ export async function listAppsCatalog(includeDisabled = false): Promise<AppsCata
   return Array.isArray(data) ? (data as AppsCatalogItem[]) : [];
 }
 
-export async function getAppManifest(slug: string): Promise<AppManifestResponse> {
-  const res = await authFetch(`${API_BASE}/apps/${encodeURIComponent(slug)}/manifest`);
+export async function getAppManifest(slug: string, includeDisabled = false): Promise<AppManifestResponse> {
+  const suffix = includeDisabled ? "?include_disabled=true" : "";
+  const res = await authFetch(`${API_BASE}/apps/${encodeURIComponent(slug)}/manifest${suffix}`);
   if (!res.ok) await throwHttpError(res, "The app manifest could not be loaded.");
   return res.json();
 }

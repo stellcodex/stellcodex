@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { getVisiblePlatformApps, platformCategories } from "@/data/platformCatalog";
+import { getSidebarPlatformApps, platformCategories } from "@/data/platformCatalog";
 import { WorkspaceSession, ensureSession, loadSessions, newSession, saveActiveSessionId, saveSessions } from "@/lib/sessionStore";
 import { buildWorkspacePath, extractWorkspaceId, resolveWorkspaceHref } from "@/lib/workspace-routing";
 import { useUser } from "@/context/UserContext";
@@ -22,6 +22,7 @@ type PlatformLayoutProps = {
 
 const baseNavItems = [
   { href: "/", label: "Workspace" },
+  { href: "/apps", label: "Applications" },
   { href: "/projects", label: "Projects" },
   { href: "/files", label: "Files" },
   { href: "/library", label: "Library" },
@@ -54,11 +55,12 @@ export function PlatformLayout({ title, subtitle, children, sessionState }: Plat
 
   const sessions = sessionState?.sessions || fallbackSessions;
   const activeSessionId = sessionState?.activeSessionId || workspaceId || sessions[0]?.id || null;
-  const apps = getVisiblePlatformApps(user.role);
+  const apps = getSidebarPlatformApps(user.role);
   const navItems = user.role === "admin" ? [...baseNavItems, { href: "/admin", label: "Admin" }] : baseNavItems;
 
   function isActiveRoute(target: string, exactOnly = false) {
     if (pathname === target) return true;
+    if (target.endsWith("/apps") && pathname.startsWith(target.replace(/\/apps$/, "/app/"))) return true;
     if (exactOnly) return false;
     return pathname.startsWith(`${target}/`);
   }

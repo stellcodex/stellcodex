@@ -39,8 +39,7 @@ export function DxfViewer({
 
   const isPendingError = (value: string) => {
     const msg = value.toLowerCase();
-    // Keep legacy pending phrases mapped to the English-first viewer surface.
-    return msg.includes("not ready") || msg.includes("processing") || msg.includes("preparing") || msg.includes("hazir degil") || msg.includes("hazirlaniyor");
+    return msg.includes("not ready") || msg.includes("processing") || msg.includes("preparing");
   };
 
   useEffect(() => {

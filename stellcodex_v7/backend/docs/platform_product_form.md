@@ -8,6 +8,7 @@ See also:
 
 - `docs/reference/engineering_pipeline_reference.md`
 - `docs/reference/language_conventions.md`
+- `docs/reference/platform_app_inventory.md`
 
 ## Core platform
 
@@ -65,6 +66,10 @@ The canonical mapping is:
 - share-specific screens roll up under `StellShare`
 - `StellMoldCodes` rolls up under `MoldCodes`
 - AI runtime modules remain under `STELL-AI`
+
+The full registry inventory remains accessible through the workspace
+Applications catalog. That catalog is an implementation inventory, not a
+product identity override.
 
 ## Engineering-first build order
 

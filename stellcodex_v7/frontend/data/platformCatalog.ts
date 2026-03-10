@@ -1,4 +1,5 @@
 export type PlatformAppId =
+  | "applications"
   | "viewer3d"
   | "viewer2d"
   | "docviewer"
@@ -17,6 +18,7 @@ export type PlatformAppId =
   | "status";
 
 export type PlatformSurface =
+  | "catalog"
   | "viewer3d"
   | "viewer2d"
   | "docviewer"
@@ -29,15 +31,29 @@ export type PlatformApp = {
   id: PlatformAppId;
   name: string;
   shortName: string;
-  category: "Engineering" | "Library" | "Business" | "Social" | "Web" | "System";
+  category: "Workspace" | "Engineering" | "Library" | "Business" | "Social" | "Web" | "System";
   surface: PlatformSurface;
   description: string;
   summary: string;
   route: string;
   adminOnly?: boolean;
+  showInSidebar?: boolean;
+  showOnHome?: boolean;
 };
 
 export const platformApps: PlatformApp[] = [
+  {
+    id: "applications",
+    name: "Applications",
+    shortName: "APPS",
+    category: "Workspace",
+    surface: "catalog",
+    description: "Opens the full platform application catalog backed by the marketplace manifest inventory.",
+    summary: "Single entry point for all registered platform apps and modules.",
+    route: "/apps",
+    showInSidebar: true,
+    showOnHome: true,
+  },
   {
     id: "viewer3d",
     name: "Viewer 3D",
@@ -47,6 +63,8 @@ export const platformApps: PlatformApp[] = [
     description: "Opens STEP, STL, OBJ, and GLB files inside the embedded workspace.",
     summary: "3D review, deep-link viewing, and project-linked output flow.",
     route: "/app/viewer3d",
+    showInSidebar: true,
+    showOnHome: true,
   },
   {
     id: "viewer2d",
@@ -57,6 +75,8 @@ export const platformApps: PlatformApp[] = [
     description: "Opens DXF and drawing-based 2D files in the embedded viewer.",
     summary: "2D technical drawing review and layer-focused flow.",
     route: "/app/viewer2d",
+    showInSidebar: true,
+    showOnHome: true,
   },
   {
     id: "docviewer",
@@ -67,6 +87,8 @@ export const platformApps: PlatformApp[] = [
     description: "Opens PDF and document files together with processing state.",
     summary: "Document preview, processing, and download flow.",
     route: "/app/docviewer",
+    showInSidebar: true,
+    showOnHome: true,
   },
   {
     id: "convert",
@@ -77,6 +99,8 @@ export const platformApps: PlatformApp[] = [
     description: "Triggers a conversion job for an existing file.",
     summary: "Conversion job dispatch through the real worker queue.",
     route: "/app/convert",
+    showInSidebar: true,
+    showOnHome: true,
   },
   {
     id: "mesh2d3d",
@@ -87,6 +111,8 @@ export const platformApps: PlatformApp[] = [
     description: "Generates an approximate 3D mesh artifact from the source file.",
     summary: "Produces OBJ output and links it back to the project.",
     route: "/app/mesh2d3d",
+    showInSidebar: true,
+    showOnHome: true,
   },
   {
     id: "moldcodes",
@@ -97,6 +123,8 @@ export const platformApps: PlatformApp[] = [
     description: "Generates STEP artifacts from mold base, guiding, and ejector catalog selections.",
     summary: "Catalog, configurator, BOM recording, and export job flow.",
     route: "/app/moldcodes",
+    showInSidebar: true,
+    showOnHome: true,
   },
   {
     id: "library",
@@ -107,6 +135,8 @@ export const platformApps: PlatformApp[] = [
     description: "Lists shared assets and publishing flows.",
     summary: "Feed and publish actions.",
     route: "/app/library",
+    showInSidebar: true,
+    showOnHome: true,
   },
   {
     id: "drive",
@@ -117,6 +147,8 @@ export const platformApps: PlatformApp[] = [
     description: "Acts as the file, project, and share hub.",
     summary: "Upload, deep-link viewer, and share creation flow.",
     route: "/app/drive",
+    showInSidebar: true,
+    showOnHome: true,
   },
   {
     id: "projects",
@@ -127,6 +159,8 @@ export const platformApps: PlatformApp[] = [
     description: "Creates and opens projects, then links files to them.",
     summary: "CRUD project list and project detail flow.",
     route: "/app/projects",
+    showInSidebar: true,
+    showOnHome: true,
   },
   {
     id: "accounting",
@@ -137,6 +171,7 @@ export const platformApps: PlatformApp[] = [
     description: "Stores billing, income, and expense records as project-linked JSON artifacts.",
     summary: "Accounting MVP with real persistence.",
     route: "/app/accounting",
+    showOnHome: true,
   },
   {
     id: "socialmanager",
@@ -147,6 +182,7 @@ export const platformApps: PlatformApp[] = [
     description: "Keeps connection drafts; live OAuth is hidden until the blocker credentials exist.",
     summary: "Draft account registry, blocker visibility, and hidden post actions.",
     route: "/app/socialmanager",
+    showOnHome: true,
   },
   {
     id: "feedpublisher",
@@ -157,6 +193,7 @@ export const platformApps: PlatformApp[] = [
     description: "Stores content drafts and scheduler records; publishing stays hidden until blocker credentials exist.",
     summary: "Draft scheduler MVP, publish hidden until OAuth creds exist.",
     route: "/app/feedpublisher",
+    showOnHome: true,
   },
   {
     id: "webbuilder",
@@ -167,6 +204,7 @@ export const platformApps: PlatformApp[] = [
     description: "Stores landing and page drafts and can generate real /s token publish links.",
     summary: "Real save/edit flow and publish-through-share flow.",
     route: "/app/webbuilder",
+    showOnHome: true,
   },
   {
     id: "cms",
@@ -177,6 +215,7 @@ export const platformApps: PlatformApp[] = [
     description: "Provides simple content management for slug, title, and body content and can generate a real public share link.",
     summary: "Draft plus publish-through-share CMS MVP.",
     route: "/app/cms",
+    showOnHome: true,
   },
   {
     id: "admin",
@@ -188,6 +227,8 @@ export const platformApps: PlatformApp[] = [
     summary: "Admin control focused on health, build, and audit.",
     route: "/app/admin",
     adminOnly: true,
+    showInSidebar: true,
+    showOnHome: true,
   },
   {
     id: "status",
@@ -199,10 +240,12 @@ export const platformApps: PlatformApp[] = [
     summary: "Admin-visible release gate summary.",
     route: "/app/status",
     adminOnly: true,
+    showInSidebar: true,
+    showOnHome: true,
   },
 ];
 
-export const platformCategories = ["Engineering", "Library", "Business", "Social", "Web", "System"] as const;
+export const platformCategories = ["Workspace", "Engineering", "Library", "Business", "Social", "Web", "System"] as const;
 
 export function getPlatformApp(appId: string) {
   return platformApps.find((app) => app.id === appId) || null;
@@ -210,4 +253,12 @@ export function getPlatformApp(appId: string) {
 
 export function getVisiblePlatformApps(role: "user" | "admin") {
   return platformApps.filter((app) => !app.adminOnly || role === "admin");
+}
+
+export function getSidebarPlatformApps(role: "user" | "admin") {
+  return getVisiblePlatformApps(role).filter((app) => app.showInSidebar);
+}
+
+export function getHomePlatformApps(role: "user" | "admin") {
+  return getVisiblePlatformApps(role).filter((app) => app.showOnHome);
 }

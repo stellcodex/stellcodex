@@ -7,6 +7,7 @@ Each catalog application is assigned a `surface` contract in
 
 Surface rules:
 
+- `catalog`: full application inventory with grouped registry cards
 - `viewer3d`: large 3D stage, short action rail, model-first wording
 - `viewer2d`: drawing-first stage, layer and drawing review wording
 - `docviewer`: document-first stage, file status and document handoff wording

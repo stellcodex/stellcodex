@@ -4,7 +4,13 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@/context/UserContext";
-import { getPlatformApp, getVisiblePlatformApps, type PlatformSurface } from "@/data/platformCatalog";
+import { getHomePlatformApps, getPlatformApp, type PlatformSurface } from "@/data/platformCatalog";
+import {
+  getMarketplaceIntegration,
+  normalizeMarketplaceCategory,
+  resolveMarketplaceCoreAppId,
+  summarizeMarketplaceCapabilities,
+} from "@/data/platformMarketplace";
 import { loadLatestRecords, saveRecordFile, type PersistedRecord } from "@/lib/fileRecords";
 import {
   appendSessionMessage,
@@ -34,14 +40,18 @@ import {
   enqueueMesh2d3d,
   enqueueMoldcodesExport,
   fetchAuthedBlobUrl,
+  getAppManifest,
   getFile,
   getFileStatus,
   getJob,
   getLibraryFeed,
   getProject,
+  listAppsCatalog,
   listFiles,
   listProjects,
   publishLibraryItem,
+  type AppManifestResponse,
+  type AppsCatalogItem,
   type FileDetail,
   type FileItem,
   type JobStatus,
@@ -51,7 +61,7 @@ import {
 } from "@/services/api";
 import { PlatformLayout } from "./PlatformLayout";
 
-type PlatformView = "home" | "app" | "projects" | "project" | "files" | "library" | "settings" | "admin" | "viewer";
+type PlatformView = "home" | "apps" | "app" | "projects" | "project" | "files" | "library" | "settings" | "admin" | "viewer";
 
 type PlatformClientProps = {
   view: PlatformView;
@@ -313,6 +323,13 @@ function formatBytes(size?: number | null) {
 }
 
 function resolveAppHref(workspaceId: string | null, appId: string, fileId?: string | null) {
+  const platformApp = getPlatformApp(appId);
+  if (platformApp) {
+    if (fileId && platformApp.route.startsWith("/app/")) {
+      return workspaceId ? buildWorkspaceAppPath(workspaceId, appId, fileId) : `${platformApp.route}?file_id=${encodeURIComponent(fileId)}`;
+    }
+    return resolveWorkspaceHref(workspaceId, platformApp.route);
+  }
   if (workspaceId) return buildWorkspaceAppPath(workspaceId, appId, fileId);
   const base = `/app/${encodeURIComponent(appId)}`;
   return fileId ? `${base}?file_id=${encodeURIComponent(fileId)}` : base;
@@ -374,10 +391,11 @@ function SectionCard({
 }
 
 function StatusBadge({ label }: { label: string }) {
+  const normalized = label.toLowerCase();
   const tone =
-    label === "ready" || label === "finished" || label === "ok"
+    normalized === "ready" || normalized === "finished" || normalized === "ok" || normalized === "enabled" || normalized === "succeeded"
       ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
-      : label === "failed"
+      : normalized === "failed"
       ? "border-red-500/25 bg-red-500/10 text-red-200"
       : "border-amber-500/25 bg-amber-500/10 text-amber-200";
   return <span className={`rounded-full border px-2.5 py-1 text-xs ${tone}`}>{titleCase(label)}</span>;
@@ -433,7 +451,7 @@ function HomeScreen() {
   }, [workspaceId]);
 
   const activeSession = sessions.find((item) => item.id === activeSessionId) || sessions[0] || null;
-  const visibleApps = getVisiblePlatformApps(user.role);
+  const visibleApps = getHomePlatformApps(user.role);
 
   function onSelectSession(sessionId: string) {
     setActiveSessionId(sessionId);
@@ -496,7 +514,7 @@ function HomeScreen() {
               ))}
             </div>
 
-            <SectionCard title="Explore Applications" description="Only live, wired modules are exposed.">
+            <SectionCard title="Explore Applications" description="Core surfaces stay visible here. The full application inventory lives in the Applications catalog.">
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {visibleApps.map((app) => (
                   <button
@@ -512,6 +530,15 @@ function HomeScreen() {
                     <div className="mt-2 text-sm text-white/55">{app.summary}</div>
                   </button>
                 ))}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <Link
+                  href={resolveWorkspaceHref(workspaceId, "/apps")}
+                  className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-white/75 hover:bg-white/8"
+                >
+                  Open full applications catalog
+                </Link>
+                <div className="self-center text-xs text-white/40">All 45 registered modules are accessible through the shared platform shell.</div>
               </div>
             </SectionCard>
 
@@ -540,6 +567,226 @@ function HomeScreen() {
             </div>
           </div>
         </div>
+      </div>
+    </PlatformLayout>
+  );
+}
+
+function AppsCatalogScreen() {
+  const pathname = usePathname();
+  const workspaceId = extractWorkspaceId(pathname);
+  const [items, setItems] = useState<AppsCatalogItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const rows = await listAppsCatalog(true);
+        if (!active) return;
+        setItems(rows);
+        setError(null);
+      } catch (err) {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "The applications catalog could not be loaded.");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const groupedItems = useMemo(() => {
+    const groups = new Map<string, AppsCatalogItem[]>();
+    for (const item of items) {
+      const key = item.category || "general";
+      const list = groups.get(key) || [];
+      list.push(item);
+      groups.set(key, list);
+    }
+    return [...groups.entries()]
+      .map(([category, rows]) => [
+        category,
+        rows.sort((a, b) => {
+          if (a.enabled !== b.enabled) return Number(b.enabled) - Number(a.enabled);
+          return a.name.localeCompare(b.name);
+        }),
+      ] as const)
+      .sort((a, b) => a[0].localeCompare(b[0]));
+  }, [items]);
+
+  const enabledCount = items.filter((item) => item.enabled).length;
+  const coreIntegratedCount = items.filter((item) => resolveMarketplaceCoreAppId(item.slug)).length;
+
+  return (
+    <PlatformLayout title="Applications" subtitle="Full platform inventory backed by the marketplace registry and app manifests">
+      <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-6 px-4 py-6 lg:px-8">
+        <SectionCard title="Inventory Status" description="Every registered app stays inside the same STELLCODEX platform shell.">
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="rounded-[24px] border border-white/10 bg-black/10 p-5">
+              <div className="text-xs uppercase tracking-[0.2em] text-white/35">Registered Modules</div>
+              <div className="mt-3 text-3xl font-semibold text-white">{items.length}</div>
+            </div>
+            <div className="rounded-[24px] border border-white/10 bg-black/10 p-5">
+              <div className="text-xs uppercase tracking-[0.2em] text-white/35">Enabled Today</div>
+              <div className="mt-3 text-3xl font-semibold text-white">{enabledCount}</div>
+            </div>
+            <div className="rounded-[24px] border border-white/10 bg-black/10 p-5">
+              <div className="text-xs uppercase tracking-[0.2em] text-white/35">Core-integrated Modules</div>
+              <div className="mt-3 text-3xl font-semibold text-white">{coreIntegratedCount}</div>
+            </div>
+          </div>
+          <div className="mt-4 text-sm text-white/55">
+            Core workflows keep dedicated workspace surfaces. Remaining modules stay available through manifest-backed pages until their specialized workflow is promoted into the workspace shell.
+          </div>
+        </SectionCard>
+
+        {loading ? <SectionCard title="Loading" description="Reading the marketplace registry."><div className="text-sm text-white/55">Loading application inventory...</div></SectionCard> : null}
+        {error ? <SectionCard title="Catalog Error" description="The inventory could not be read."><div className="text-sm text-red-200">{error}</div></SectionCard> : null}
+
+        {groupedItems.map(([category, rows]) => (
+          <SectionCard key={category} title={normalizeMarketplaceCategory(category)} description={`${rows.length} registered module${rows.length === 1 ? "" : "s"} in this group.`}>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {rows.map((item) => {
+                const integration = getMarketplaceIntegration(item);
+                const capabilitySummary = summarizeMarketplaceCapabilities(item);
+                return (
+                  <Link
+                    key={item.slug}
+                    href={resolveAppHref(workspaceId, item.slug)}
+                    className="rounded-[24px] border border-white/10 bg-black/10 p-4 transition hover:border-white/20 hover:bg-white/[0.05]"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-white">{item.name}</div>
+                        <div className="mt-1 text-xs text-white/40">{item.slug}</div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <StatusBadge label={item.enabled ? "enabled" : "disabled"} />
+                        <span className="rounded-full border border-white/10 px-2.5 py-1 text-xs text-white/55">{item.tier}</span>
+                      </div>
+                    </div>
+                    <div className="mt-3 text-sm text-white/60">{integration.note}</div>
+                    <div className="mt-4 space-y-2 text-xs text-white/45">
+                      <div>Capabilities: {capabilitySummary.capabilities}</div>
+                      <div>Formats: {capabilitySummary.formats}</div>
+                    </div>
+                    <div className="mt-4 flex items-center justify-between text-xs text-white/40">
+                      <span>{integration.headline}</span>
+                      <span>{integration.primaryLabel}</span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </SectionCard>
+        ))}
+      </div>
+    </PlatformLayout>
+  );
+}
+
+function MarketplaceModuleScreen({ slug }: { slug: string }) {
+  const pathname = usePathname();
+  const workspaceId = extractWorkspaceId(pathname);
+  const [catalogItem, setCatalogItem] = useState<AppsCatalogItem | null>(null);
+  const [manifest, setManifest] = useState<AppManifestResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const [catalogRows, manifestPayload] = await Promise.all([listAppsCatalog(true), getAppManifest(slug, true)]);
+        if (!active) return;
+        setCatalogItem(catalogRows.find((item) => item.slug === slug) || null);
+        setManifest(manifestPayload);
+        setError(null);
+      } catch (err) {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "The module surface could not be loaded.");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [slug]);
+
+  const integration = catalogItem ? getMarketplaceIntegration(catalogItem) : null;
+  const permissions = (manifest?.manifest.permissions as Record<string, unknown> | undefined) || {};
+  const dependencies = (manifest?.manifest.dependencies as Record<string, unknown> | undefined) || {};
+  const featureFlags = (manifest?.manifest.feature_flags as Record<string, unknown> | undefined) || {};
+  const apiEndpoints = Array.isArray(manifest?.manifest.api_endpoints) ? (manifest?.manifest.api_endpoints as string[]) : [];
+  const capabilitySummary = catalogItem ? summarizeMarketplaceCapabilities(catalogItem) : null;
+
+  return (
+    <PlatformLayout title={catalogItem?.name || slug} subtitle="Manifest-backed platform module surface">
+      <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-6 px-4 py-6 lg:px-8">
+        {loading ? <EmptyPanel title="Loading module" description="Reading the catalog entry and app manifest." /> : null}
+        {error ? <EmptyPanel title="Module unavailable" description={error} /> : null}
+
+        {!loading && !error && catalogItem ? (
+          <>
+            <SectionCard title={integration?.headline || "Module"} description={integration?.note || "This module is registered in the platform inventory."}>
+              <div className="flex flex-wrap gap-3">
+                <StatusBadge label={catalogItem.enabled ? "enabled" : "disabled"} />
+                <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/55">{catalogItem.tier}</span>
+                <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/55">{normalizeMarketplaceCategory(catalogItem.category)}</span>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <Link href={resolveWorkspaceHref(workspaceId, "/apps")} className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-white/75 hover:bg-white/8">
+                  Back to applications catalog
+                </Link>
+                {integration?.coreAppId ? (
+                  <Link href={resolveAppHref(workspaceId, integration.coreAppId)} className="rounded-2xl bg-white px-5 py-3 text-sm font-medium text-black hover:bg-white/90">
+                    Open integrated workspace
+                  </Link>
+                ) : null}
+              </div>
+            </SectionCard>
+
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_360px]">
+              <SectionCard title="Module Manifest" description="Manifest fields remain the source of truth for module registration, capabilities, and dependencies.">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-[24px] border border-white/10 bg-black/10 p-4">
+                    <div className="text-xs uppercase tracking-[0.2em] text-white/35">Capabilities</div>
+                    <div className="mt-3 text-sm text-white/65">{capabilitySummary?.capabilities || "No capability list"}</div>
+                  </div>
+                  <div className="rounded-[24px] border border-white/10 bg-black/10 p-4">
+                    <div className="text-xs uppercase tracking-[0.2em] text-white/35">Formats</div>
+                    <div className="mt-3 text-sm text-white/65">{capabilitySummary?.formats || "No format list"}</div>
+                  </div>
+                </div>
+                <pre className="mt-4 overflow-x-auto rounded-[24px] border border-white/10 bg-black/10 p-4 text-xs text-white/60">
+                  {JSON.stringify(manifest?.manifest || {}, null, 2)}
+                </pre>
+              </SectionCard>
+
+              <div className="space-y-6">
+                <SectionCard title="Permissions" description="Role and access expectations from the app manifest.">
+                  <pre className="overflow-x-auto whitespace-pre-wrap text-xs text-white/60">{JSON.stringify(permissions, null, 2)}</pre>
+                </SectionCard>
+                <SectionCard title="Dependencies" description="Runtime dependencies declared by the manifest.">
+                  <pre className="overflow-x-auto whitespace-pre-wrap text-xs text-white/60">{JSON.stringify(dependencies, null, 2)}</pre>
+                </SectionCard>
+                <SectionCard title="Feature Flags" description="Feature flag state and environment override names stay visible here.">
+                  <pre className="overflow-x-auto whitespace-pre-wrap text-xs text-white/60">{JSON.stringify(featureFlags, null, 2)}</pre>
+                </SectionCard>
+                <SectionCard title="API Endpoints" description="Registered API surface for this module.">
+                  <div className="space-y-2 text-sm text-white/60">
+                    {apiEndpoints.length > 0 ? apiEndpoints.map((endpoint) => <div key={endpoint}>{endpoint}</div>) : <div>No explicit API endpoint list.</div>}
+                  </div>
+                </SectionCard>
+              </div>
+            </div>
+          </>
+        ) : null}
       </div>
     </PlatformLayout>
   );
@@ -1295,11 +1542,14 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
   const searchParams = useSearchParams();
   const workspace = useWorkspaceData();
   const { user } = useUser();
-  const app = getPlatformApp(appId);
+  const resolvedAppId = getPlatformApp(appId)?.id || resolveMarketplaceCoreAppId(appId) || appId;
+  const app = getPlatformApp(resolvedAppId);
+  const isMarketplaceAlias = appId !== resolvedAppId;
   const [selectedProjectId, setSelectedProjectId] = useState("default");
   const searchFileId = searchParams.get("file_id") || "";
   const [selectedFileId, setSelectedFileId] = useState(fileId || searchFileId);
   const [selectedFile, setSelectedFile] = useState<FileDetail | null>(null);
+  const [marketplaceItem, setMarketplaceItem] = useState<AppsCatalogItem | null>(null);
   const [job, setJob] = useState<JobStatus | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1377,14 +1627,28 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
     };
   }, [jobId, workspace]);
 
+  useEffect(() => {
+    if (!isMarketplaceAlias) {
+      setMarketplaceItem(null);
+      return;
+    }
+    let active = true;
+    listAppsCatalog(true)
+      .then((rows) => {
+        if (!active) return;
+        setMarketplaceItem(rows.find((item) => item.slug === appId) || null);
+      })
+      .catch(() => {
+        if (!active) return;
+        setMarketplaceItem(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [appId, isMarketplaceAlias]);
+
   if (!app) {
-    return (
-      <PlatformLayout title="Application not found" subtitle={appId}>
-        <div className="mx-auto w-full max-w-[900px] px-4 py-8 lg:px-8">
-          <EmptyPanel title="Unknown application" description="Only allowed catalog applications are routable." />
-        </div>
-      </PlatformLayout>
-    );
+    return <MarketplaceModuleScreen slug={appId} />;
   }
 
   const projectOptions = workspace.projects.length > 0 ? workspace.projects : [{ id: "default", name: "Default Project", file_count: 0 }];
@@ -2031,7 +2295,23 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
     );
   }
 
+  function renderCatalogSurface() {
+    return (
+      <div className="space-y-6">
+        {renderOverview()}
+        <SectionCard title="Applications Catalog" description="Open the full grouped registry of platform modules from the shared workspace shell.">
+          <div className="flex flex-wrap gap-3">
+            <Link href={resolveWorkspaceHref(workspaceId, "/apps")} className="rounded-2xl bg-white px-5 py-3 text-sm font-medium text-black hover:bg-white/90">
+              Open applications catalog
+            </Link>
+          </div>
+        </SectionCard>
+      </div>
+    );
+  }
+
   function renderSurface() {
+    if (surface === "catalog") return renderCatalogSurface();
     if (surface === "viewer3d" || surface === "viewer2d" || surface === "docviewer") return renderViewerSurface();
     if (surface === "job") return renderJobSurface();
     if (surface === "configurator") return renderConfiguratorSurface();
@@ -2039,15 +2319,34 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
     return renderRouteSurface();
   }
 
+  function renderMarketplaceAliasBanner() {
+    if (!isMarketplaceAlias || !marketplaceItem) return null;
+    const integration = getMarketplaceIntegration(marketplaceItem);
+    return (
+      <SectionCard title={marketplaceItem.name} description="This marketplace module resolves into an existing workspace surface.">
+        <div className="flex flex-wrap gap-3">
+          <StatusBadge label={marketplaceItem.enabled ? "enabled" : "disabled"} />
+          <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/55">{normalizeMarketplaceCategory(marketplaceItem.category)}</span>
+          <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/55">{marketplaceItem.tier}</span>
+        </div>
+        <div className="mt-4 text-sm text-white/60">{integration.note}</div>
+      </SectionCard>
+    );
+  }
+
   return (
-    <PlatformLayout title={app.name} subtitle={app.summary}>
-      <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-6 px-4 py-6 lg:px-8">{renderSurface()}</div>
+    <PlatformLayout title={marketplaceItem?.name || app.name} subtitle={isMarketplaceAlias ? `${app.name} workspace delivery` : app.summary}>
+      <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-6 px-4 py-6 lg:px-8">
+        {renderMarketplaceAliasBanner()}
+        {renderSurface()}
+      </div>
     </PlatformLayout>
   );
 }
 
 export function PlatformClient({ view, appId = "", projectId = "", fileId = "" }: PlatformClientProps) {
   if (view === "home") return <HomeScreen />;
+  if (view === "apps") return <AppsCatalogScreen />;
   if (view === "projects") return <ProjectsScreen />;
   if (view === "project") return <ProjectScreen projectId={projectId} />;
   if (view === "files") return <FilesScreen />;
