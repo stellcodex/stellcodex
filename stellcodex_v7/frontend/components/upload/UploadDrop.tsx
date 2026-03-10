@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { tokens } from "@/lib/tokens";
+import { resolveFileAppPath } from "@/lib/workspace-routing";
 import { uploadDirect } from "@/services/api";
 import { ALLOWED_FORMATS } from "@/lib/formats.generated";
 import {
@@ -62,9 +63,11 @@ export function UploadDrop({ onUploaded }: { onUploaded?: (fileId: string) => vo
           projectId: DEFAULT_PROJECT_ID,
           projectName: DEFAULT_PROJECT_NAME,
         });
-        setStatus("Redirecting to the viewer...");
+        // Public upload uses the same routing rule as the suite home: file type decides the app.
+        const destination = resolveFileAppPath(null, { original_filename: file.name, content_type: file.type || null }, registered.fileId);
+        setStatus("Opening the responsible application...");
         onUploaded?.(registered.fileId);
-        const target = `/view/${registered.fileId}`;
+        const target = destination.href;
         router.push(target);
         window.setTimeout(() => {
           if (window.location.pathname !== target) {
@@ -108,7 +111,10 @@ export function UploadDrop({ onUploaded }: { onUploaded?: (fileId: string) => vo
 
       <div style={tokens.typography.h2} className="text-[#111827]">Upload file</div>
       <div style={tokens.typography.body} className="mt-2 text-[#6b7280]">
-        STEP / IGES / BREP / STL / OBJ / PLY / OFF / 3MF / AMF / DAE / DXF / PDF / PNG / JPG
+        Upload once. STELLCODEX routes 3D, 2D, and document files into the responsible application automatically.
+      </div>
+      <div className="mt-2 text-xs text-[#6b7280]">
+        Supported formats: STEP / IGES / BREP / STL / OBJ / PLY / OFF / 3MF / AMF / DAE / DXF / PDF / PNG / JPG
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-center gap-2">

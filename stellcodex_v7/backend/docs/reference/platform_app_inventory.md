@@ -42,6 +42,7 @@ Manifest-backed modules:
 
 UI rules:
 
+- Keep the suite home simple; do not mirror the full 45-module inventory on the first screen.
 - Keep the sidebar focused on core surfaces and the Applications hub.
 - Keep the full inventory in the Applications catalog.
 - Keep all descriptions English-first and task-specific.

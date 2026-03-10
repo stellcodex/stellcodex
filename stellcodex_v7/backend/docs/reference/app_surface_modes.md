@@ -2,6 +2,9 @@
 
 STELLCODEX uses one platform shell, but not one generic application surface.
 
+The shell should feel as simple as a single-entry assistant product, while the
+actual work happens in specialized applications.
+
 Each catalog application is assigned a `surface` contract in
 `frontend/data/platformCatalog.ts`.
 
@@ -19,10 +22,13 @@ Surface rules:
 UI constraints:
 
 - Do not reuse one generic tab runner for all application types.
+- Do not create copy pages that repeat the same entry flow in multiple places.
 - Do not show the same primary action twice on the same surface.
+- Do let the left rail collapse so the active app gets the widest stage.
 - Keep viewer actions to the minimum working set: open, share, download.
 - Keep wording English-first and task-specific.
 - Keep each file or app surface readable without extra repo context.
+- Keep STELL-AI secondary to the active application surface.
 
 When adding a new app:
 

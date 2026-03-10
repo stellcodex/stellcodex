@@ -9,6 +9,7 @@ FRONTEND_ROOT = REPO_ROOT / "frontend"
 CATALOG_PATH = FRONTEND_ROOT / "data" / "platformCatalog.ts"
 CLIENT_PATH = FRONTEND_ROOT / "components" / "platform" / "PlatformClient.tsx"
 SURFACE_DOC_PATH = REPO_ROOT / "backend" / "docs" / "reference" / "app_surface_modes.md"
+SUITE_DOC_PATH = REPO_ROOT / "backend" / "docs" / "reference" / "platform_suite_experience.md"
 
 
 def test_platform_catalog_assigns_one_surface_per_app() -> None:
@@ -62,3 +63,14 @@ def test_surface_reference_document_exists() -> None:
     assert "App Surface Modes" in text
     assert "Do not reuse one generic tab runner" in text
     assert "viewer3d" in text
+
+
+def test_suite_experience_reference_and_plan_lock_exist() -> None:
+    client_text = CLIENT_PATH.read_text(encoding="utf-8")
+    suite_text = SUITE_DOC_PATH.read_text(encoding="utf-8")
+
+    assert "STELLCODEX is the product" in suite_text
+    assert "do not create copy pages" in suite_text
+    assert "Free, Plus, and Pro" in suite_text
+    assert "SUITE_PLAN_ROWS" in client_text
+    assert "Enterprise" not in client_text

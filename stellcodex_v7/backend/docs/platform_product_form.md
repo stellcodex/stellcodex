@@ -53,6 +53,20 @@ work:
 decision engine surface that consumes geometry metrics, feature extraction, rule
 evaluation, and DFM outputs.
 
+## Suite rule
+
+STELLCODEX is the whole product. The applications are focused surfaces inside
+the product, not disconnected brands.
+
+Experience rules:
+
+- the entry shell stays simple and trust-building
+- uploads route users into the responsible application automatically
+- 3D, 2D, and document workspaces must not reuse the same crowded layout
+- files, projects, and sharing remain suite-level services
+- mobile or store-distributed app packages may expose one focused surface, but
+  they must still map back to the same STELLCODEX platform model
+
 ## Implementation mapping
 
 The repository currently contains extra marketplace entries and split viewer

@@ -3,6 +3,8 @@ export type FileLike = {
   content_type?: string | null;
 };
 
+export type WorkspaceAppRoute = "viewer3d" | "viewer2d" | "docviewer";
+
 const DOC_EXTENSIONS = [
   ".pdf",
   ".doc",
@@ -83,6 +85,19 @@ export function classifyWorkspaceApp(file: FileLike | null | undefined) {
   if (name.endsWith(".dxf")) return "viewer2d" as const;
   if (isDocumentLike(name, contentType)) return "docviewer" as const;
   return "viewer3d" as const;
+}
+
+export function buildFileAppPath(appId: WorkspaceAppRoute, fileId: string) {
+  return `/app/${encodeURIComponent(appId)}?file_id=${encodeURIComponent(fileId)}`;
+}
+
+export function resolveFileAppPath(workspaceId: string | null | undefined, file: FileLike | null | undefined, fileId: string) {
+  // Uploads should land in the focused app surface, not a generic catch-all page.
+  const appId = classifyWorkspaceApp(file);
+  return {
+    appId,
+    href: workspaceId ? buildWorkspaceAppPath(workspaceId, appId, fileId) : buildFileAppPath(appId, fileId),
+  };
 }
 
 export function buildWorkspaceOpenPath(workspaceId: string, fileId: string) {

@@ -21,12 +21,12 @@ type PlatformLayoutProps = {
 };
 
 const baseNavItems = [
-  { href: "/", label: "Workspace" },
+  { href: "/", label: "Home" },
   { href: "/apps", label: "Applications" },
   { href: "/projects", label: "Projects" },
   { href: "/files", label: "Files" },
   { href: "/library", label: "Library" },
-  { href: "/settings", label: "Settings" },
+  { href: "/settings", label: "Plans" },
 ];
 
 function initials(name: string) {
@@ -101,7 +101,7 @@ export function PlatformLayout({ title, subtitle, children, sessionState }: Plat
             onClick={() => setCollapsed((value) => !value)}
             className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white/70 hover:bg-white/10"
           >
-            {collapsed ? ">>" : "<<"}
+            {collapsed ? "Open" : "Focus"}
           </button>
         </div>
 
@@ -111,7 +111,7 @@ export function PlatformLayout({ title, subtitle, children, sessionState }: Plat
             onClick={onCreateSession}
             className="flex w-full items-center justify-center rounded-2xl bg-white/7 px-3 py-3 text-sm font-medium text-white hover:bg-white/12"
           >
-            {collapsed ? "+" : "New session"}
+            {collapsed ? "+" : "New workspace"}
           </button>
         </div>
 
@@ -135,7 +135,7 @@ export function PlatformLayout({ title, subtitle, children, sessionState }: Plat
 
         <div className="mt-5 px-3">
           <div className="mb-2 text-[11px] uppercase tracking-[0.2em] text-white/35">
-            {collapsed ? "S" : "Sessions"}
+            {collapsed ? "W" : "Workspaces"}
           </div>
           <div className="space-y-1">
             {sessions.slice(0, collapsed ? 6 : 10).map((session) => {
@@ -219,10 +219,10 @@ export function PlatformLayout({ title, subtitle, children, sessionState }: Plat
                   Plan
                 </Link>
                 <Link href={resolveWorkspaceHref(workspaceId, "/settings")} className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/8">
-                  Settings
+                  Plans
                 </Link>
                 <Link href={resolveWorkspaceHref(workspaceId, "/")} className="block rounded-xl px-3 py-2 text-sm text-white/80 hover:bg-white/8">
-                  Explore Applications
+                  Suite Home
                 </Link>
                 <button
                   type="button"

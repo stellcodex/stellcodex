@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@/context/UserContext";
-import { getHomePlatformApps, getPlatformApp, type PlatformSurface } from "@/data/platformCatalog";
+import { getHomePlatformApps, getPlatformApp, type PlatformAppId, type PlatformSurface } from "@/data/platformCatalog";
 import {
   getMarketplaceIntegration,
   normalizeMarketplaceCategory,
@@ -13,13 +13,11 @@ import {
 } from "@/data/platformMarketplace";
 import { loadLatestRecords, saveRecordFile, type PersistedRecord } from "@/lib/fileRecords";
 import {
-  appendSessionMessage,
   ensureSession,
   loadSessions,
   newSession,
   saveActiveSessionId,
   saveSessions,
-  upsertSession,
   type WorkspaceSession,
 } from "@/lib/sessionStore";
 import {
@@ -30,6 +28,7 @@ import {
   buildWorkspaceProjectPath,
   classifyWorkspaceApp,
   extractWorkspaceId,
+  resolveFileAppPath,
   resolveWorkspaceHref,
 } from "@/lib/workspace-routing";
 import {
@@ -93,6 +92,24 @@ type PublishDocument = {
   expiresInSeconds?: number;
 };
 const SOCIAL_OAUTH_BLOCKERS = ["META_APP_ID", "META_APP_SECRET"] as const;
+const HOME_FOCUS_APP_IDS: PlatformAppId[] = ["viewer3d", "viewer2d", "docviewer", "drive", "projects", "applications"];
+const SUITE_PLAN_ROWS = [
+  {
+    name: "Free",
+    headline: "Start fast",
+    description: "Core upload routing, viewer access, and the shared STELLCODEX shell.",
+  },
+  {
+    name: "Plus",
+    headline: "Go deeper",
+    description: "Expanded app usage, longer workflows, and more engineering runtime access.",
+  },
+  {
+    name: "Pro",
+    headline: "Run the suite",
+    description: "Team workflows, advanced automation, and the full STELLCODEX operating surface.",
+  },
+] as const;
 
 type MoldFamilyConfig = {
   label: string;
@@ -281,6 +298,37 @@ function appForFile(file: { original_filename?: string | null; content_type?: st
   return classifyWorkspaceApp(file);
 }
 
+function fileRouteCopy(appId: ReturnType<typeof classifyWorkspaceApp>) {
+  if (appId === "viewer2d") {
+    return {
+      label: "2D Drawings",
+      description: "DXF and flat technical files open in the 2D drawing workspace.",
+    };
+  }
+  if (appId === "docviewer") {
+    return {
+      label: "Documents",
+      description: "PDF, image, and office documents open in the document workspace.",
+    };
+  }
+  return {
+    label: "3D Review",
+    description: "3D models and assemblies open in the 3D review workspace.",
+  };
+}
+
+function resolveUploadedFileDestination(
+  workspaceId: string | null,
+  file: { original_filename?: string | null; content_type?: string | null },
+  fileId: string
+) {
+  const destination = resolveFileAppPath(workspaceId, file, fileId);
+  return {
+    ...destination,
+    ...fileRouteCopy(destination.appId),
+  };
+}
+
 function viewerSurfaceContent(surface: PlatformSurface) {
   if (surface === "viewer2d") {
     return {
@@ -435,12 +483,16 @@ function BlockerPanel({
 }
 
 function HomeScreen() {
+  // The suite home is intentionally simple: one entry surface, then fast handoff into focused apps.
   const router = useRouter();
   const pathname = usePathname();
   const { user } = useUser();
   const [sessions, setSessions] = useState<WorkspaceSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const workspaceId = extractWorkspaceId(pathname);
 
   useEffect(() => {
@@ -452,6 +504,9 @@ function HomeScreen() {
 
   const activeSession = sessions.find((item) => item.id === activeSessionId) || sessions[0] || null;
   const visibleApps = getHomePlatformApps(user.role);
+  const focusApps = HOME_FOCUS_APP_IDS
+    .map((appId) => visibleApps.find((app) => app.id === appId))
+    .filter((app): app is NonNullable<typeof app> => app !== undefined);
 
   function onSelectSession(sessionId: string) {
     setActiveSessionId(sessionId);
@@ -469,103 +524,142 @@ function HomeScreen() {
     router.push(buildWorkspacePath(created.id));
   }
 
-  function onSendMessage() {
-    if (!activeSession || !draft.trim()) return;
-    const userMessage = appendSessionMessage(activeSession, "user", draft.trim());
-    const reply = appendSessionMessage(
-      userMessage,
-      "assistant",
-      "Route this request through a STELLCODEX application. Use Files for uploads, Projects for project work, or Explore Applications to open the right runner."
-    );
-    const next = upsertSession(reply);
-    setSessions(next);
-    setActiveSessionId(reply.id);
-    setDraft("");
+  async function onUpload(files: FileList | null) {
+    const file = files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadError(null);
+    setUploadStatus("Uploading file...");
+    try {
+      const result = await uploadDirect(file);
+      const destination = resolveUploadedFileDestination(
+        workspaceId,
+        { original_filename: file.name, content_type: file.type || null },
+        result.file_id
+      );
+      setUploadStatus(`Opening ${destination.label}...`);
+      router.push(destination.href);
+    } catch (err) {
+      setUploadStatus(null);
+      setUploadError(err instanceof Error ? err.message : "Upload failed.");
+    } finally {
+      setUploading(false);
+    }
   }
 
   return (
     <PlatformLayout
-      title={activeSession?.title || "Workspace"}
-      subtitle="Single entry platform with sessions and embedded applications"
+      title={activeSession?.title || "STELLCODEX"}
+      subtitle="Separate applications inside one STELLCODEX suite"
       sessionState={{ sessions, activeSessionId, onSelectSession, onNewSession }}
     >
       <div className="mx-auto flex h-full w-full max-w-[1600px] flex-col px-4 py-6 lg:px-8">
-        <div className="flex-1 rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))]">
-          <div className="mx-auto flex h-full max-w-[960px] flex-col gap-6 px-4 py-8 lg:px-8">
-            <div className="pt-8 text-center">
-              <div className="text-3xl font-semibold tracking-tight text-white">What can STELLCODEX help build today?</div>
-              <div className="mt-2 text-sm text-white/45">
-                Upload files, open projects, run mesh jobs and manage platform applications from one workspace.
-              </div>
+        <div className="flex-1 space-y-6 rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] px-4 py-8 lg:px-8">
+          <div className="max-w-[920px]">
+            <div className="text-xs font-semibold uppercase tracking-[0.28em] text-white/40">STELLCODEX Suite</div>
+            <div className="mt-4 text-4xl font-semibold tracking-tight text-white">Simple in front. Specialized underneath.</div>
+            <div className="mt-3 max-w-[760px] text-sm leading-6 text-white/55">
+              Start with one upload or one question. STELLCODEX chooses the responsible application, keeps the layout focused, and leaves files, projects, and sharing inside the same platform.
             </div>
+          </div>
 
-            <div className="flex flex-1 flex-col gap-4">
-              {activeSession?.messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`max-w-[760px] rounded-[24px] px-5 py-4 text-sm leading-6 ${
-                    message.role === "assistant"
-                      ? "bg-white/[0.04] text-white/85"
-                      : "ml-auto bg-[#303030] text-white"
-                  }`}
-                >
-                  {message.text}
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_340px]">
+            <SectionCard title="Start working" description="The first step stays obvious: upload a file or open the correct application.">
+              <input
+                ref={uploadInputRef}
+                type="file"
+                className="hidden"
+                onChange={(event) => void onUpload(event.target.files)}
+              />
+              <div className="rounded-[28px] border border-dashed border-white/14 bg-black/15 p-6">
+                <div className="text-2xl font-semibold text-white">Upload once. Open the right app automatically.</div>
+                <div className="mt-3 max-w-[720px] text-sm leading-6 text-white/55">
+                  3D models go to the 3D workspace, DXF and flat drawings go to the 2D workspace, and PDF or office files go to the document workspace. No extra routing decision is left to the user.
                 </div>
-              ))}
-            </div>
-
-            <SectionCard title="Explore Applications" description="Core surfaces stay visible here. The full application inventory lives in the Applications catalog.">
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {visibleApps.map((app) => (
+                <div className="mt-5 flex flex-wrap gap-3">
                   <button
-                    key={app.id}
                     type="button"
-                    onClick={() => router.push(resolveAppHref(workspaceId, app.id))}
-                    className="rounded-[24px] border border-white/10 bg-black/10 p-4 text-left transition hover:border-white/20 hover:bg-white/[0.05]"
+                    onClick={() => uploadInputRef.current?.click()}
+                    className="rounded-2xl bg-white px-5 py-3 text-sm font-medium text-black hover:bg-white/90"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold text-white">{app.name}</div>
-                      <div className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-white/45">{app.category}</div>
-                    </div>
-                    <div className="mt-2 text-sm text-white/55">{app.summary}</div>
+                    {uploading ? "Uploading..." : "Select file"}
                   </button>
-                ))}
+                  <Link href={resolveWorkspaceHref(workspaceId, "/files")} className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-white/75 hover:bg-white/8">
+                    Open Files and Share
+                  </Link>
+                  <Link href={resolveWorkspaceHref(workspaceId, "/apps")} className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-white/75 hover:bg-white/8">
+                    Browse all applications
+                  </Link>
+                </div>
+                {uploadStatus ? <div className="mt-4 text-sm text-white/55">{uploadStatus}</div> : null}
+                {uploadError ? <div className="mt-4 text-sm text-red-200">{uploadError}</div> : null}
               </div>
-              <div className="mt-4 flex flex-wrap gap-3">
-                <Link
-                  href={resolveWorkspaceHref(workspaceId, "/apps")}
-                  className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-white/75 hover:bg-white/8"
-                >
-                  Open full applications catalog
-                </Link>
-                <div className="self-center text-xs text-white/40">All 45 registered modules are accessible through the shared platform shell.</div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                {[
+                  fileRouteCopy("viewer3d"),
+                  fileRouteCopy("viewer2d"),
+                  fileRouteCopy("docviewer"),
+                ].map((item) => (
+                  <div key={item.label} className="rounded-[24px] border border-white/10 bg-black/10 p-4">
+                    <div className="text-sm font-semibold text-white">{item.label}</div>
+                    <div className="mt-2 text-sm text-white/55">{item.description}</div>
+                  </div>
+                ))}
               </div>
             </SectionCard>
 
-            <div className="sticky bottom-0 rounded-[28px] border border-white/10 bg-[#2a2a2a] p-3 shadow-[0_30px_80px_rgba(0,0,0,0.35)]">
-              <textarea
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                rows={3}
-                placeholder="Describe the task, then switch into the right application..."
-                className="w-full resize-none bg-transparent px-3 py-2 text-sm text-white outline-none placeholder:text-white/30"
-              />
-              <div className="flex items-center justify-between border-t border-white/8 pt-3">
-                <div className="flex flex-wrap gap-2 text-xs text-white/35">
-                  <span className="rounded-full border border-white/10 px-3 py-1">Files upload</span>
-                  <span className="rounded-full border border-white/10 px-3 py-1">Mesh jobs</span>
-                  <span className="rounded-full border border-white/10 px-3 py-1">Mold export</span>
-                </div>
+            <SectionCard title="Keep trust high" description="The platform should feel predictable even to a first-time user.">
+              <div className="space-y-3">
+                {[
+                  "Each app has one clear purpose and one focused layout.",
+                  "Collapse the left rail to give the current app more stage space.",
+                  "STELL-AI can guide the flow, but the application stays visible and in control.",
+                  "Files, projects, and shares stay in one suite instead of becoming separate products.",
+                ].map((item) => (
+                  <div key={item} className="rounded-[20px] border border-white/10 bg-black/10 px-4 py-3 text-sm text-white/65">
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+          </div>
+
+          <SectionCard title="Core applications" description="Each application is separate, but every one of them completes STELLCODEX.">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {focusApps.map((app) => (
                 <button
+                  key={app.id}
                   type="button"
-                  onClick={onSendMessage}
-                  className="rounded-full bg-white px-4 py-2 text-sm font-medium text-black hover:bg-white/90"
+                  onClick={() => router.push(resolveAppHref(workspaceId, app.id))}
+                  className="rounded-[24px] border border-white/10 bg-black/10 p-4 text-left transition hover:border-white/20 hover:bg-white/[0.05]"
                 >
-                  Send
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-white">{app.name}</div>
+                    <div className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-white/45">{app.category}</div>
+                  </div>
+                  <div className="mt-2 text-sm text-white/55">{app.summary}</div>
                 </button>
+              ))}
+            </div>
+          </SectionCard>
+
+          <SectionCard title="One product, not copied pages" description="The suite keeps one shell and focused app stages instead of duplicated screens.">
+            <div className="grid gap-4 lg:grid-cols-3">
+              <div className="rounded-[24px] border border-white/10 bg-black/10 p-5">
+                <div className="text-sm font-semibold text-white">No cloned entry pages</div>
+                <div className="mt-2 text-sm text-white/55">Uploads, routing, and app launch stay in the main suite shell so users do not bounce across lookalike pages.</div>
+              </div>
+              <div className="rounded-[24px] border border-white/10 bg-black/10 p-5">
+                <div className="text-sm font-semibold text-white">No duplicate primary buttons</div>
+                <div className="mt-2 text-sm text-white/55">Each surface keeps one main action so users always know what happens next.</div>
+              </div>
+              <div className="rounded-[24px] border border-white/10 bg-black/10 p-5">
+                <div className="text-sm font-semibold text-white">Separate apps, shared core</div>
+                <div className="mt-2 text-sm text-white/55">Apps can later ship separately, but the canonical STELLCODEX experience stays one platform with one shared infrastructure layer.</div>
               </div>
             </div>
-          </div>
+          </SectionCard>
         </div>
       </div>
     </PlatformLayout>
@@ -622,7 +716,7 @@ function AppsCatalogScreen() {
   const coreIntegratedCount = items.filter((item) => resolveMarketplaceCoreAppId(item.slug)).length;
 
   return (
-    <PlatformLayout title="Applications" subtitle="Full platform inventory backed by the marketplace registry and app manifests">
+    <PlatformLayout title="Applications" subtitle="Separate applications inside one STELLCODEX suite shell">
       <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-6 px-4 py-6 lg:px-8">
         <SectionCard title="Inventory Status" description="Every registered app stays inside the same STELLCODEX platform shell.">
           <div className="grid gap-4 md:grid-cols-3">
@@ -726,7 +820,7 @@ function MarketplaceModuleScreen({ slug }: { slug: string }) {
   const capabilitySummary = catalogItem ? summarizeMarketplaceCapabilities(catalogItem) : null;
 
   return (
-    <PlatformLayout title={catalogItem?.name || slug} subtitle="Manifest-backed platform module surface">
+    <PlatformLayout title={catalogItem?.name || slug} subtitle="Focused module surface inside the STELLCODEX suite">
       <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-6 px-4 py-6 lg:px-8">
         {loading ? <EmptyPanel title="Loading module" description="Reading the catalog entry and app manifest." /> : null}
         {error ? <EmptyPanel title="Module unavailable" description={error} /> : null}
@@ -877,6 +971,7 @@ function ProjectsScreen() {
 }
 
 function ProjectScreen({ projectId }: { projectId: string }) {
+  const router = useRouter();
   const workspaceId = extractWorkspaceId(usePathname());
   const [project, setProject] = useState<ProjectSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -901,8 +996,14 @@ function ProjectScreen({ projectId }: { projectId: string }) {
     if (!file) return;
     setUploading(true);
     try {
-      await uploadDirect(file, projectId);
+      const result = await uploadDirect(file, projectId);
       await refresh();
+      const destination = resolveUploadedFileDestination(
+        workspaceId,
+        { original_filename: file.name, content_type: file.type || null },
+        result.file_id
+      );
+      router.push(destination.href);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed.");
     } finally {
@@ -913,7 +1014,7 @@ function ProjectScreen({ projectId }: { projectId: string }) {
   return (
     <PlatformLayout title={project?.name || "Project"} subtitle={projectId}>
       <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-6 px-4 py-6 lg:px-8">
-        <SectionCard title="Project Upload" description="Files uploaded here stay attached to this project id.">
+        <SectionCard title="Project Upload" description="Uploads stay attached to this project and open the responsible application immediately.">
           <label className="flex cursor-pointer flex-col items-center justify-center rounded-[28px] border border-dashed border-white/12 bg-black/10 px-6 py-12 text-center">
             <div className="text-sm font-medium text-white">{uploading ? "Uploading..." : "Upload file to project"}</div>
             <div className="mt-2 text-sm text-white/45">STEP, STL, DXF, PDF, images or JSON records</div>
@@ -935,10 +1036,10 @@ function ProjectScreen({ projectId }: { projectId: string }) {
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Link href={resolveFileOpenHref(workspaceId, file.file_id)} className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/70 hover:bg-white/8">
-                    Open viewer
+                    Open deep viewer
                   </Link>
                   <Link href={resolveAppHref(workspaceId, appForFile(file), file.file_id)} className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/70 hover:bg-white/8">
-                    Open runner
+                    Open responsible app
                   </Link>
                 </div>
               </div>
@@ -952,6 +1053,7 @@ function ProjectScreen({ projectId }: { projectId: string }) {
 }
 
 function FilesScreen() {
+  const router = useRouter();
   const workspaceId = extractWorkspaceId(usePathname());
   const workspace = useWorkspaceData();
   const [selectedProjectId, setSelectedProjectId] = useState("all");
@@ -971,9 +1073,15 @@ function FilesScreen() {
     if (!file) return;
     setUploading(true);
     try {
-      await uploadDirect(file, projectId);
+      const result = await uploadDirect(file, projectId);
       await workspace.refresh();
       setError(null);
+      const destination = resolveUploadedFileDestination(
+        workspaceId,
+        { original_filename: file.name, content_type: file.type || null },
+        result.file_id
+      );
+      router.push(destination.href);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed.");
     } finally {
@@ -991,9 +1099,9 @@ function FilesScreen() {
   }
 
   return (
-    <PlatformLayout title="Files" subtitle="Upload, view, share and track processing state">
+    <PlatformLayout title="Files" subtitle="Upload, route, share, and track processing state">
       <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-6 px-4 py-6 lg:px-8">
-        <SectionCard title="Upload" description="Uploads return file_id and immediately attach to the selected project.">
+        <SectionCard title="Upload" description="Uploads attach to the selected project and open the responsible application automatically.">
           <div className="flex flex-col gap-3 md:flex-row">
             <select
               value={selectedProjectId}
@@ -1019,7 +1127,7 @@ function FilesScreen() {
           {error ? <div className="mt-3 text-sm text-red-200">{error}</div> : null}
         </SectionCard>
 
-        <SectionCard title="File Ledger" description="Only live actions are shown: open viewer, open runner and create share.">
+        <SectionCard title="File Ledger" description="Only live actions are shown: open the responsible app, open the deep viewer, or create a share.">
           {workspace.loading ? <div className="text-sm text-white/45">Loading files...</div> : null}
           {!workspace.loading ? (
             <div className="grid gap-4 lg:grid-cols-2">
@@ -1036,13 +1144,13 @@ function FilesScreen() {
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <Link href={resolveFileOpenHref(workspaceId, file.file_id)} className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/70 hover:bg-white/8">
-                      View
+                      Open deep viewer
                     </Link>
                     <Link
                       href={resolveAppHref(workspaceId, appForFile(file), file.file_id)}
                       className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/70 hover:bg-white/8"
                     >
-                      Open in app
+                      Open responsible app
                     </Link>
                     <button
                       type="button"
@@ -1156,15 +1264,9 @@ function LibraryScreen() {
 
 function SettingsScreen() {
   const { user, isAuthenticated } = useUser();
-  const plans = [
-    { name: "Free", price: "$0", description: "Core workspace, uploads and viewer access." },
-    { name: "Plus", price: "$29", description: "Expanded usage and application access." },
-    { name: "Pro", price: "$99", description: "Team workflows, advanced jobs and catalogs." },
-    { name: "Enterprise", price: "Custom", description: "Governance, audit routing and managed deployment." },
-  ];
 
   return (
-    <PlatformLayout title="Settings" subtitle="Plan tiers and workspace identity">
+    <PlatformLayout title="Plans" subtitle="Suite identity, access tiers, and packaging rules">
       <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-6 px-4 py-6 lg:px-8">
         <SectionCard title="Workspace Identity" description="Guest and authenticated sessions use the same platform shell.">
           <div className="rounded-[24px] border border-white/10 bg-black/10 p-5 text-sm text-white/75">
@@ -1174,15 +1276,29 @@ function SettingsScreen() {
           </div>
         </SectionCard>
 
-        <SectionCard title="Plans" description="Business model is locked to Free / Plus / Pro / Enterprise.">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {plans.map((plan) => (
+        <SectionCard title="Plans" description="The suite stays on Free / Plus / Pro. Pricing stays secondary to the product workflow.">
+          <div className="grid gap-4 md:grid-cols-3">
+            {SUITE_PLAN_ROWS.map((plan) => (
               <div key={plan.name} className="rounded-[24px] border border-white/10 bg-black/10 p-5">
                 <div className="text-lg font-semibold text-white">{plan.name}</div>
-                <div className="mt-2 text-3xl font-semibold text-white">{plan.price}</div>
+                <div className="mt-2 text-sm font-medium uppercase tracking-[0.2em] text-white/35">{plan.headline}</div>
                 <div className="mt-3 text-sm text-white/50">{plan.description}</div>
               </div>
             ))}
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Suite Packaging" description="Apps can ship separately without turning STELLCODEX into disconnected products.">
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="rounded-[24px] border border-white/10 bg-black/10 p-5 text-sm text-white/60">
+              One shared core keeps files, projects, identity, routing, and access rules consistent across every app.
+            </div>
+            <div className="rounded-[24px] border border-white/10 bg-black/10 p-5 text-sm text-white/60">
+              Separate mobile packages can expose one focused app surface while the main STELLCODEX suite remains the canonical experience.
+            </div>
+            <div className="rounded-[24px] border border-white/10 bg-black/10 p-5 text-sm text-white/60">
+              The interface stays ad-free and workflow-first. Plans describe access scope, not in-product sales clutter.
+            </div>
           </div>
         </SectionCard>
       </div>

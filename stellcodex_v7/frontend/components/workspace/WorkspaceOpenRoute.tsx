@@ -2,13 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { PlatformClient } from "@/components/platform/PlatformClient";
-import { classifyWorkspaceApp } from "@/lib/workspace-routing";
+import { classifyWorkspaceApp, type WorkspaceAppRoute } from "@/lib/workspace-routing";
 import { getFile } from "@/services/api";
 
-type ViewerAppId = "viewer3d" | "viewer2d" | "docviewer";
-
 export function WorkspaceOpenRoute({ fileId }: { fileId: string }) {
-  const [appId, setAppId] = useState<ViewerAppId | null>(null);
+  const [appId, setAppId] = useState<WorkspaceAppRoute | null>(null);
 
   useEffect(() => {
     let active = true;

@@ -10,10 +10,10 @@ export default function UploadPage() {
           Upload
         </div>
         <h1 className="mt-4 text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
-          Upload a file and open it immediately.
+          Upload a file and open the right application immediately.
         </h1>
         <p className="mt-3 text-sm text-slate-600">
-          Processing starts as soon as the upload begins and opens the viewer automatically.
+          STELLCODEX routes 3D, 2D, and document files into the responsible workspace automatically.
         </p>
       </header>
 
