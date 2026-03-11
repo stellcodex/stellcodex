@@ -111,7 +111,7 @@ export function UploadDrop({ onUploaded }: { onUploaded?: (fileId: string) => vo
 
       <div style={tokens.typography.h2} className="text-[#111827]">Upload file</div>
       <div style={tokens.typography.body} className="mt-2 text-[#6b7280]">
-        Upload once. STELLCODEX routes 3D, 2D, and document files into the responsible application automatically.
+        The suite routes the file to 3D, 2D, or Documents automatically.
       </div>
       <div className="mt-2 text-xs text-[#6b7280]">
         Supported formats: STEP / IGES / BREP / STL / OBJ / PLY / OFF / 3MF / AMF / DAE / DXF / PDF / PNG / JPG

@@ -32,7 +32,6 @@ import {
   resolveWorkspaceHref,
 } from "@/lib/workspace-routing";
 import {
-  ApiHttpError,
   createProject,
   createShare,
   enqueueConvert,
@@ -363,6 +362,37 @@ function viewerSurfaceContent(surface: PlatformSurface) {
   };
 }
 
+function viewerSurfaceTheme(surface: PlatformSurface) {
+  if (surface === "viewer2d") {
+    return {
+      badge: "2D Drawing",
+      stageShell: "border-[#d8e1e8] bg-[#f8fbfd]",
+      frameTone: "bg-white",
+      sideTitle: "Drawing flow",
+      sideDescription: "Layer-focused review for flat technical files.",
+      tips: ["Drawing-focused surface", "Flat canvas and clean contrast", "Keep review actions short"],
+    };
+  }
+  if (surface === "docviewer") {
+    return {
+      badge: "Documents",
+      stageShell: "border-[#e5dfd4] bg-[#fbfaf6]",
+      frameTone: "bg-[#fbfaf7]",
+      sideTitle: "Document flow",
+      sideDescription: "Review documents, status, and controlled handoff without viewer clutter.",
+      tips: ["Reading-first surface", "Status and download stay visible", "Share actions stay controlled"],
+    };
+  }
+  return {
+    badge: "3D Review",
+    stageShell: "border-[#d5dee0] bg-[#f4f8f8]",
+    frameTone: "bg-[#0b1212]",
+    sideTitle: "3D flow",
+    sideDescription: "Large stage for model review with short actions on the side.",
+    tips: ["Large visual stage", "Direct app handoff", "Short action rail only"],
+  };
+}
+
 function formatBytes(size?: number | null) {
   if (!size) return "0 B";
   if (size < 1024) return `${size} B`;
@@ -428,7 +458,7 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-[28px] border border-[#d7dfde] bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
+    <section className="rounded-[24px] border border-[#e5e7eb] bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
       <div className="mb-4">
         <div className="text-lg font-semibold text-[#111827]">{title}</div>
         {description ? <div className="mt-1 text-sm text-[#6b7280]">{description}</div> : null}
@@ -494,6 +524,7 @@ function HomeScreen() {
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const workspaceId = extractWorkspaceId(pathname);
+  const workspace = useWorkspaceData();
 
   useEffect(() => {
     const current = ensureSession(workspaceId || undefined);
@@ -507,7 +538,8 @@ function HomeScreen() {
   const focusApps = HOME_FOCUS_APP_IDS
     .map((appId) => visibleApps.find((app) => app.id === appId))
     .filter((app): app is NonNullable<typeof app> => app !== undefined);
-
+  const recentFiles = workspace.files.slice(0, 6);
+  const recentProjects = workspace.projects.slice(0, 5);
   function onSelectSession(sessionId: string) {
     setActiveSessionId(sessionId);
     saveActiveSessionId(sessionId);
@@ -549,118 +581,151 @@ function HomeScreen() {
 
   return (
     <PlatformLayout
-      title={activeSession?.title || "STELLCODEX"}
-      subtitle="Separate applications inside one STELLCODEX suite"
+      title={activeSession?.title || "Workspace"}
+      mode="hub"
       sessionState={{ sessions, activeSessionId, onSelectSession, onNewSession }}
     >
-      <div className="mx-auto flex h-full w-full max-w-[1600px] flex-col px-4 py-6 lg:px-8">
-        <div className="flex-1 space-y-6 rounded-[32px] border border-[#d7dfde] bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] px-4 py-8 lg:px-8">
-          <div className="max-w-[920px]">
-            <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[#6b7280]">STELLCODEX Suite</div>
-            <div className="mt-4 text-4xl font-semibold tracking-tight text-[#111827]">Simple in front. Specialized underneath.</div>
-            <div className="mt-3 max-w-[760px] text-sm leading-6 text-[#4b5563]">
-              Start with one upload or one question. STELLCODEX chooses the responsible application, keeps the layout focused, and leaves files, projects, and sharing inside the same platform.
+      <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-5 px-4 py-5 lg:px-6">
+        <section className="rounded-[28px] border border-[#e5e7eb] bg-white p-6 shadow-[0_16px_42px_rgba(15,23,42,0.04)] lg:p-7">
+          <input ref={uploadInputRef} type="file" className="hidden" onChange={(event) => void onUpload(event.target.files)} />
+          <div className="max-w-3xl">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#6b7280]">Start work</div>
+            <div className="mt-3 text-[clamp(2.1rem,4vw,3.8rem)] font-semibold tracking-[-0.04em] text-[#111827]">
+              Upload a file or open an app.
             </div>
-          </div>
-
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_340px]">
-            <SectionCard title="Start working" description="The first step stays obvious: upload a file or open the correct application.">
-              <input
-                ref={uploadInputRef}
-                type="file"
-                className="hidden"
-                onChange={(event) => void onUpload(event.target.files)}
-              />
-              <div className="rounded-[28px] border border-dashed border-[#d7dfde] bg-[#fbfcfc] p-6">
-                <div className="text-2xl font-semibold text-[#111827]">Upload once. Open the right app automatically.</div>
-                <div className="mt-3 max-w-[720px] text-sm leading-6 text-[#4b5563]">
-                  3D models go to the 3D workspace, DXF and flat drawings go to the 2D workspace, and PDF or office files go to the document workspace. No extra routing decision is left to the user.
-                </div>
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={() => uploadInputRef.current?.click()}
-                    className="rounded-2xl bg-[#0f766e] px-5 py-3 text-sm font-medium text-white hover:bg-[#0c5f59]"
-                  >
-                    {uploading ? "Uploading..." : "Select file"}
-                  </button>
-                  <Link href={resolveWorkspaceHref(workspaceId, "/files")} className="rounded-2xl border border-[#d7dfde] px-5 py-3 text-sm text-[#1f2937] hover:bg-[#f4f7f6]">
-                    Open Files and Share
-                  </Link>
-                  <Link href={resolveWorkspaceHref(workspaceId, "/apps")} className="rounded-2xl border border-[#d7dfde] px-5 py-3 text-sm text-[#1f2937] hover:bg-[#f4f7f6]">
-                    Browse all applications
-                  </Link>
-                </div>
-                {uploadStatus ? <div className="mt-4 text-sm text-[#4b5563]">{uploadStatus}</div> : null}
-                {uploadError ? <div className="mt-4 text-sm text-[#b42318]">{uploadError}</div> : null}
-              </div>
-
-              <div className="mt-4 grid gap-3 md:grid-cols-3">
-                {[
-                  fileRouteCopy("viewer3d"),
-                  fileRouteCopy("viewer2d"),
-                  fileRouteCopy("docviewer"),
-                ].map((item) => (
-                  <div key={item.label} className="rounded-[24px] border border-[#d7dfde] bg-white p-4">
-                    <div className="text-sm font-semibold text-[#111827]">{item.label}</div>
-                    <div className="mt-2 text-sm text-[#4b5563]">{item.description}</div>
-                  </div>
-                ))}
-              </div>
-            </SectionCard>
-
-            <SectionCard title="Keep trust high" description="The platform should feel predictable even to a first-time user.">
-              <div className="space-y-3">
-                {[
-                  "Each app has one clear purpose and one focused layout.",
-                  "Collapse the left rail to give the current app more stage space.",
-                  "STELL-AI can guide the flow, but the application stays visible and in control.",
-                  "Files, projects, and shares stay in one suite instead of becoming separate products.",
-                ].map((item) => (
-                  <div key={item} className="rounded-[20px] border border-[#d7dfde] bg-white px-4 py-3 text-sm text-[#374151]">
-                    {item}
-                  </div>
-                ))}
-              </div>
-            </SectionCard>
-          </div>
-
-          <SectionCard title="Core applications" description="Each application is separate, but every one of them completes STELLCODEX.">
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {focusApps.map((app) => (
-                <button
-                  key={app.id}
-                  type="button"
-                  onClick={() => router.push(resolveAppHref(workspaceId, app.id))}
-                  className="rounded-[24px] border border-[#d7dfde] bg-white p-4 text-left transition hover:border-[#bcc9c7] hover:bg-[#f4f7f6]"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-semibold text-[#111827]">{app.name}</div>
-                    <div className="rounded-full border border-[#d7dfde] px-2 py-1 text-[11px] text-[#6b7280]">{app.category}</div>
-                  </div>
-                  <div className="mt-2 text-sm text-[#4b5563]">{app.summary}</div>
-                </button>
-              ))}
+            <div className="mt-3 text-sm text-[#4b5563]">STELLCODEX routes the file into the correct workspace.</div>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => uploadInputRef.current?.click()}
+                className="rounded-2xl bg-[var(--accent)] px-5 py-3 text-sm font-medium text-white hover:opacity-95"
+              >
+                {uploading ? "Uploading..." : "Upload file"}
+              </button>
+              <Link href={resolveWorkspaceHref(workspaceId, "/apps")} className="rounded-2xl border border-[#e5e7eb] px-5 py-3 text-sm text-[#1f2937] hover:bg-[#f8fafc]">
+                Open applications
+              </Link>
+              <button
+                type="button"
+                onClick={() => document.getElementById("recent-sessions")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                className="rounded-2xl border border-[#e5e7eb] px-5 py-3 text-sm text-[#1f2937] hover:bg-[#f8fafc]"
+              >
+                Recent sessions
+              </button>
             </div>
+            {uploadStatus ? <div className="mt-4 text-sm text-[#4b5563]">{uploadStatus}</div> : null}
+            {uploadError ? <div className="mt-4 text-sm text-[#b42318]">{uploadError}</div> : null}
+            {workspace.error ? <div className="mt-4 text-sm text-[#b42318]">{workspace.error}</div> : null}
+          </div>
+        </section>
+
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.12fr)_360px]">
+          <SectionCard title="Recent files" description="Continue from the latest work">
+            {workspace.loading ? <div className="text-sm text-[#6b7280]">Loading recent files...</div> : null}
+            {!workspace.loading && recentFiles.length === 0 ? (
+              <EmptyPanel title="No files yet" description="Upload the first file to start routing." />
+            ) : null}
+            {!workspace.loading ? (
+              <div className="space-y-2">
+                {recentFiles.map((file) => {
+                  const destination = resolveUploadedFileDestination(
+                    workspaceId,
+                    { original_filename: file.original_filename, content_type: file.content_type || null },
+                    file.file_id
+                  );
+                  return (
+                    <button
+                      key={file.file_id}
+                      type="button"
+                      onClick={() => router.push(destination.href)}
+                      className="flex w-full items-center justify-between gap-4 rounded-[18px] border border-[#e5e7eb] bg-[#fcfcfb] px-4 py-3 text-left hover:bg-[#f8fafc]"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-[#111827]">{file.original_filename}</div>
+                        <div className="mt-1 text-xs text-[#6b7280]">
+                          {destination.label} • {formatDate(file.created_at)}
+                        </div>
+                      </div>
+                      <StatusBadge label={file.status} />
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
           </SectionCard>
 
-          <SectionCard title="One product, not copied pages" description="The suite keeps one shell and focused app stages instead of duplicated screens.">
-            <div className="grid gap-4 lg:grid-cols-3">
-              <div className="rounded-[24px] border border-[#d7dfde] bg-white p-5">
-                <div className="text-sm font-semibold text-[#111827]">No cloned entry pages</div>
-                <div className="mt-2 text-sm text-[#4b5563]">Uploads, routing, and app launch stay in the main suite shell so users do not bounce across lookalike pages.</div>
-              </div>
-              <div className="rounded-[24px] border border-[#d7dfde] bg-white p-5">
-                <div className="text-sm font-semibold text-[#111827]">No duplicate primary buttons</div>
-                <div className="mt-2 text-sm text-[#4b5563]">Each surface keeps one main action so users always know what happens next.</div>
-              </div>
-              <div className="rounded-[24px] border border-[#d7dfde] bg-white p-5">
-                <div className="text-sm font-semibold text-[#111827]">Separate apps, shared core</div>
-                <div className="mt-2 text-sm text-[#4b5563]">Apps can later ship separately, but the canonical STELLCODEX experience stays one platform with one shared infrastructure layer.</div>
-              </div>
+          <div className="space-y-5">
+            <div id="recent-sessions">
+              <SectionCard title="Recent sessions" description="Jump back into an existing workspace">
+                {sessions.length === 0 ? (
+                  <EmptyPanel title="No sessions yet" description="A workspace session appears after the first action." />
+                ) : (
+                  <div className="space-y-2">
+                    {sessions.slice(0, 5).map((session) => (
+                      <button
+                        key={session.id}
+                        type="button"
+                        onClick={() => onSelectSession(session.id)}
+                        className="flex w-full items-center justify-between gap-4 rounded-[18px] border border-[#e5e7eb] bg-[#fcfcfb] px-4 py-3 text-left hover:bg-[#f8fafc]"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-medium text-[#111827]">{session.title}</div>
+                          <div className="mt-1 text-xs text-[#6b7280]">{session.id === activeSessionId ? "Current session" : "Saved workspace"}</div>
+                        </div>
+                        <span className="rounded-full border border-[#e5e7eb] px-2.5 py-1 text-[11px] text-[#6b7280]">Open</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </SectionCard>
             </div>
-          </SectionCard>
+
+            <SectionCard title="Projects" description="Recent project spaces">
+              {workspace.loading ? <div className="text-sm text-[#6b7280]">Loading projects...</div> : null}
+              {!workspace.loading && recentProjects.length === 0 ? (
+                <EmptyPanel title="No projects yet" description="Create a project when files need a long-running home." />
+              ) : null}
+              {!workspace.loading ? (
+                <div className="space-y-2">
+                  {recentProjects.map((project) => (
+                    <button
+                      key={project.id}
+                      type="button"
+                      onClick={() => router.push(resolveProjectHref(workspaceId, project.id))}
+                      className="flex w-full items-center justify-between gap-4 rounded-[18px] border border-[#e5e7eb] bg-[#fcfcfb] px-4 py-3 text-left hover:bg-[#f8fafc]"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-[#111827]">{project.name}</div>
+                        <div className="mt-1 text-xs text-[#6b7280]">{project.file_count} files</div>
+                      </div>
+                      <span className="rounded-full border border-[#e5e7eb] px-2.5 py-1 text-[11px] text-[#6b7280]">Open</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </SectionCard>
+          </div>
         </div>
+
+        <SectionCard title="Applications" description="Core suite entry points">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {focusApps.map((app) => (
+              <button
+                key={app.id}
+                type="button"
+                onClick={() => router.push(resolveAppHref(workspaceId, app.id))}
+                className="flex items-center justify-between rounded-[18px] border border-[#e5e7eb] bg-[#fcfcfb] px-4 py-3 text-left hover:bg-[#f8fafc]"
+              >
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-[#111827]">{app.name}</div>
+                </div>
+                <span className="rounded-full border border-[#e5e7eb] px-2.5 py-1 text-[11px] text-[#6b7280]">
+                  {app.shortName}
+                </span>
+              </button>
+            ))}
+          </div>
+        </SectionCard>
       </div>
     </PlatformLayout>
   );
@@ -716,25 +781,22 @@ function AppsCatalogScreen() {
   const coreIntegratedCount = items.filter((item) => resolveMarketplaceCoreAppId(item.slug)).length;
 
   return (
-    <PlatformLayout title="Applications" subtitle="Separate applications inside one STELLCODEX suite shell">
+    <PlatformLayout title="Applications" subtitle="One shell. Separate app surfaces.">
       <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-6 px-4 py-6 lg:px-8">
-        <SectionCard title="Inventory Status" description="Every registered app stays inside the same STELLCODEX platform shell.">
+        <SectionCard title="Inventory" description="Registered application surfaces inside the suite.">
           <div className="grid gap-4 md:grid-cols-3">
             <div className="rounded-[24px] border border-[#d7dfde] bg-white p-5">
-              <div className="text-xs uppercase tracking-[0.2em] text-[#6b7280]">Registered Modules</div>
+              <div className="text-xs uppercase tracking-[0.2em] text-[#6b7280]">Apps</div>
               <div className="mt-3 text-3xl font-semibold text-[#111827]">{items.length}</div>
             </div>
             <div className="rounded-[24px] border border-[#d7dfde] bg-white p-5">
-              <div className="text-xs uppercase tracking-[0.2em] text-[#6b7280]">Enabled Today</div>
+              <div className="text-xs uppercase tracking-[0.2em] text-[#6b7280]">Enabled</div>
               <div className="mt-3 text-3xl font-semibold text-[#111827]">{enabledCount}</div>
             </div>
             <div className="rounded-[24px] border border-[#d7dfde] bg-white p-5">
-              <div className="text-xs uppercase tracking-[0.2em] text-[#6b7280]">Core-integrated Modules</div>
+              <div className="text-xs uppercase tracking-[0.2em] text-[#6b7280]">Integrated</div>
               <div className="mt-3 text-3xl font-semibold text-[#111827]">{coreIntegratedCount}</div>
             </div>
-          </div>
-          <div className="mt-4 text-sm text-[#4b5563]">
-            Core workflows keep dedicated workspace surfaces. Remaining modules stay available through manifest-backed pages until their specialized workflow is promoted into the workspace shell.
           </div>
         </SectionCard>
 
@@ -742,11 +804,10 @@ function AppsCatalogScreen() {
         {error ? <SectionCard title="Catalog Error" description="The inventory could not be read."><div className="text-sm text-[#b42318]">{error}</div></SectionCard> : null}
 
         {groupedItems.map(([category, rows]) => (
-          <SectionCard key={category} title={normalizeMarketplaceCategory(category)} description={`${rows.length} registered module${rows.length === 1 ? "" : "s"} in this group.`}>
+          <SectionCard key={category} title={normalizeMarketplaceCategory(category)} description={`${rows.length} app${rows.length === 1 ? "" : "s"}`}>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {rows.map((item) => {
                 const integration = getMarketplaceIntegration(item);
-                const capabilitySummary = summarizeMarketplaceCapabilities(item);
                 return (
                   <Link
                     key={item.slug}
@@ -763,14 +824,10 @@ function AppsCatalogScreen() {
                         <span className="rounded-full border border-[#d7dfde] px-2.5 py-1 text-xs text-[#4b5563]">{item.tier}</span>
                       </div>
                     </div>
-                    <div className="mt-3 text-sm text-[#4b5563]">{integration.note}</div>
-                    <div className="mt-4 space-y-2 text-xs text-[#6b7280]">
-                      <div>Capabilities: {capabilitySummary.capabilities}</div>
-                      <div>Formats: {capabilitySummary.formats}</div>
-                    </div>
+                    <div className="mt-3 text-sm text-[#4b5563]">{integration.headline}</div>
                     <div className="mt-4 flex items-center justify-between text-xs text-[#6b7280]">
                       <span>{integration.headline}</span>
-                      <span>{integration.primaryLabel}</span>
+                      <span>Open</span>
                     </div>
                   </Link>
                 );
@@ -1099,78 +1156,104 @@ function FilesScreen() {
   }
 
   return (
-    <PlatformLayout title="Files" subtitle="Upload, route, share, and track processing state">
-      <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-6 px-4 py-6 lg:px-8">
-        <SectionCard title="Upload" description="Uploads attach to the selected project and open the responsible application automatically.">
-          <div className="flex flex-col gap-3 md:flex-row">
-            <select
-              value={selectedProjectId}
-              onChange={(event) => setSelectedProjectId(event.target.value)}
-              className="h-12 rounded-2xl border border-[#d7dfde] bg-white px-4 text-sm text-[#111827] outline-none"
-            >
-              <option value="all">All projects</option>
-              {workspace.projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-            <label className="flex h-12 cursor-pointer items-center justify-center rounded-2xl bg-white px-5 text-sm font-medium text-black hover:bg-white/90">
-              {uploading ? "Uploading..." : "Select file"}
-              <input
-                type="file"
-                className="hidden"
-                onChange={(event) => void onUpload(event.target.files, selectedProjectId === "all" ? undefined : selectedProjectId)}
-              />
-            </label>
-          </div>
-          {error ? <div className="mt-3 text-sm text-[#b42318]">{error}</div> : null}
-        </SectionCard>
+    <PlatformLayout title="Files & Share" subtitle="Upload, route, open, and share without leaving the suite.">
+      <div className="grid w-full gap-5 px-4 py-5 lg:px-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <div className="space-y-5">
+          <SectionCard title="Upload" description="New files route directly into the correct application.">
+            <div className="flex flex-col gap-3">
+              <select
+                value={selectedProjectId}
+                onChange={(event) => setSelectedProjectId(event.target.value)}
+                className="h-12 rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none"
+              >
+                <option value="all">All projects</option>
+                {workspace.projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+              <label className="flex h-12 cursor-pointer items-center justify-center rounded-2xl bg-[var(--accent)] px-5 text-sm font-medium text-white hover:opacity-95">
+                {uploading ? "Uploading..." : "Select file"}
+                <input
+                  type="file"
+                  className="hidden"
+                  onChange={(event) => void onUpload(event.target.files, selectedProjectId === "all" ? undefined : selectedProjectId)}
+                />
+              </label>
+            </div>
+            {error ? <div className="mt-3 text-sm text-[#b42318]">{error}</div> : null}
+          </SectionCard>
 
-        <SectionCard title="File Ledger" description="Only live actions are shown: open the responsible app, open the deep viewer, or create a share.">
-          {workspace.loading ? <div className="text-sm text-[#6b7280]">Loading files...</div> : null}
+          <SectionCard title="Filter" description="Keep the list focused on one project or show everything.">
+            <div className="text-sm text-[#4b5563]">
+              {selectedProjectId === "all"
+                ? "Showing files from every project."
+                : `Showing files for project ${selectedProjectId}.`}
+            </div>
+          </SectionCard>
+        </div>
+
+        <section className="overflow-hidden rounded-[24px] border border-[#e5e7eb] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
+          <div className="grid grid-cols-[minmax(0,1.4fr)_150px_170px_auto] gap-3 border-b border-[#e5e7eb] px-5 py-4 text-xs font-semibold uppercase tracking-[0.18em] text-[#6b7280]">
+            <div>File</div>
+            <div>Status</div>
+            <div>Surface</div>
+            <div>Actions</div>
+          </div>
+          {workspace.loading ? <div className="px-5 py-6 text-sm text-[#6b7280]">Loading files...</div> : null}
+          {!workspace.loading && filteredFiles.length === 0 ? (
+            <div className="px-5 py-6">
+              <EmptyPanel title="No files available" description="Upload a file to start the routing and share flow." />
+            </div>
+          ) : null}
           {!workspace.loading ? (
-            <div className="grid gap-4 lg:grid-cols-2">
-              {filteredFiles.map((file) => (
-                <div key={file.file_id} className="rounded-[24px] border border-[#d7dfde] bg-white p-4">
-                  <div className="flex items-start justify-between gap-4">
+            <div>
+              {filteredFiles.map((file) => {
+                const appId = appForFile(file);
+                const surfaceCopy = fileRouteCopy(appId);
+                return (
+                  <div key={file.file_id} className="grid grid-cols-[minmax(0,1.4fr)_150px_170px_auto] gap-3 border-b border-[#f1f5f9] px-5 py-4 last:border-b-0">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-semibold text-[#111827]">{file.original_filename}</div>
                       <div className="mt-1 text-xs text-[#6b7280]">
                         {file.kind} / {file.mode || "default"} / {formatBytes(file.size_bytes)}
                       </div>
                     </div>
-                    <StatusBadge label={file.status} />
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <Link href={resolveFileOpenHref(workspaceId, file.file_id)} className="rounded-full border border-[#d7dfde] px-3 py-1 text-xs text-[#374151] hover:bg-[#f4f7f6]">
-                      Open deep viewer
-                    </Link>
-                    <Link
-                      href={resolveAppHref(workspaceId, appForFile(file), file.file_id)}
-                      className="rounded-full border border-[#d7dfde] px-3 py-1 text-xs text-[#374151] hover:bg-[#f4f7f6]"
-                    >
-                      Open responsible app
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => void onShare(file.file_id)}
-                      className="rounded-full border border-[#d7dfde] px-3 py-1 text-xs text-[#374151] hover:bg-[#f4f7f6]"
-                    >
-                      Create share
-                    </button>
-                  </div>
-                  {shareLinks[file.file_id] ? (
-                    <div className="mt-3 rounded-2xl border border-[#b7d9d5] bg-[#eef8f6] px-3 py-2 text-xs text-[#0f766e]">
-                      {shareLinks[file.file_id]}
+                    <div className="flex items-center">
+                      <StatusBadge label={file.status} />
                     </div>
-                  ) : null}
-                </div>
-              ))}
-              {!filteredFiles.length ? <EmptyPanel title="No files available" description="Upload a file to start the processing and viewer flow." /> : null}
+                    <div className="flex items-center">
+                      <div className="rounded-full border border-[#e5e7eb] px-3 py-1 text-xs text-[#4b5563]">
+                        {surfaceCopy.label}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link href={resolveAppHref(workspaceId, appId, file.file_id)} className="rounded-full bg-[var(--accent)] px-3 py-2 text-xs font-medium text-white hover:opacity-95">
+                        Open app
+                      </Link>
+                      <Link href={resolveFileOpenHref(workspaceId, file.file_id)} className="rounded-full border border-[#e5e7eb] px-3 py-2 text-xs text-[#374151] hover:bg-[#f8fafc]">
+                        Viewer
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => void onShare(file.file_id)}
+                        className="rounded-full border border-[#e5e7eb] px-3 py-2 text-xs text-[#374151] hover:bg-[#f8fafc]"
+                      >
+                        Share
+                      </button>
+                      {shareLinks[file.file_id] ? (
+                        <span className="rounded-full border border-[#cfe0dc] bg-[#f1f8f7] px-3 py-2 text-xs text-[#1f5c57]">
+                          Link ready
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           ) : null}
-        </SectionCard>
+        </section>
       </div>
     </PlatformLayout>
   );
@@ -1391,29 +1474,60 @@ function ViewerScreen({ fileId }: { fileId: string }) {
   const ready = file?.status === "ready" || status === "succeeded" || status === "ready";
   const appId = file ? appForFile(file) : "viewer3d";
   const viewerCopy = viewerSurfaceContent(appId);
+  const viewerTheme = viewerSurfaceTheme(appId);
 
   return (
-    <PlatformLayout title={file?.original_filename || viewerCopy.label} subtitle={viewerCopy.description}>
-      <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-6 px-4 py-6 lg:px-8">
+    <PlatformLayout title={file?.original_filename || viewerCopy.label} subtitle={viewerCopy.description} mode="focus">
+      <div className="grid w-full gap-4 px-3 py-3 lg:grid-cols-[minmax(0,1fr)_320px] lg:px-4">
         {error ? <EmptyPanel title="Viewer unavailable" description={error} /> : null}
-        {!error && !ready ? (
-          <SectionCard title="Processing" description={viewerCopy.stageDescription}>
-            <div className="text-sm text-[#4b5563]">Current state: {status}</div>
-          </SectionCard>
-        ) : null}
-        {ready ? (
-          <SectionCard title={viewerCopy.stageTitle} description="Deep-linked into the workspace viewer context.">
-            <div className="overflow-hidden rounded-[28px] border border-[#d7dfde] bg-[#fbfcfc]">
-              <iframe src={`/view/${fileId}`} className="h-[760px] w-full bg-[#111]" title="STELLCODEX viewer" />
+        <section className={`overflow-hidden rounded-[28px] border ${viewerTheme.stageShell}`}>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e5e7eb] bg-white/88 px-4 py-3">
+            <div className="flex items-center gap-2">
+              <span className="rounded-full border border-[#e5e7eb] px-3 py-1 text-xs uppercase tracking-[0.18em] text-[#6b7280]">
+                {viewerTheme.badge}
+              </span>
+              {file ? <StatusBadge label={file.status} /> : null}
             </div>
-            <div className="mt-4 flex flex-wrap gap-3">
-              <Link href={resolveAppHref(workspaceId, appId, fileId)} className="rounded-full border border-[#d7dfde] px-4 py-2 text-sm text-[#374151] hover:bg-[#f4f7f6]">
-                Open same file in application runner
+            <div className="text-xs text-[#6b7280]">{file?.original_filename || fileId}</div>
+          </div>
+          {!error && !ready ? (
+            <div className="grid min-h-[640px] place-items-center px-6 py-12">
+              <div className="text-center">
+                <div className="text-base font-semibold text-[#111827]">Processing file</div>
+                <div className="mt-2 text-sm text-[#4b5563]">Current state: {status}</div>
+              </div>
+            </div>
+          ) : null}
+          {ready ? (
+            <iframe
+              src={`/view/${fileId}`}
+              className={`h-[calc(100dvh-165px)] min-h-[680px] w-full ${viewerTheme.frameTone}`}
+              title="STELLCODEX viewer"
+            />
+          ) : null}
+        </section>
+
+        <div className="space-y-4">
+          <SectionCard title="Actions" description="Keep only the actions needed for the current file.">
+            <div className="flex flex-col gap-2">
+              <Link href={resolveAppHref(workspaceId, appId, fileId)} className="rounded-2xl bg-[var(--accent)] px-4 py-3 text-sm font-medium text-white hover:opacity-95">
+                Open in {viewerCopy.label}
               </Link>
-              <span className="rounded-full border border-[#d7dfde] px-4 py-2 text-sm text-[#6b7280]">{viewerCopy.label}</span>
+              <Link href={buildStandaloneViewerPath(fileId)} className="rounded-2xl border border-[#e5e7eb] px-4 py-3 text-sm text-[#374151] hover:bg-[#f8fafc]">
+                Open deep link
+              </Link>
             </div>
           </SectionCard>
-        ) : null}
+          <SectionCard title={viewerTheme.sideTitle} description={viewerTheme.sideDescription}>
+            <div className="space-y-2">
+              {viewerTheme.tips.map((tip) => (
+                <div key={tip} className="rounded-[18px] border border-[#e5e7eb] bg-[#fcfcfb] px-4 py-3 text-sm text-[#374151]">
+                  {tip}
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        </div>
       </div>
     </PlatformLayout>
   );
@@ -1938,14 +2052,14 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
 
   function renderOverview() {
     return (
-      <SectionCard title={app.name} description={app.description}>
+      <SectionCard title={app.name} description={app.summary}>
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="rounded-[24px] border border-[#d7dfde] bg-white p-5">
-            <div className="text-xs uppercase tracking-[0.2em] text-[#6b7280]">Application Summary</div>
-            <div className="mt-3 text-sm text-[#374151]">{app.summary}</div>
+            <div className="text-xs uppercase tracking-[0.2em] text-[#6b7280]">Surface</div>
+            <div className="mt-3 text-sm text-[#374151]">{titleCase(app.surface)}</div>
           </div>
           <div className="rounded-[24px] border border-[#d7dfde] bg-white p-5">
-            <div className="text-xs uppercase tracking-[0.2em] text-[#6b7280]">Project Context</div>
+            <div className="text-xs uppercase tracking-[0.2em] text-[#6b7280]">Project</div>
             <div className="mt-3 text-sm text-[#374151]">{selectedProject.name}</div>
             <div className="mt-1 text-xs text-[#6b7280]">{selectedProject.id}</div>
           </div>
@@ -2306,53 +2420,52 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
   }
 
   function renderViewerSurface() {
+    const viewerTheme = viewerSurfaceTheme(surface);
     return (
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_360px]">
-        <div className="space-y-6">
-          <SectionCard title={viewerCopy.label} description={viewerCopy.description}>
-            <div className="flex flex-wrap gap-2">
-              <span className="rounded-full border border-[#d7dfde] px-3 py-1 text-xs tracking-[0.16em] text-[#4b5563]">{app.name}</span>
-              <span className="rounded-full border border-[#d7dfde] px-3 py-1 text-xs tracking-[0.16em] text-[#4b5563]">{selectedProject.name}</span>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <section className={`overflow-hidden rounded-[28px] border ${viewerTheme.stageShell}`}>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e5e7eb] bg-white/88 px-4 py-3">
+            <div className="flex items-center gap-2">
+              <span className="rounded-full border border-[#e5e7eb] px-3 py-1 text-xs uppercase tracking-[0.18em] text-[#6b7280]">{viewerTheme.badge}</span>
               {selectedFile ? <StatusBadge label={selectedFile.status || "unknown"} /> : null}
             </div>
-            <div className="mt-5 overflow-hidden rounded-[28px] border border-[#d7dfde] bg-[#fbfcfc]">
-              {readyViewerFileId ? (
-                <iframe src={`/view/${readyViewerFileId}`} className="h-[760px] w-full bg-[#111]" title={`${app.name} workspace stage`} />
-              ) : (
-                <div className="grid h-[760px] place-items-center p-8">
-                  <EmptyPanel title={viewerCopy.emptyTitle} description={viewerCopy.emptyDescription} />
-                </div>
-              )}
+            <div className="text-xs text-[#6b7280]">{selectedProject.name}</div>
+          </div>
+          {readyViewerFileId ? (
+            <iframe src={`/view/${readyViewerFileId}`} className={`h-[calc(100dvh-180px)] min-h-[680px] w-full ${viewerTheme.frameTone}`} title={`${app.name} workspace stage`} />
+          ) : (
+            <div className="grid h-[calc(100dvh-180px)] min-h-[680px] place-items-center p-8">
+              <EmptyPanel title={viewerCopy.emptyTitle} description={viewerCopy.emptyDescription} />
             </div>
-            <div className="mt-5 flex flex-wrap gap-3">
-              {readyViewerFileId ? (
-                <Link href={buildStandaloneViewerPath(readyViewerFileId)} className="rounded-2xl bg-[#0f766e] px-5 py-3 text-sm font-medium text-white hover:bg-[#0c5f59]">
-                  Open deep link
-                </Link>
-              ) : null}
-              {selectedFileId ? (
-                <button type="button" onClick={() => void onCreateShare()} className="rounded-2xl border border-[#d7dfde] px-5 py-3 text-sm text-[#1f2937] hover:bg-[#f4f7f6]">
-                  Create share
-                </button>
-              ) : null}
-              {readyViewerFileId ? (
-                <button type="button" onClick={() => void onDownloadOutput(readyViewerFileId)} className="rounded-2xl border border-[#d7dfde] px-5 py-3 text-sm text-[#1f2937] hover:bg-[#f4f7f6]">
-                  Download file
-                </button>
-              ) : null}
-            </div>
-            {shareUrl ? <div className="mt-4 rounded-[20px] border border-[#b7d9d5] bg-[#eef8f6] p-4 text-sm text-[#0f766e]">{shareUrl}</div> : null}
-            {error ? <div className="mt-4 text-sm text-[#b42318]">{error}</div> : null}
-          </SectionCard>
-        </div>
+          )}
+          <div className="flex flex-wrap gap-3 border-t border-[#e5e7eb] bg-white px-4 py-4">
+            {readyViewerFileId ? (
+              <Link href={buildStandaloneViewerPath(readyViewerFileId)} className="rounded-2xl bg-[var(--accent)] px-5 py-3 text-sm font-medium text-white hover:opacity-95">
+                Open deep link
+              </Link>
+            ) : null}
+            {selectedFileId ? (
+              <button type="button" onClick={() => void onCreateShare()} className="rounded-2xl border border-[#e5e7eb] px-5 py-3 text-sm text-[#1f2937] hover:bg-[#f8fafc]">
+                Create share
+              </button>
+            ) : null}
+            {readyViewerFileId ? (
+              <button type="button" onClick={() => void onDownloadOutput(readyViewerFileId)} className="rounded-2xl border border-[#e5e7eb] px-5 py-3 text-sm text-[#1f2937] hover:bg-[#f8fafc]">
+                Download file
+              </button>
+            ) : null}
+          </div>
+          {shareUrl ? <div className="border-t border-[#e5e7eb] bg-[#f5fbfa] px-4 py-3 text-sm text-[#1f5c57]">{shareUrl}</div> : null}
+          {error ? <div className="border-t border-[#e5e7eb] bg-[#fff7f7] px-4 py-3 text-sm text-[#b42318]">{error}</div> : null}
+        </section>
 
-        <div className="space-y-6">
+        <div className="space-y-4">
           {renderProjectSelector(viewerCopy.stageDescription)}
-          {renderFileSelector("Viewer Source", "Only files that belong to this viewer type are listed here.")}
-          <SectionCard title="Review Notes" description="Each viewer surface keeps a short, task-specific explanation.">
-            <div className="space-y-3">
-              {viewerCopy.tips.map((tip) => (
-                <div key={tip} className="rounded-[20px] border border-[#d7dfde] bg-white px-4 py-3 text-sm text-[#374151]">
+          {renderFileSelector("Viewer source", "Only files for this viewer type are listed here.")}
+          <SectionCard title={viewerTheme.sideTitle} description={viewerTheme.sideDescription}>
+            <div className="space-y-2">
+              {viewerTheme.tips.map((tip) => (
+                <div key={tip} className="rounded-[18px] border border-[#e5e7eb] bg-[#fcfcfb] px-4 py-3 text-sm text-[#374151]">
                   {tip}
                 </div>
               ))}
@@ -2401,11 +2514,6 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
     return (
       <div className="space-y-6">
         {renderOverview()}
-        <SectionCard title="Route Handoff" description="This application is a focused entry point into another live platform route.">
-          <div className="text-sm text-[#4b5563]">
-            The live route card below is the only primary action on this surface. This keeps route-driven apps short and avoids duplicate buttons.
-          </div>
-        </SectionCard>
         {renderOutput()}
       </div>
     );
@@ -2415,7 +2523,7 @@ function AppRunnerScreen({ appId, fileId = "" }: { appId: string; fileId?: strin
     return (
       <div className="space-y-6">
         {renderOverview()}
-        <SectionCard title="Applications Catalog" description="Open the full grouped registry of platform modules from the shared workspace shell.">
+        <SectionCard title="Applications Catalog" description="Open the full app inventory.">
           <div className="flex flex-wrap gap-3">
             <Link href={resolveWorkspaceHref(workspaceId, "/apps")} className="rounded-2xl bg-[#0f766e] px-5 py-3 text-sm font-medium text-white hover:bg-[#0c5f59]">
               Open applications catalog

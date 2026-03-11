@@ -45,7 +45,7 @@ export const platformApps: PlatformApp[] = [
   {
     id: "applications",
     name: "Applications",
-    shortName: "APPS",
+    shortName: "Apps",
     category: "Workspace",
     surface: "catalog",
     description: "Opens the full platform application catalog backed by the marketplace manifest inventory.",
@@ -99,7 +99,7 @@ export const platformApps: PlatformApp[] = [
     description: "Triggers a conversion job for an existing file.",
     summary: "Conversion job dispatch through the real worker queue.",
     route: "/app/convert",
-    showInSidebar: true,
+    showInSidebar: false,
     showOnHome: true,
   },
   {
@@ -111,7 +111,7 @@ export const platformApps: PlatformApp[] = [
     description: "Generates an approximate 3D mesh artifact from the source file.",
     summary: "Produces OBJ output and links it back to the project.",
     route: "/app/mesh2d3d",
-    showInSidebar: true,
+    showInSidebar: false,
     showOnHome: true,
   },
   {
@@ -135,13 +135,13 @@ export const platformApps: PlatformApp[] = [
     description: "Lists shared assets and publishing flows.",
     summary: "Feed and publish actions.",
     route: "/app/library",
-    showInSidebar: true,
+    showInSidebar: false,
     showOnHome: true,
   },
   {
     id: "drive",
-    name: "Drive",
-    shortName: "DRV",
+    name: "Files & Share",
+    shortName: "Files",
     category: "Library",
     surface: "route",
     description: "Acts as the file, project, and share hub.",
@@ -227,7 +227,7 @@ export const platformApps: PlatformApp[] = [
     summary: "Admin control focused on health, build, and audit.",
     route: "/app/admin",
     adminOnly: true,
-    showInSidebar: true,
+    showInSidebar: false,
     showOnHome: true,
   },
   {
@@ -240,7 +240,7 @@ export const platformApps: PlatformApp[] = [
     summary: "Admin-visible release gate summary.",
     route: "/app/status",
     adminOnly: true,
-    showInSidebar: true,
+    showInSidebar: false,
     showOnHome: true,
   },
 ];
