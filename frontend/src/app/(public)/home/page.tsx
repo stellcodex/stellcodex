@@ -1,221 +1,87 @@
-import Image from "next/image";
-import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 
 export default function HomePage() {
-  return (
-    <main className="mx-auto max-w-6xl px-6 py-6 sm:py-8">
-      <section className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-        <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-[#d7d3c8] bg-[#f7f5ef] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#4f6f6b]">
-            STELLCODEX ENGINEERING WORKSPACE
-          </div>
-          <h1 className="mt-4 text-xl font-semibold tracking-tight text-[#0c2a2a] sm:text-2xl">
-            One suite for 3D review, 2D review, documents, files, and controlled sharing.
-          </h1>
-          <p className="mt-4 max-w-xl text-sm text-[#2c4b49]">
-            Built for industrial designers, manufacturing teams, and decision makers without CAD licenses.
-            Upload once, route the file into the right STELLCODEX application, and keep every handoff inside one trusted platform.
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Button href="/">Open STELLCODEX</Button>
-            <Button href="/docs" variant="ghost">
-              Docs
-            </Button>
-          </div>
+  const startApps = [
+    { name: "3D Review", href: "/app/viewer3d", caption: "STEP, STL, OBJ, GLB" },
+    { name: "2D Drawings", href: "/app/viewer2d", caption: "DXF and flat drawings" },
+    { name: "Documents", href: "/app/docviewer", caption: "PDF, images, Office" },
+    { name: "Files & Share", href: "/files", caption: "Uploads, status, share" },
+    { name: "Projects", href: "/projects", caption: "Project containers" },
+    { name: "Applications", href: "/apps", caption: "All app surfaces" },
+  ] as const;
+  const routingRules = [
+    { label: "3D", formats: "STEP, STL, OBJ, GLB", target: "Viewer 3D" },
+    { label: "2D", formats: "DXF, flat technical files", target: "Viewer 2D" },
+    { label: "DOC", formats: "PDF, Office, images", target: "Documents" },
+  ] as const;
 
-          <div className="mt-8 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-[#d7d3c8] bg-[#f7f5ef] px-4 py-3 text-xs text-[#4f6f6b]">
-              Read-only review
-            </div>
-            <div className="rounded-2xl border border-[#d7d3c8] bg-[#f7f5ef] px-4 py-3 text-xs text-[#4f6f6b]">
-              Server-side conversion
-            </div>
-            <div className="rounded-2xl border border-[#d7d3c8] bg-[#f7f5ef] px-4 py-3 text-xs text-[#4f6f6b]">
-              Secure sharing links
-            </div>
+  return (
+    <main className="mx-auto max-w-6xl px-6 py-8">
+      <section className="rounded-[32px] border border-[#e5e7eb] bg-white p-6 shadow-[0_16px_42px_rgba(15,23,42,0.04)] sm:p-8">
+        <div className="max-w-3xl">
+          <div className="inline-flex items-center rounded-full border border-[#e5e7eb] bg-[#fcfcfb] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#6b7280]">
+            STELLCODEX
+          </div>
+          <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-[#111827] sm:text-5xl">
+            One file in. The right app opens.
+          </h1>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Button href="/">Open workspace</Button>
+            <Button href="/upload" variant="secondary">
+              Upload file
+            </Button>
+            <Button href="/apps" variant="ghost">
+              Applications
+            </Button>
           </div>
         </div>
 
-        <div className="relative">
-          <div className="rounded-3xl border border-[#d7d3c8] bg-[#f7f5ef] p-5 shadow-sm">
-            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.2em] text-[#4f6f6b]">
-              <span>Viewer Preview</span>
-              <span className="rounded-full border border-[#d7d3c8] bg-white px-2 py-1 text-[10px]">
-                Read-only
-              </span>
-            </div>
-            <div className="mt-4 overflow-hidden rounded-2xl border border-[#e3dfd3] bg-white">
-              <Image
-                src="/preview.svg"
-                alt="Stellcodex viewer preview"
-                width={900}
-                height={560}
-                className="h-auto w-full"
-                priority
-              />
-            </div>
-            <div className="mt-4 grid grid-cols-3 gap-2 text-xs text-[#4f6f6b]">
-              <div className="rounded-xl border border-[#e3dfd3] bg-white px-3 py-2 text-center">
-                Orbit
+        <div className="mt-8 grid gap-3 md:grid-cols-3">
+          {routingRules.map((rule) => (
+            <div key={rule.label} className="rounded-[22px] border border-[#e5e7eb] bg-[#fcfcfb] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm font-semibold text-[#111827]">{rule.label}</div>
+                <span className="rounded-full border border-[#e5e7eb] px-2.5 py-1 text-[11px] text-[#6b7280]">{rule.target}</span>
               </div>
-              <div className="rounded-xl border border-[#e3dfd3] bg-white px-3 py-2 text-center">
-                Measure
-              </div>
-              <div className="rounded-xl border border-[#e3dfd3] bg-white px-3 py-2 text-center">
-                Share
-              </div>
+              <div className="mt-3 text-sm text-[#4b5563]">{rule.formats}</div>
             </div>
-          </div>
+          ))}
         </div>
       </section>
 
-      <section className="mt-10 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-3xl border border-[#d7d3c8] bg-white/70 p-5 shadow-sm">
-          <div className="text-sm font-semibold text-[#0c2a2a]">Workflow at a glance</div>
-          <div className="mt-4 grid gap-3 text-sm text-[#2c4b49] sm:grid-cols-4">
-            <div className="rounded-2xl border border-[#e3dfd3] bg-[#f7f5ef] px-3 py-3 text-center">
-              Upload
-            </div>
-            <div className="rounded-2xl border border-[#e3dfd3] bg-[#f7f5ef] px-3 py-3 text-center">
-              Convert
-            </div>
-            <div className="rounded-2xl border border-[#e3dfd3] bg-[#f7f5ef] px-3 py-3 text-center">
-              View
-            </div>
-            <div className="rounded-2xl border border-[#e3dfd3] bg-[#f7f5ef] px-3 py-3 text-center">
-              Share
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-[#cfe1de] bg-[#eef8f6] p-5 text-[#0c2a2a] shadow-sm">
-          <div className="text-sm font-semibold">Before you upload</div>
-          <p className="mt-2 text-sm text-[#2c4b49]">
-            STEP, IGES, STL, PDF, PNG, DXF, and more. STELLCODEX will open the responsible application automatically and keep the flow simple.
-          </p>
-          <div className="mt-4">
-            <Button href="/upload" variant="secondary">
+      <section className="mt-6 grid gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
+        <div className="rounded-[28px] border border-[#e5e7eb] bg-[#fcfcfb] p-5 shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
+          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b7280]">Start points</div>
+          <div className="mt-4 space-y-2">
+            <Button href="/upload" variant="secondary" className="w-full justify-start">
               Upload a file
             </Button>
-          </div>
-        </div>
-      </section>
-
-      <section className="mt-10">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#4f6f6b]">
-              Why STELLCODEX
-            </div>
-            <h2 className="mt-3 text-xl font-semibold text-[#0c2a2a] sm:text-2xl">
-              Move technical decisions faster without a CAD seat.
-            </h2>
-          </div>
-          <Link className="text-sm font-semibold text-[#1d5a57] hover:text-[#0c2a2a]" href="/docs">
-            Help center
-          </Link>
-        </div>
-
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          <div className="rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
-            <div className="text-sm font-semibold text-[#0c2a2a]">2D + 3D in one place</div>
-            <p className="mt-2 text-sm text-[#2c4b49]">
-              One suite keeps engineering teams and customers aligned on the same file without sending them into separate products.
-            </p>
-          </div>
-          <div className="rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
-            <div className="text-sm font-semibold text-[#0c2a2a]">Secure sharing</div>
-            <p className="mt-2 text-sm text-[#2c4b49]">
-              Read-only review with version control and controlled sharing limits.
-            </p>
-          </div>
-          <div className="rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
-            <div className="text-sm font-semibold text-[#0c2a2a]">Server-side conversion</div>
-            <p className="mt-2 text-sm text-[#2c4b49]">
-              No local setup. Conversion and previews run from a single controlled backend.
-            </p>
-          </div>
-          <div className="rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
-            <div className="text-sm font-semibold text-[#0c2a2a]">Built for teams</div>
-            <p className="mt-2 text-sm text-[#2c4b49]">
-              File states, viewing links, and a central control surface stay connected.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section className="mt-10 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-        <div className="rounded-3xl border border-[#d7d3c8] bg-[#f7f5ef] p-5 shadow-sm">
-          <div className="text-sm font-semibold text-[#0c2a2a]">Who it is for</div>
-          <ul className="mt-3 grid gap-2 text-sm text-[#2c4b49]">
-            <li>Industrial design and product teams</li>
-            <li>Manufacturing and technical sourcing teams</li>
-            <li>Managers and suppliers without CAD licenses</li>
-            <li>Quality and technical review teams</li>
-          </ul>
-        </div>
-
-        <div className="rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
-          <div className="text-sm font-semibold text-[#0c2a2a]">Community</div>
-          <p className="mt-2 text-sm text-[#2c4b49]">
-            Curated model libraries, example files, and community shares.
-          </p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, idx) => (
-              <div
-                key={idx}
-                className="rounded-2xl border border-dashed border-[#d7d3c8] bg-[#f7f5ef] px-3 py-6 text-center text-xs text-[#4f6f6b]"
-              >
-                Preview
-              </div>
-            ))}
-          </div>
-          <div className="mt-4">
-            <Button href="/docs" variant="secondary">
-              Docs
+            <Button href="/files" variant="secondary" className="w-full justify-start">
+              Files & Share
+            </Button>
+            <Button href="/projects" variant="secondary" className="w-full justify-start">
+              Projects
+            </Button>
+            <Button href="/apps" variant="secondary" className="w-full justify-start">
+              Applications
             </Button>
           </div>
         </div>
-      </section>
 
-      <section className="mt-10 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-3xl border border-[#d7d3c8] bg-white/80 p-5 shadow-sm">
-          <div className="text-sm font-semibold text-[#0c2a2a]">Documentation</div>
-          <p className="mt-2 text-sm text-[#2c4b49]">
-            Quick guides, format lists, and troubleshooting paths in one place.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2 text-xs">
-            <span className="rounded-full border border-[#d7d3c8] bg-[#f7f5ef] px-3 py-1">Getting Started</span>
-            <span className="rounded-full border border-[#d7d3c8] bg-[#f7f5ef] px-3 py-1">Formats</span>
-            <span className="rounded-full border border-[#d7d3c8] bg-[#f7f5ef] px-3 py-1">Troubleshooting</span>
-            <span className="rounded-full border border-[#d7d3c8] bg-[#f7f5ef] px-3 py-1">FAQ</span>
+        <div className="rounded-[28px] border border-[#e5e7eb] bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
+          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b7280]">Core apps</div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {startApps.map((app) => (
+              <a
+                key={app.name}
+                href={app.href}
+                className="rounded-[22px] border border-[#e5e7eb] bg-[#fcfcfb] p-4 transition hover:border-[#cfd8d8] hover:bg-[#f8fbfb]"
+              >
+                <div className="text-sm font-semibold text-[#111827]">{app.name}</div>
+                <div className="mt-2 text-sm text-[#4b5563]">{app.caption}</div>
+              </a>
+            ))}
           </div>
-        </div>
-
-        <div className="rounded-3xl border border-[#cfe1de] bg-[#eef8f6] p-5 text-[#0c2a2a] shadow-sm">
-          <div className="text-sm font-semibold">Security and limits</div>
-          <ul className="mt-3 grid gap-2 text-sm text-[#2c4b49]">
-            <li>Read-only viewing</li>
-            <li>Controlled sharing links</li>
-            <li>PII masking and audit logging</li>
-            <li>KVKK / GDPR aligned infrastructure</li>
-          </ul>
-        </div>
-      </section>
-
-      <section className="mt-10 rounded-3xl border border-[#d7d3c8] bg-[#f7f5ef] p-5 text-center shadow-sm">
-        <h3 className="text-xl font-semibold text-[#0c2a2a] sm:text-2xl">
-          Upload a file and review it immediately.
-        </h3>
-        <p className="mt-2 text-sm text-[#2c4b49]">
-          Stellcodex is not a marketing shell. It is the product itself.
-        </p>
-        <div className="mt-5 flex flex-wrap justify-center gap-3">
-          <Button href="/">Open STELLCODEX</Button>
-          <Button href="/login" variant="secondary">
-            Sign in
-          </Button>
         </div>
       </section>
     </main>
