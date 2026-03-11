@@ -92,6 +92,7 @@ type PublishDocument = {
 };
 const SOCIAL_OAUTH_BLOCKERS = ["META_APP_ID", "META_APP_SECRET"] as const;
 const HOME_FOCUS_APP_IDS: PlatformAppId[] = ["viewer3d", "viewer2d", "docviewer", "drive", "projects", "applications"];
+const CATALOG_FOCUS_APP_IDS: PlatformAppId[] = ["viewer3d", "viewer2d", "docviewer", "drive", "projects", "moldcodes"];
 const SUITE_PLAN_ROWS = [
   {
     name: "Free",
@@ -758,9 +759,15 @@ function AppsCatalogScreen() {
     };
   }, []);
 
+  const quickAccessIds = new Set(CATALOG_FOCUS_APP_IDS);
+  const quickAccessApps = CATALOG_FOCUS_APP_IDS.map((appId) => getPlatformApp(appId)).filter(
+    (app): app is NonNullable<ReturnType<typeof getPlatformApp>> => app !== null
+  );
+  const moduleItems = items.filter((item) => !quickAccessIds.has(item.slug as PlatformAppId));
+
   const groupedItems = useMemo(() => {
     const groups = new Map<string, AppsCatalogItem[]>();
-    for (const item of items) {
+    for (const item of moduleItems) {
       const key = item.category || "general";
       const list = groups.get(key) || [];
       list.push(item);
@@ -775,7 +782,7 @@ function AppsCatalogScreen() {
         }),
       ] as const)
       .sort((a, b) => a[0].localeCompare(b[0]));
-  }, [items]);
+  }, [moduleItems]);
 
   const enabledCount = items.filter((item) => item.enabled).length;
   const coreIntegratedCount = items.filter((item) => resolveMarketplaceCoreAppId(item.slug)).length;
@@ -800,34 +807,48 @@ function AppsCatalogScreen() {
           </div>
         </SectionCard>
 
+        <SectionCard title="Core surfaces" description="Start from the main working apps.">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {quickAccessApps.map((app) => (
+              <Link
+                key={app.id}
+                href={resolveAppHref(workspaceId, app.id)}
+                className="rounded-[22px] border border-[#d7dfde] bg-white p-4 transition hover:border-[#bcc9c7] hover:bg-[#f4f7f6]"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-semibold text-[#111827]">{app.name}</div>
+                  <span className="rounded-full border border-[#d7dfde] px-2.5 py-1 text-xs text-[#4b5563]">{app.shortName}</span>
+                </div>
+                <div className="mt-3 text-sm text-[#4b5563]">{app.summary}</div>
+              </Link>
+            ))}
+          </div>
+        </SectionCard>
+
         {loading ? <SectionCard title="Loading" description="Reading the marketplace registry."><div className="text-sm text-[#4b5563]">Loading application inventory...</div></SectionCard> : null}
         {error ? <SectionCard title="Catalog Error" description="The inventory could not be read."><div className="text-sm text-[#b42318]">{error}</div></SectionCard> : null}
 
         {groupedItems.map(([category, rows]) => (
           <SectionCard key={category} title={normalizeMarketplaceCategory(category)} description={`${rows.length} app${rows.length === 1 ? "" : "s"}`}>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="divide-y divide-[#eef2f7]">
               {rows.map((item) => {
                 const integration = getMarketplaceIntegration(item);
                 return (
                   <Link
                     key={item.slug}
                     href={resolveAppHref(workspaceId, item.slug)}
-                    className="rounded-[24px] border border-[#d7dfde] bg-white p-4 transition hover:border-[#bcc9c7] hover:bg-[#f4f7f6]"
+                    className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
                         <div className="text-sm font-semibold text-[#111827]">{item.name}</div>
-                        <div className="mt-1 text-xs text-[#6b7280]">{item.slug}</div>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
                         <StatusBadge label={item.enabled ? "enabled" : "disabled"} />
                         <span className="rounded-full border border-[#d7dfde] px-2.5 py-1 text-xs text-[#4b5563]">{item.tier}</span>
                       </div>
+                      <div className="mt-2 text-sm text-[#4b5563]">{integration.headline}</div>
                     </div>
-                    <div className="mt-3 text-sm text-[#4b5563]">{integration.headline}</div>
-                    <div className="mt-4 flex items-center justify-between text-xs text-[#6b7280]">
-                      <span>{integration.headline}</span>
-                      <span>Open</span>
+                    <div className="shrink-0 rounded-full border border-[#d7dfde] px-3 py-1 text-xs text-[#4b5563]">
+                      Open
                     </div>
                   </Link>
                 );
@@ -870,71 +891,74 @@ function MarketplaceModuleScreen({ slug }: { slug: string }) {
   }, [slug]);
 
   const integration = catalogItem ? getMarketplaceIntegration(catalogItem) : null;
-  const permissions = (manifest?.manifest.permissions as Record<string, unknown> | undefined) || {};
-  const dependencies = (manifest?.manifest.dependencies as Record<string, unknown> | undefined) || {};
-  const featureFlags = (manifest?.manifest.feature_flags as Record<string, unknown> | undefined) || {};
-  const apiEndpoints = Array.isArray(manifest?.manifest.api_endpoints) ? (manifest?.manifest.api_endpoints as string[]) : [];
   const capabilitySummary = catalogItem ? summarizeMarketplaceCapabilities(catalogItem) : null;
+  const declaredRoutes = catalogItem?.routes || [];
+  const manifestEndpoints = Array.isArray(manifest?.manifest.api_endpoints) ? (manifest?.manifest.api_endpoints as string[]) : [];
+  const workflowFacts = [
+    capabilitySummary?.capabilities || "No capability list",
+    capabilitySummary?.formats || "No format list",
+    integration?.note || "Registered inside the shared suite shell.",
+  ];
+  const detailRoutes = declaredRoutes.length > 0 ? declaredRoutes : manifestEndpoints;
 
   return (
-    <PlatformLayout title={catalogItem?.name || slug} subtitle="Focused module surface inside the STELLCODEX suite">
+    <PlatformLayout title={catalogItem?.name || slug} subtitle="Separate app. Shared platform core.">
       <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-6 px-4 py-6 lg:px-8">
         {loading ? <EmptyPanel title="Loading module" description="Reading the catalog entry and app manifest." /> : null}
         {error ? <EmptyPanel title="Module unavailable" description={error} /> : null}
 
         {!loading && !error && catalogItem ? (
           <>
-            <SectionCard title={integration?.headline || "Module"} description={integration?.note || "This module is registered in the platform inventory."}>
-              <div className="flex flex-wrap gap-3">
-                <StatusBadge label={catalogItem.enabled ? "enabled" : "disabled"} />
-                <span className="rounded-full border border-[#d7dfde] px-3 py-1 text-xs text-[#4b5563]">{catalogItem.tier}</span>
-                <span className="rounded-full border border-[#d7dfde] px-3 py-1 text-xs text-[#4b5563]">{normalizeMarketplaceCategory(catalogItem.category)}</span>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-3">
-                <Link href={resolveWorkspaceHref(workspaceId, "/apps")} className="rounded-2xl border border-[#d7dfde] px-5 py-3 text-sm text-[#1f2937] hover:bg-[#f4f7f6]">
-                  Back to applications catalog
-                </Link>
-                {integration?.coreAppId ? (
-                  <Link href={resolveAppHref(workspaceId, integration.coreAppId)} className="rounded-2xl bg-[#0f766e] px-5 py-3 text-sm font-medium text-white hover:bg-[#0c5f59]">
-                    Open integrated workspace
-                  </Link>
-                ) : null}
-              </div>
-            </SectionCard>
-
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_360px]">
-              <SectionCard title="Module Manifest" description="Manifest fields remain the source of truth for module registration, capabilities, and dependencies.">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="rounded-[24px] border border-[#d7dfde] bg-white p-4">
-                    <div className="text-xs uppercase tracking-[0.2em] text-[#6b7280]">Capabilities</div>
-                    <div className="mt-3 text-sm text-[#374151]">{capabilitySummary?.capabilities || "No capability list"}</div>
-                  </div>
-                  <div className="rounded-[24px] border border-[#d7dfde] bg-white p-4">
-                    <div className="text-xs uppercase tracking-[0.2em] text-[#6b7280]">Formats</div>
-                    <div className="mt-3 text-sm text-[#374151]">{capabilitySummary?.formats || "No format list"}</div>
-                  </div>
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+              <SectionCard title={catalogItem.name} description={integration?.headline || "Registered module"}>
+                <div className="flex flex-wrap gap-3">
+                  <StatusBadge label={catalogItem.enabled ? "enabled" : "disabled"} />
+                  <span className="rounded-full border border-[#d7dfde] px-3 py-1 text-xs text-[#4b5563]">{catalogItem.tier}</span>
+                  <span className="rounded-full border border-[#d7dfde] px-3 py-1 text-xs text-[#4b5563]">{normalizeMarketplaceCategory(catalogItem.category)}</span>
                 </div>
-                <pre className="mt-4 overflow-x-auto rounded-[24px] border border-[#d7dfde] bg-white p-4 text-xs text-[#4b5563]">
-                  {JSON.stringify(manifest?.manifest || {}, null, 2)}
-                </pre>
+                <div className="mt-5 flex flex-wrap gap-3">
+                  {integration?.coreAppId ? (
+                    <Link href={resolveAppHref(workspaceId, integration.coreAppId)} className="rounded-2xl bg-[#0f766e] px-5 py-3 text-sm font-medium text-white hover:bg-[#0c5f59]">
+                      Open app
+                    </Link>
+                  ) : (
+                    <Link href={resolveAppHref(workspaceId, catalogItem.slug)} className="rounded-2xl bg-[#0f766e] px-5 py-3 text-sm font-medium text-white hover:bg-[#0c5f59]">
+                      Open module
+                    </Link>
+                  )}
+                  <Link href={resolveWorkspaceHref(workspaceId, "/apps")} className="rounded-2xl border border-[#d7dfde] px-5 py-3 text-sm text-[#1f2937] hover:bg-[#f4f7f6]">
+                    Back to applications
+                  </Link>
+                </div>
               </SectionCard>
 
-              <div className="space-y-6">
-                <SectionCard title="Permissions" description="Role and access expectations from the app manifest.">
-                  <pre className="overflow-x-auto whitespace-pre-wrap text-xs text-[#4b5563]">{JSON.stringify(permissions, null, 2)}</pre>
-                </SectionCard>
-                <SectionCard title="Dependencies" description="Runtime dependencies declared by the manifest.">
-                  <pre className="overflow-x-auto whitespace-pre-wrap text-xs text-[#4b5563]">{JSON.stringify(dependencies, null, 2)}</pre>
-                </SectionCard>
-                <SectionCard title="Feature Flags" description="Feature flag state and environment override names stay visible here.">
-                  <pre className="overflow-x-auto whitespace-pre-wrap text-xs text-[#4b5563]">{JSON.stringify(featureFlags, null, 2)}</pre>
-                </SectionCard>
-                <SectionCard title="API Endpoints" description="Registered API surface for this module.">
-                  <div className="space-y-2 text-sm text-[#4b5563]">
-                    {apiEndpoints.length > 0 ? apiEndpoints.map((endpoint) => <div key={endpoint}>{endpoint}</div>) : <div>No explicit API endpoint list.</div>}
-                  </div>
-                </SectionCard>
-              </div>
+              <SectionCard title="Supported formats" description="What this module accepts">
+                <div className="flex flex-wrap gap-2">
+                  {(catalogItem.supported_formats.length > 0 ? catalogItem.supported_formats : ["No explicit format list"]).map((format) => (
+                    <span key={format} className="rounded-full border border-[#d7dfde] px-3 py-1 text-xs text-[#4b5563]">
+                      {format}
+                    </span>
+                  ))}
+                </div>
+              </SectionCard>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <SectionCard title="Workflow" description="Simple module summary">
+                <div className="space-y-2">
+                  {workflowFacts.map((fact) => (
+                    <div key={fact} className="rounded-[18px] border border-[#d7dfde] bg-white px-4 py-3 text-sm text-[#4b5563]">
+                      {fact}
+                    </div>
+                  ))}
+                </div>
+              </SectionCard>
+
+              <SectionCard title="Registered routes" description="Available entry points in the shared suite">
+                <div className="space-y-2 text-sm text-[#4b5563]">
+                  {detailRoutes.length > 0 ? detailRoutes.map((route) => <div key={route}>{route}</div>) : <div>No extra route list.</div>}
+                </div>
+              </SectionCard>
             </div>
           </>
         ) : null}
