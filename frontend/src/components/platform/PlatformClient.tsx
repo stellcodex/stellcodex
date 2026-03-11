@@ -1004,45 +1004,62 @@ function ProjectsScreen() {
   }
 
   return (
-    <PlatformLayout title="Projects" subtitle="Create, open and attach files to real projects">
+    <PlatformLayout title="Projects" subtitle="Create and open project spaces">
       <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-6 px-4 py-6 lg:px-8">
-        <SectionCard title="Create Project" description="Projects are persisted in the backend contract.">
-          <div className="flex flex-col gap-3 md:flex-row">
-            <input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Injection tooling package"
-              className="h-12 flex-1 rounded-2xl border border-[#d7dfde] bg-white px-4 text-sm text-[#111827] outline-none placeholder:text-[#111827]/30"
-            />
-            <button
-              type="button"
-              onClick={onCreate}
-              disabled={busy}
-              className="h-12 rounded-2xl bg-white px-5 text-sm font-medium text-black hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {busy ? "Creating..." : "Create project"}
-            </button>
-          </div>
-          {error ? <div className="mt-3 text-sm text-[#b42318]">{error}</div> : null}
-        </SectionCard>
+        <section className="rounded-[28px] border border-[#e5e7eb] bg-white p-6 shadow-[0_16px_42px_rgba(15,23,42,0.04)]">
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_240px]">
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#6b7280]">New project</div>
+              <div className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-[#111827]">Create a project and keep related files together.</div>
+              <div className="mt-5 flex flex-col gap-3 md:flex-row">
+                <input
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="Injection tooling package"
+                  className="h-12 flex-1 rounded-2xl border border-[#d7dfde] bg-white px-4 text-sm text-[#111827] outline-none placeholder:text-[#111827]/30"
+                />
+                <button
+                  type="button"
+                  onClick={onCreate}
+                  disabled={busy}
+                  className="h-12 rounded-2xl bg-[var(--accent)] px-5 text-sm font-medium text-white hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {busy ? "Creating..." : "Create project"}
+                </button>
+              </div>
+              {error ? <div className="mt-3 text-sm text-[#b42318]">{error}</div> : null}
+            </div>
 
-        <SectionCard title="Project Index" description="All project-backed uploads and exports remain retrievable later.">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              <div className="rounded-[20px] border border-[#e5e7eb] bg-[#fcfcfb] p-4">
+                <div className="text-xs uppercase tracking-[0.18em] text-[#6b7280]">Projects</div>
+                <div className="mt-2 text-2xl font-semibold text-[#111827]">{projects.length}</div>
+              </div>
+              <div className="rounded-[20px] border border-[#e5e7eb] bg-[#fcfcfb] p-4">
+                <div className="text-xs uppercase tracking-[0.18em] text-[#6b7280]">Files</div>
+                <div className="mt-2 text-2xl font-semibold text-[#111827]">{projects.reduce((sum, project) => sum + (project.file_count || 0), 0)}</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <SectionCard title="Project list" description="Open an existing project">
+          <div className="divide-y divide-[#eef2f7]">
             {projects.map((project) => (
               <Link
                 key={project.id}
                 href={resolveProjectHref(workspaceId, project.id)}
-                className="rounded-[24px] border border-[#d7dfde] bg-white p-5 transition hover:border-[#bcc9c7] hover:bg-[#f4f7f6]"
+                className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0"
               >
-                <div className="flex items-center justify-between">
-                  <div className="text-base font-semibold text-[#111827]">{project.name}</div>
-                  <div className="text-xs text-[#6b7280]">{project.file_count} files</div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold text-[#111827]">{project.name}</div>
+                  <div className="mt-1 text-xs text-[#6b7280]">Updated {formatDate(project.updated_at)}</div>
                 </div>
-                <div className="mt-3 text-sm text-[#6b7280]">Updated {formatDate(project.updated_at)}</div>
+                <div className="rounded-full border border-[#d7dfde] px-3 py-1 text-xs text-[#4b5563]">{project.file_count} files</div>
               </Link>
             ))}
             {projects.length === 0 ? (
-              <EmptyPanel title="No projects yet" description="Create the first project to bind uploads, jobs and generated outputs." />
+              <EmptyPanel title="No projects yet" description="Create the first project to bind uploads and outputs." />
             ) : null}
           </div>
         </SectionCard>
@@ -1093,18 +1110,19 @@ function ProjectScreen({ projectId }: { projectId: string }) {
   }
 
   return (
-    <PlatformLayout title={project?.name || "Project"} subtitle={projectId}>
+    <PlatformLayout title={project?.name || "Project"} subtitle="Project workspace">
       <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-6 px-4 py-6 lg:px-8">
-        <SectionCard title="Project Upload" description="Uploads stay attached to this project and open the responsible application immediately.">
-          <label className="flex cursor-pointer flex-col items-center justify-center rounded-[28px] border border-dashed border-[#d7dfde] bg-white px-6 py-12 text-center">
-            <div className="text-sm font-medium text-[#111827]">{uploading ? "Uploading..." : "Upload file to project"}</div>
-            <div className="mt-2 text-sm text-[#6b7280]">STEP, STL, DXF, PDF, images or JSON records</div>
+        <section className="rounded-[28px] border border-[#e5e7eb] bg-white p-6 shadow-[0_16px_42px_rgba(15,23,42,0.04)]">
+          <label className="flex cursor-pointer flex-col items-center justify-center rounded-[28px] border border-dashed border-[#d7dfde] bg-[#fcfcfb] px-6 py-12 text-center">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#6b7280]">Upload</div>
+            <div className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-[#111827]">{uploading ? "Uploading..." : "Add a file to this project."}</div>
+            <div className="mt-3 text-sm text-[#6b7280]">The file opens in the correct app and stays attached to this project.</div>
             <input type="file" className="hidden" onChange={(event) => void onUpload(event.target.files)} />
           </label>
           {error ? <div className="mt-3 text-sm text-[#b42318]">{error}</div> : null}
-        </SectionCard>
+        </section>
 
-        <SectionCard title="Project Files" description="Outputs, uploads and generated artifacts are listed together.">
+        <SectionCard title="Files" description="Uploads, outputs, and generated artifacts">
           <div className="grid gap-4 lg:grid-cols-2">
             {(project?.files || []).map((file) => (
               <div key={file.file_id} className="rounded-[24px] border border-[#d7dfde] bg-white p-4">
@@ -1116,11 +1134,11 @@ function ProjectScreen({ projectId }: { projectId: string }) {
                   <StatusBadge label={file.status} />
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Link href={resolveFileOpenHref(workspaceId, file.file_id)} className="rounded-full border border-[#d7dfde] px-3 py-1 text-xs text-[#374151] hover:bg-[#f4f7f6]">
-                    Open deep viewer
+                  <Link href={resolveAppHref(workspaceId, appForFile(file), file.file_id)} className="rounded-full bg-[var(--accent)] px-3 py-2 text-xs font-medium text-white hover:opacity-95">
+                    Open app
                   </Link>
-                  <Link href={resolveAppHref(workspaceId, appForFile(file), file.file_id)} className="rounded-full border border-[#d7dfde] px-3 py-1 text-xs text-[#374151] hover:bg-[#f4f7f6]">
-                    Open responsible app
+                  <Link href={resolveFileOpenHref(workspaceId, file.file_id)} className="rounded-full border border-[#d7dfde] px-3 py-2 text-xs text-[#374151] hover:bg-[#f4f7f6]">
+                    Viewer
                   </Link>
                 </div>
               </div>
@@ -1180,43 +1198,49 @@ function FilesScreen() {
   }
 
   return (
-    <PlatformLayout title="Files & Share" subtitle="Upload, route, open, and share without leaving the suite.">
-      <div className="grid w-full gap-5 px-4 py-5 lg:px-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <div className="space-y-5">
-          <SectionCard title="Upload" description="New files route directly into the correct application.">
-            <div className="flex flex-col gap-3">
-              <select
-                value={selectedProjectId}
-                onChange={(event) => setSelectedProjectId(event.target.value)}
-                className="h-12 rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none"
-              >
-                <option value="all">All projects</option>
-                {workspace.projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
-              <label className="flex h-12 cursor-pointer items-center justify-center rounded-2xl bg-[var(--accent)] px-5 text-sm font-medium text-white hover:opacity-95">
-                {uploading ? "Uploading..." : "Select file"}
-                <input
-                  type="file"
-                  className="hidden"
-                  onChange={(event) => void onUpload(event.target.files, selectedProjectId === "all" ? undefined : selectedProjectId)}
-                />
-              </label>
+    <PlatformLayout title="Files & Share" subtitle="Upload, open, and share">
+      <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-5 px-4 py-5 lg:px-6">
+        <section className="rounded-[28px] border border-[#e5e7eb] bg-white p-6 shadow-[0_16px_42px_rgba(15,23,42,0.04)]">
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_280px]">
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#6b7280]">Upload</div>
+              <div className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-[#111827]">Add a file and open the right workspace.</div>
+              <div className="mt-5 flex flex-col gap-3 md:flex-row">
+                <select
+                  value={selectedProjectId}
+                  onChange={(event) => setSelectedProjectId(event.target.value)}
+                  className="h-12 min-w-[220px] rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#111827] outline-none"
+                >
+                  <option value="all">All projects</option>
+                  {workspace.projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+                <label className="flex h-12 cursor-pointer items-center justify-center rounded-2xl bg-[var(--accent)] px-5 text-sm font-medium text-white hover:opacity-95">
+                  {uploading ? "Uploading..." : "Upload file"}
+                  <input
+                    type="file"
+                    className="hidden"
+                    onChange={(event) => void onUpload(event.target.files, selectedProjectId === "all" ? undefined : selectedProjectId)}
+                  />
+                </label>
+              </div>
+              {error ? <div className="mt-3 text-sm text-[#b42318]">{error}</div> : null}
             </div>
-            {error ? <div className="mt-3 text-sm text-[#b42318]">{error}</div> : null}
-          </SectionCard>
 
-          <SectionCard title="Filter" description="Keep the list focused on one project or show everything.">
-            <div className="text-sm text-[#4b5563]">
-              {selectedProjectId === "all"
-                ? "Showing files from every project."
-                : `Showing files for project ${selectedProjectId}.`}
+            <div className="rounded-[20px] border border-[#e5e7eb] bg-[#fcfcfb] p-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-[#6b7280]">Scope</div>
+              <div className="mt-2 text-sm text-[#111827]">
+                {selectedProjectId === "all"
+                  ? "Showing files from every project."
+                  : `Showing files for project ${selectedProjectId}.`}
+              </div>
+              <div className="mt-4 text-xs text-[#6b7280]">{filteredFiles.length} visible file{filteredFiles.length === 1 ? "" : "s"}</div>
             </div>
-          </SectionCard>
-        </div>
+          </div>
+        </section>
 
         <section className="overflow-hidden rounded-[24px] border border-[#e5e7eb] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
           <div className="grid grid-cols-[minmax(0,1.4fr)_150px_170px_auto] gap-3 border-b border-[#e5e7eb] px-5 py-4 text-xs font-semibold uppercase tracking-[0.18em] text-[#6b7280]">

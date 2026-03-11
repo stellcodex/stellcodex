@@ -54,6 +54,19 @@ export function PlatformLayout({ title, subtitle, children, mode = "workspace", 
 
   const sessions = sessionState?.sessions || fallbackSessions;
   const activeSessionId = sessionState?.activeSessionId || workspaceId || sessions[0]?.id || null;
+  const visibleSessions =
+    sessions.length > 0
+      ? sessions
+      : activeSessionId
+      ? [
+          {
+            id: activeSessionId,
+            title: title || "Workspace",
+            updatedAt: "",
+            messages: [],
+          },
+        ]
+      : [];
   const apps = getSidebarPlatformApps(user.role).filter((app) => !["applications", "drive", "projects"].includes(app.id));
   const navItems = user.role === "admin" ? [...baseNavItems, { href: "/admin", label: "Admin" }] : baseNavItems;
   const modeLabel = mode === "focus" ? "Focused app" : mode === "hub" ? "Home" : "Workspace";
@@ -145,7 +158,7 @@ export function PlatformLayout({ title, subtitle, children, mode = "workspace", 
             {collapsed ? "R" : "Recent"}
           </div>
           <div className="space-y-1">
-            {sessions.slice(0, collapsed ? 6 : 10).map((session) => {
+            {visibleSessions.slice(0, collapsed ? 6 : 10).map((session) => {
               const active = session.id === activeSessionId;
               return (
                 <button
