@@ -99,6 +99,9 @@ export async function middleware(req: NextRequest) {
   const shareGuard = await enforceShareStatus(req);
   if (shareGuard) return shareGuard;
   if (!pathname.startsWith("/admin")) return NextResponse.next();
+  if (pathname === "/admin/health" || pathname.startsWith("/admin/health/")) {
+    return NextResponse.next();
+  }
   if (process.env.STELLCODEX_ENABLE_MOCK_ADMIN === "1") return NextResponse.next();
 
   const token = req.cookies.get("scx_token")?.value;
