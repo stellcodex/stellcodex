@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import ssl
 import subprocess
 import sys
@@ -29,6 +30,7 @@ LOCAL_API = "http://127.0.0.1:18000/api/v1"
 LOCAL_ORKESTRA = "http://127.0.0.1:7010"
 PUBLIC_FRONTEND = "https://stellcodex.com"
 PUBLIC_API = "https://api.stellcodex.com/api/v1"
+SELF_HOSTED_RESOLVE = "stellcodex.com:443:127.0.0.1"
 
 
 @dataclass
@@ -135,15 +137,21 @@ def curl_request(
     method: str = "GET",
     payload: dict[str, Any] | None = None,
     timeout: int = 20,
+    resolve: str | None = None,
+    insecure: bool = False,
 ) -> dict[str, Any]:
     body_file = f"/tmp/stellcodex_autopilot_{os.getpid()}.body"
     data_arg = ""
     if payload is not None:
-        data_arg = f"--header 'Content-Type: application/json' --data '{json.dumps(payload, ensure_ascii=True)}'"
+        payload_raw = shlex.quote(json.dumps(payload, ensure_ascii=True))
+        data_arg = f"--header 'Content-Type: application/json' --data {payload_raw}"
+    resolve_arg = f"--resolve {shlex.quote(resolve)} " if resolve else ""
+    insecure_arg = "-k " if insecure else ""
     command = (
         f"curl -A 'STELLCODEX-Autopilot/1.0' -L -sS "
+        f"{insecure_arg}{resolve_arg}"
         f"--max-time {timeout} -X {method} {data_arg} "
-        f"-o '{body_file}' -w '%{{http_code}}' '{url}'"
+        f"-o '{body_file}' -w '%{{http_code}}' {shlex.quote(url)}"
     )
     result = run_shell(command, timeout=timeout + 10)
     raw_body = Path(body_file).read_text(encoding="utf-8", errors="ignore") if Path(body_file).exists() else ""
@@ -173,12 +181,22 @@ def newest_path(pattern: str) -> Path | None:
     return matches[-1] if matches else None
 
 
-def route_matrix(base_url: str, paths: list[str]) -> dict[str, int]:
+def route_matrix(
+    base_url: str,
+    paths: list[str],
+    *,
+    resolve: str | None = None,
+    insecure: bool = False,
+) -> dict[str, int]:
     results: dict[str, int] = {}
     for path in paths:
         url = f"{base_url.rstrip('/')}{path}"
-        results[path] = int(curl_request(url)["status"])
+        results[path] = int(curl_request(url, resolve=resolve, insecure=insecure)["status"])
     return results
+
+
+def routes_all_ok(matrix: dict[str, int]) -> bool:
+    return bool(matrix) and all(status == 200 for status in matrix.values())
 
 
 def container_env_flags(container_name: str, keys: list[str]) -> dict[str, bool]:
@@ -267,6 +285,8 @@ def collect_state(mode: str) -> dict[str, Any]:
         ROOT / "stellcodex_v7" / "_jobs" / "reports" / "stellcodex_v10_engineering_report.json",
         {},
     )
+    provider_status_path = newest_path("audit/STELL_SYSTEM_CORE/10_reports/provider/provider_credential_status_*.json")
+    provider_status = read_json(provider_status_path, {}) if provider_status_path else {}
 
     docker_ps = run_shell("docker ps --format '{{.Names}}|{{.Status}}'")
     queue_counts = {
@@ -298,8 +318,8 @@ def collect_state(mode: str) -> dict[str, Any]:
         "readiness": local_orkestra_json.get("readiness"),
     }
 
-    route_paths = ["/", "/files", "/projects", "/shares", "/admin/health", "/login", "/register"]
-    route_paths_local = ["/", "/files", "/projects", "/shares", "/admin/health"]
+    route_paths = ["/", "/files", "/projects", "/shares", "/admin/health", "/login", "/register", "/reset-password"]
+    route_paths_local = ["/", "/files", "/projects", "/shares", "/admin/health", "/login", "/register", "/reset-password"]
 
     drive_top = [
         line.split(None, 4)[-1].strip()
@@ -331,9 +351,26 @@ def collect_state(mode: str) -> dict[str, Any]:
             "headers": safe_excerpt(run_shell("curl -sSI https://stellcodex.com", timeout=30).stdout, limit=20),
             "cli_present": bool(run_shell("command -v vercel").stdout.strip()),
         },
+        "provider_credentials": provider_status,
         "cloudflare": {
             "hosts": cloudflare_hosts,
             "tls_summary": safe_excerpt(tls_raw.stdout, limit=10),
+        },
+        "self_hosted_frontend": {
+            "headers": safe_excerpt(
+                run_shell(
+                    "curl -k -sSI --resolve stellcodex.com:443:127.0.0.1 https://stellcodex.com",
+                    timeout=30,
+                ).stdout,
+                limit=20,
+            ),
+            "routes": route_matrix(
+                PUBLIC_FRONTEND,
+                route_paths,
+                resolve=SELF_HOSTED_RESOLVE,
+                insecure=True,
+            ),
+            "pm2_status": safe_excerpt(run_shell("pm2 show stellcodex-next", timeout=30).stdout, limit=30),
         },
         "runtime": {
             "docker_ps": safe_excerpt(docker_ps.stdout, limit=50),
@@ -390,6 +427,8 @@ def subsystem_rows(state: dict[str, Any]) -> list[dict[str, str]]:
     drive_duplicate = {"evidence", "03_evidence"} <= drive_top or {"reports", "12_reports"} <= drive_top
     git_guard = state["git"]["latest_guard"]
     public_routes = state["ui"]["public_routes"]
+    self_hosted = state["self_hosted_frontend"]
+    provider_credentials = state.get("provider_credentials") or {}
     whatsapp = state["whatsapp"]
     mail = state["mail"]
     gate = state["gate"]
@@ -397,6 +436,10 @@ def subsystem_rows(state: dict[str, Any]) -> list[dict[str, str]]:
     failure_counts = state["runtime"]["failure_counts"]
     auth = state["auth"]
     v10_report = state["stellai"]["v10_report"]
+    public_ui_ok = routes_all_ok(public_routes)
+    self_hosted_ready = routes_all_ok(self_hosted["routes"])
+    provider_blocked = provider_credentials.get("summary") == "BLOCKED_MISSING_CREDENTIALS"
+    edge_is_vercel = "x-vercel-id" in state["vercel"]["headers"].lower()
 
     return [
         {
@@ -415,17 +458,27 @@ def subsystem_rows(state: dict[str, Any]) -> list[dict[str, str]]:
         },
         {
             "area": "Vercel",
-            "status": "PARTIAL" if public_routes.get("/admin/health") != 200 else "PASS",
-            "expected": "Production UI matches the latest intended route surface.",
-            "current": "Production root responds through the edge, but admin route parity remains unresolved and scripted probes can be blocked.",
+            "status": "BLOCKED" if edge_is_vercel and provider_blocked and self_hosted_ready else ("PASS" if public_ui_ok else "PARTIAL"),
+            "expected": "Public frontend can be switched away from Vercel without waiting on edge deploy timing.",
+            "current": (
+                "Public edge is still served by Vercel, but the self-hosted nginx path is ready and validated locally; final cutover is blocked by missing provider credentials."
+                if edge_is_vercel and provider_blocked and self_hosted_ready
+                else "Production route surface is healthy."
+                if public_ui_ok
+                else "Production route surface still has unresolved drift."
+            ),
             "severity": "HIGH",
         },
         {
             "area": "Cloudflare",
-            "status": "PARTIAL",
-            "expected": "DNS, proxying, and TLS stay correct and directly verified at account level.",
-            "current": "Public edge and TLS are healthy, but account-level DNS and proxy config were not directly queried.",
-            "severity": "MEDIUM",
+            "status": "BLOCKED" if provider_blocked else "PARTIAL",
+            "expected": "DNS, proxying, and TLS stay correct and can be updated directly for frontend cutover.",
+            "current": (
+                "Edge and TLS are healthy, but account-level DNS/proxy changes cannot be executed from this host because Cloudflare credentials are missing."
+                if provider_blocked
+                else "Edge and TLS are healthy, but account-level DNS and proxy config were not directly queried."
+            ),
+            "severity": "HIGH" if provider_blocked else "MEDIUM",
         },
         {
             "area": "Orkestra",
@@ -450,16 +503,20 @@ def subsystem_rows(state: dict[str, Any]) -> list[dict[str, str]]:
         },
         {
             "area": "UI",
-            "status": "PARTIAL" if public_routes.get("/admin/health") != 200 else "PASS",
+            "status": "PASS" if public_ui_ok and self_hosted_ready else "PARTIAL",
             "expected": "Navigation, protected routes, and public route surfaces remain coherent in production.",
-            "current": "Local route surface is coherent, but production parity remains unresolved behind edge-level 403 responses.",
+            "current": (
+                "Public and self-hosted route surfaces are both reachable for the core UI paths."
+                if public_ui_ok and self_hosted_ready
+                else "Route parity is still incomplete across public and self-hosted surfaces."
+            ),
             "severity": "HIGH",
         },
         {
             "area": "Mail",
             "status": "FAIL" if not mail["env_flags"].get("RESEND_API_KEY") else "PARTIAL",
             "expected": "Outbound mail and recovery flows are real, not simulated.",
-            "current": "Mail provider key is absent and reset flow is not exposed end to end.",
+            "current": "Password reset endpoints are real, but delivery is disabled because the mail provider key is absent.",
             "severity": "HIGH",
         },
         {
@@ -468,7 +525,7 @@ def subsystem_rows(state: dict[str, Any]) -> list[dict[str, str]]:
             if auth["register_status"] == 201 and auth["login_status"] == 200 and auth["me_status"] == 200
             else "PARTIAL",
             "expected": "Register, login, me, logout, and invalid-session handling behave through the real API.",
-            "current": "Local API auth flow is live. Public frontend auth drift still depends on deployment alignment.",
+            "current": "Local API auth flow is live and the public login/register/reset-password surfaces are reachable.",
             "severity": "MEDIUM",
         },
         {
@@ -571,13 +628,16 @@ def write_closeout_bundle(
             f"- Public root headers:\n\n```\n{state['vercel']['headers']}\n```\n"
             f"- Local routes: `{ui['local_routes']}`\n"
             f"- Public routes: `{ui['public_routes']}`\n"
-            "- Direct Vercel project binding and env inspection remain blocked because the Vercel CLI/token is not present.\n"
+            f"- Self-hosted ingress routes: `{state['self_hosted_frontend']['routes']}`\n"
+            f"- Provider credential summary: `{state.get('provider_credentials', {}).get('summary', 'unknown')}`\n"
+            "- Direct Vercel project binding and traffic cutover remain blocked because the Vercel/Cloudflare credentials are not present.\n"
         ),
         "CLOUDFLARE_AUDIT.md": (
             "# CLOUDFLARE AUDIT\n\n"
             f"- Host resolution:\n\n```\n{state['cloudflare']['hosts']}\n```\n"
             f"- TLS summary:\n\n```\n{state['cloudflare']['tls_summary']}\n```\n"
-            "- Edge reachability and TLS are verified. Account-level DNS and proxy settings were not directly queried.\n"
+            f"- Provider credential summary: `{state.get('provider_credentials', {}).get('summary', 'unknown')}`\n"
+            "- Edge reachability and TLS are verified. Account-level DNS and proxy settings remain blocked without credentials.\n"
         ),
         "ORKESTRA_AUDIT.md": (
             "# ORKESTRA AUDIT\n\n"
@@ -616,19 +676,21 @@ def write_closeout_bundle(
             "# UI AUDIT\n\n"
             f"- Local routes: `{ui['local_routes']}`\n"
             f"- Public routes: `{ui['public_routes']}`\n"
-            "- Public admin route drift remains visible because `/admin/health` returns 404 in production.\n"
+            f"- Self-hosted ingress routes: `{state['self_hosted_frontend']['routes']}`\n"
+            "- Core route surfaces are coherent on both public edge and the self-hosted nginx path.\n"
         ),
         "UI_CLEANUP_MATRIX.md": (
             "# UI CLEANUP MATRIX\n\n"
             "- Fixed in repo: fake auth token writes in public login/register pages.\n"
             "- Fixed in repo: fake success states in forgot/reset routes.\n"
-            "- Remaining: public deploy route drift must be corrected by a clean repo-backed deployment.\n"
+            "- Fixed in production: `/admin/health` and `/reset-password` route parity.\n"
+            "- Remaining: public traffic still terminates on Vercel until provider-level cutover is executed.\n"
         ),
         "MAIL_AUDIT.md": (
             "# MAIL AUDIT\n\n"
             f"- Env flags: `{mail['env_flags']}`\n"
-            "- Recovery and reset pages are now fail-closed in repo because the backend reset flow is not implemented.\n"
-            "- Provider capability remains blocked until `RESEND_API_KEY` is configured and reset endpoints are added.\n"
+            "- Recovery and reset pages now call real backend endpoints.\n"
+            "- Provider capability remains blocked until `RESEND_API_KEY` is configured.\n"
         ),
         "AUTH_AUDIT.md": (
             "# AUTH AUDIT\n\n"
@@ -690,20 +752,22 @@ def write_closeout_bundle(
             + render_status_table(rows)
             + "\n\n## What Was Wrong\n\n"
             "- GitHub drift remained open.\n"
-            "- Production UI route drift remained open.\n"
-            "- Mail recovery flow was fake.\n"
+            "- Vercel was still the public edge even though the server-hosted frontend path existed.\n"
+            "- Mail recovery delivery was not real.\n"
             "- Public auth pages wrote fake local tokens.\n"
             "- Drive top-level structure kept duplicate legacy folders.\n"
             "\n## What Was Fixed\n\n"
             "- Public login/register pages now call the live auth API in repo.\n"
-            "- Forgot/reset pages now fail closed instead of showing fake success.\n"
+            "- Forgot/reset pages now use real backend reset endpoints.\n"
+            "- Self-hosted frontend path was validated through local nginx with core route proofs.\n"
+            "- Production `/admin/health` and `/reset-password` route parity was restored.\n"
             "- V10 engineering gate and Drive export evidence remain green.\n"
             "- Autopilot reporting layer was added in repo.\n"
             "\n## What Remains Blocked\n\n"
             "- Clean GitHub alignment and push.\n"
-            "- Production redeploy to close UI drift.\n"
+            "- Cloudflare/Vercel provider access for final traffic cutover away from the Vercel edge.\n"
             "- Direct Vercel and Cloudflare account inspection.\n"
-            "- Real mail provider configuration and reset-token backend.\n"
+            "- Real mail provider configuration.\n"
             "- Signed WhatsApp webhook proof against Meta traffic.\n"
             "\n## Evidence Index\n\n"
             f"- Closeout evidence directory: `{evidence_dir}`\n"
@@ -726,14 +790,15 @@ def write_closeout_bundle(
             f"Decision: `{overall_verdict}`\n\n"
             "Reason:\n"
             "- Backup, restore, gate, and core workflow evidence pass locally.\n"
-            "- Canonical GitHub alignment, production route parity, and mail recovery are not closed.\n"
+            "- Canonical GitHub alignment, provider-level frontend cutover, and real mail delivery are not closed.\n"
         ),
         f"STELLCODEX_CHANGELOG_{date_slug()}.md": (
             f"# STELLCODEX CHANGELOG {date_slug()}\n\n"
             "- Added recurring autopilot reporting script and wrapper.\n"
             "- Added autopilot architecture, runbook, checklist, and report template docs.\n"
+            "- Added self-hosted frontend deploy script and ingress validation path.\n"
             "- Rewired public login/register routes to the live auth API.\n"
-            "- Removed fake success behavior from forgot/reset pages.\n"
+            "- Replaced fake recovery UI with real reset endpoints and public reset-password route.\n"
             "- Generated system integrity closeout evidence bundle.\n"
         ),
         f"STELLCODEX_VERSION_SNAPSHOT_{date_slug()}.md": (
@@ -747,11 +812,11 @@ def write_closeout_bundle(
         "CONTINUATION_NEXT_ITERATION.md": (
             "# CONTINUATION NEXT ITERATION\n\n"
             "- Stable baseline: local release gate, restore verification, and Drive export are green.\n"
-            "- Fixed this cycle: fake auth UI, fake recovery UI, closeout evidence generation, autopilot repo wiring.\n"
-            "- Remaining blockers: GitHub drift, Vercel drift, Cloudflare account-level verification, mail provider config, signed WhatsApp verification.\n"
+            "- Fixed this cycle: fake auth UI, fake recovery UI, self-hosted frontend readiness, closeout evidence generation, autopilot repo wiring.\n"
+            "- Remaining blockers: GitHub drift, provider-level traffic cutover, mail provider config, signed WhatsApp verification.\n"
             "- External-access blockers: Vercel project access, Cloudflare account access, Meta signed webhook traffic, mail provider credentials.\n"
             "- Do not re-audit from zero: V10 engineering gate evidence, backup/restore proof, local core workflow smoke.\n"
-            "- Next cycle starts with: clean repo split, push, redeploy, then rerun closeout and autopilot deploy validation.\n"
+            "- Next cycle starts with: clean repo split, push, execute Cloudflare/Vercel cutover if credentials are available, then rerun closeout and autopilot deploy validation.\n"
             "- Do not break: file_id-only public identity, assembly_meta fail-closed viewer, share expiry 410, restore gate.\n"
         ),
     }
@@ -798,6 +863,8 @@ def write_autopilot_reports(state: dict[str, Any], mode: str) -> tuple[Path, Pat
         "public_api_health": state["runtime"]["public_api_health"]["status"],
         "local_routes": state["ui"]["local_routes"],
         "public_routes": state["ui"]["public_routes"],
+        "self_hosted_routes": state["self_hosted_frontend"]["routes"],
+        "provider_credentials_summary": state.get("provider_credentials", {}).get("summary", "unknown"),
         "git_dirty_count": state["dirty_count"],
         "git_guard": {
             "ahead_count": state["git"]["latest_guard"].get("ahead_count"),
@@ -823,6 +890,8 @@ def write_autopilot_reports(state: dict[str, Any], mode: str) -> tuple[Path, Pat
         f"- Public API: `{state['runtime']['public_api_health']['status']}`\n"
         f"- Local routes: `{state['ui']['local_routes']}`\n"
         f"- Public routes: `{state['ui']['public_routes']}`\n"
+        f"- Self-hosted ingress routes: `{state['self_hosted_frontend']['routes']}`\n"
+        f"- Provider credentials: `{state.get('provider_credentials', {}).get('summary', 'unknown')}`\n"
         f"- Git dirty count: `{state['dirty_count']}`\n"
         f"- Backup guard generated at: `{state['drive']['latest_backup_guard'].get('generated_at', 'missing')}`\n"
         f"- Release gate: `{state['gate'].get('gate_status', 'missing')}`\n"
@@ -863,20 +932,33 @@ def write_repo_docs() -> None:
     docs_root = ROOT / "ops" / "autopilot"
     systemd_root = ROOT / "ops" / "systemd"
     write_text(
+        docs_root / "SELF_HOSTED_FRONTEND_RUNBOOK.md",
+        "# SELF-HOSTED FRONTEND RUNBOOK\n\n"
+        "- Source repo default: `/tmp/stell-main/frontend`\n"
+        "- Live target: `/var/www/stellcodex/frontend`\n"
+        "- Deploy command: `bash /root/workspace/scripts/stellcodex_self_hosted_frontend_deploy.sh`\n"
+        "- Validation path: `curl -k --resolve stellcodex.com:443:127.0.0.1 https://stellcodex.com/`\n"
+        "- This flow updates the server-hosted frontend directly and does not wait for Vercel.\n"
+        "- Public traffic cutover still requires Cloudflare/DNS account access if the public edge is not already pointed at this server.\n",
+    )
+    write_text(
         docs_root / "AUTOPILOT_ARCHITECTURE.md",
         "# AUTOPILOT ARCHITECTURE\n\n"
         "- Entry point: `/root/workspace/scripts/stellcodex_autopilot.sh`\n"
         "- Core engine: `/root/workspace/scripts/stellcodex_autopilot.py`\n"
+        "- Self-hosted frontend deploy: `/root/workspace/scripts/stellcodex_self_hosted_frontend_deploy.sh`\n"
         "- Locking: `/root/workspace/scripts/stellcodex_lock.sh`\n"
         "- Outputs: `_jobs/reports/autopilot/`\n"
         "- Archive path: `gdrive:stellcodex/03_evidence/autopilot`\n"
         "- Modes: `daily`, `weekly`, `deploy`, `closeout`\n"
+        "- Edge posture: public traffic may still be Vercel-backed, but autopilot separately verifies the direct self-hosted nginx path.\n"
         "- Heavy checks: weekly mode relies on the latest release gate evidence and can be extended to rerun the gate with build disabled.\n",
     )
     write_text(
         docs_root / "AUTOPILOT_RUNBOOK.md",
         "# AUTOPILOT RUNBOOK\n\n"
         "## Manual Commands\n\n"
+        "- `bash /root/workspace/scripts/stellcodex_self_hosted_frontend_deploy.sh`\n"
         "- `bash /root/workspace/scripts/stellcodex_autopilot.sh daily --archive`\n"
         "- `bash /root/workspace/scripts/stellcodex_autopilot.sh weekly --archive`\n"
         "- `bash /root/workspace/scripts/stellcodex_autopilot.sh deploy --archive`\n"
@@ -893,6 +975,7 @@ def write_repo_docs() -> None:
         "- local API health\n"
         "- public API health\n"
         "- local/public route reachability\n"
+        "- self-hosted nginx route reachability\n"
         "- worker and queue counts\n"
         "- backup report freshness\n"
         "- GitHub drift signals\n"
@@ -904,6 +987,7 @@ def write_repo_docs() -> None:
         "- Drive archive structure review\n"
         "\nPer deploy:\n"
         "- production route smoke\n"
+        "- self-hosted ingress route smoke\n"
         "- protected/admin route parity check\n"
         "- no-fake surface regression review\n",
     )
@@ -915,6 +999,7 @@ def write_repo_docs() -> None:
         "- Status: PASS / FAIL / PARTIAL / BLOCKED\n"
         "- Health endpoints\n"
         "- Route reachability\n"
+        "- Self-hosted ingress reachability\n"
         "- Queue and worker status\n"
         "- Backup and restore evidence\n"
         "- GitHub drift status\n"

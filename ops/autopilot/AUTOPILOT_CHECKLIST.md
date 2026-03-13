@@ -4,6 +4,7 @@ Daily:
 - local API health
 - public API health
 - local/public route reachability
+- self-hosted nginx route reachability
 - worker and queue counts
 - backup report freshness
 - GitHub drift signals
@@ -17,5 +18,6 @@ Weekly:
 
 Per deploy:
 - production route smoke
+- self-hosted ingress route smoke
 - protected/admin route parity check
 - no-fake surface regression review

@@ -2,6 +2,7 @@
 
 ## Manual Commands
 
+- `bash /root/workspace/scripts/stellcodex_self_hosted_frontend_deploy.sh`
 - `bash /root/workspace/scripts/stellcodex_autopilot.sh daily --archive`
 - `bash /root/workspace/scripts/stellcodex_autopilot.sh weekly --archive`
 - `bash /root/workspace/scripts/stellcodex_autopilot.sh deploy --archive`

@@ -5,6 +5,7 @@
 - Status: PASS / FAIL / PARTIAL / BLOCKED
 - Health endpoints
 - Route reachability
+- Self-hosted ingress reachability
 - Queue and worker status
 - Backup and restore evidence
 - GitHub drift status

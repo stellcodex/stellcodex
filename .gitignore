@@ -28,6 +28,7 @@ _jobs/logs/
 _jobs/reports/*.json
 _jobs/reports/*.md
 _jobs/reports/*.env
+_jobs/reports/autopilot/
 _runtime/
 evidence/
 stellcodex_v7/backend/.env
@@ -44,5 +45,7 @@ audit/STELL_SYSTEM_CORE/10_reports/provider/provider_live_audit_*.json
 audit/STELL_SYSTEM_CORE/10_reports/provider/provider_live_audit_*.md
 stellcodex_v7/frontend/node_modules/
 stellcodex_v7/frontend/.next/
+stellcodex_v7/frontend/.tmp-tests/
 stellcodex_v7/frontend/tsconfig.tsbuildinfo
+stellcodex_v7/_jobs/
 stellcodex_v7/backend/.venv-engineering/
