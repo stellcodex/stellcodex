@@ -77,6 +77,8 @@ services:
       ALLOWED_CONTENT_TYPES: model/stl,model/step,model/iges,application/step,application/iges,application/pdf,image/png,image/jpeg,model/gltf-binary,model/gltf+json,application/octet-stream,text/plain
       CONVERSION_TIMEOUT_SECONDS: "1800"
       BLENDER_TIMEOUT_SECONDS: "600"
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN}
+      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET}
 
       STELLCODEX_S3_ENDPOINT_URL: http://stellcodex-minio:9000
       STELLCODEX_S3_REGION: us-east-1
@@ -121,6 +123,8 @@ services:
       ALLOWED_CONTENT_TYPES: model/stl,model/step,model/iges,application/step,application/iges,application/pdf,image/png,image/jpeg,model/gltf-binary,model/gltf+json,application/octet-stream,text/plain
       CONVERSION_TIMEOUT_SECONDS: "1800"
       BLENDER_TIMEOUT_SECONDS: "600"
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN}
+      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET}
 
       STELLCODEX_S3_ENDPOINT_URL: http://stellcodex-minio:9000
       STELLCODEX_S3_REGION: us-east-1
