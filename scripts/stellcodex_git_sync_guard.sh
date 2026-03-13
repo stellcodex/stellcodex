@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT="/root/workspace"
+source "${ROOT}/scripts/stellcodex_lock.sh"
 REPO_DIR="${REPO_DIR:-${ROOT}}"
 REMOTE_NAME="${REMOTE_NAME:-origin}"
 REMOTE_BASE="${REMOTE_BASE:-gdrive:stellcodex}"
@@ -11,10 +12,16 @@ RUNTIME_ROOT="${ROOT}/_runtime"
 MIRROR_DIR="${RUNTIME_ROOT}/git_mirror/stellcodex.git"
 SUMMARY_JSON="${REPORT_DIR}/stellcodex_git_sync_latest.json"
 SUMMARY_MD="${REPORT_DIR}/stellcodex_git_sync_latest.md"
+LOCK_WAIT_SECONDS="${STELLCODEX_GIT_SYNC_LOCK_WAIT_SECONDS:-0}"
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 RUN_DIR="${EVIDENCE_ROOT}/git_sync_${TS}"
 
 mkdir -p "${REPORT_DIR}" "${EVIDENCE_ROOT}" "${RUNTIME_ROOT}/git_mirror" "${RUN_DIR}"
+
+if ! stellcodex_acquire_lock "heavy_ops" "${LOCK_WAIT_SECONDS}"; then
+  echo "git sync skipped: heavy_ops lock busy" >&2
+  exit 0
+fi
 
 if ! command -v git >/dev/null 2>&1; then
   echo "git is required" >&2
@@ -204,4 +211,3 @@ upload_if_present \
   "${REMOTE_BASE}/12_reports/github_sync" \
   "stellcodex_git_sync_latest.md" \
   "${RUN_DIR}/git_sync_md_upload.json"
-
