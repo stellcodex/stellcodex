@@ -299,16 +299,27 @@ def collect_state(mode: str) -> dict[str, Any]:
         run_shell(
             "docker exec deploy_backend_1 python -c 'import json; "
             "from app.db.session import SessionLocal; "
+            "from app.models.file import UploadFile; "
             "from app.models.job_failure import JobFailure; "
             "from app.models.phase2 import DlqRecord; "
             "db = SessionLocal(); "
+            "failures = db.query(JobFailure).all(); "
+            "dlqs = db.query(DlqRecord).all(); "
+            "status_by_file = {file_id: status for file_id, status in db.query(UploadFile.file_id, UploadFile.status).all()}; "
             "print(json.dumps({"
-            "\"job_failures\": db.query(JobFailure).count(), "
-            "\"dlq_records\": db.query(DlqRecord).count()"
+            "\"job_failures\": len(failures), "
+            "\"dlq_records\": len(dlqs), "
+            "\"active_job_failures\": sum(1 for row in failures if getattr(row, \"file_id\", None) and status_by_file.get(row.file_id) != \"ready\"), "
+            "\"active_dlq_records\": sum(1 for row in dlqs if getattr(row, \"file_id\", None) and status_by_file.get(row.file_id) != \"ready\")"
             "}, ensure_ascii=True)); "
             "db.close()'"
         ).stdout.strip()
-    ) or {"job_failures": -1, "dlq_records": -1}
+    ) or {
+        "job_failures": -1,
+        "dlq_records": -1,
+        "active_job_failures": -1,
+        "active_dlq_records": -1,
+    }
 
     local_orkestra_raw = http_request(f"{LOCAL_ORKESTRA}/health")
     local_orkestra_json = local_orkestra_raw.get("json") if isinstance(local_orkestra_raw.get("json"), dict) else {}
@@ -440,6 +451,8 @@ def subsystem_rows(state: dict[str, Any]) -> list[dict[str, str]]:
     self_hosted_ready = routes_all_ok(self_hosted["routes"])
     provider_blocked = provider_credentials.get("summary") == "BLOCKED_MISSING_CREDENTIALS"
     edge_is_vercel = "x-vercel-id" in state["vercel"]["headers"].lower()
+    active_job_failures = int(failure_counts.get("active_job_failures", failure_counts.get("job_failures", -1)) or 0)
+    active_dlq_records = int(failure_counts.get("active_dlq_records", failure_counts.get("dlq_records", -1)) or 0)
 
     return [
         {
@@ -482,9 +495,13 @@ def subsystem_rows(state: dict[str, Any]) -> list[dict[str, str]]:
         },
         {
             "area": "Orkestra",
-            "status": "PARTIAL" if queue_counts["failed_cad"] > 0 or failure_counts["job_failures"] > 0 else "PASS",
+            "status": "PARTIAL" if queue_counts["failed_cad"] > 0 or active_job_failures > 0 or active_dlq_records > 0 else "PASS",
             "expected": "Workers run, queues drain, and failed jobs are remediated.",
-            "current": "Runtime is healthy, but one failed CAD job and one DLQ record remain.",
+            "current": (
+                "Runtime is healthy and active queues are clear."
+                if queue_counts["failed_cad"] == 0 and active_job_failures == 0 and active_dlq_records == 0
+                else "Runtime is healthy, but unresolved failed jobs or DLQ records remain."
+            ),
             "severity": "MEDIUM",
         },
         {
