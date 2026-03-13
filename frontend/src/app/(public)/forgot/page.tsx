@@ -16,13 +16,18 @@ export default function ForgotPage() {
     setMessage(null);
     setLoading(true);
     try {
-      const res = await fetch(`${getApiBase()}/auth/forgot`, {
+      const res = await fetch(`${getApiBase()}/auth/request-password-reset`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
       if (!res.ok) throw new Error("Request failed.");
-      setMessage("Reset link sent if account exists.");
+      const payload = await res.json().catch(() => null);
+      if (payload && typeof payload === "object" && "delivery_enabled" in payload && !payload.delivery_enabled) {
+        setMessage("Password recovery mail is not configured on this deployment. Use a signed-in session or contact an administrator.");
+      } else {
+        setMessage("Reset link sent if account exists.");
+      }
     } catch {
       setError("Service error. Please try again.");
     } finally {

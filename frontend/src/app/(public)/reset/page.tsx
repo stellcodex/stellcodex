@@ -18,7 +18,7 @@ function ResetForm() {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch(`${getApiBase()}/auth/reset`, {
+      const res = await fetch(`${getApiBase()}/auth/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, password }),
