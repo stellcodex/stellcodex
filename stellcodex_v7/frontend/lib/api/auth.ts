@@ -6,12 +6,26 @@ export type AuthUser = {
   role: string;
 };
 
+export type PasswordResetRequestResult = {
+  ok: boolean;
+  deliveryEnabled: boolean;
+};
+
 type AuthResponse = {
   access_token: string;
   token_type: string;
   user_id: string;
   email: string;
   role: string;
+};
+
+type PasswordResetRequestResponse = {
+  ok: boolean;
+  delivery_enabled: boolean;
+};
+
+type PasswordResetResponse = {
+  ok: boolean;
 };
 
 async function authenticate(path: string, payload: { email: string; password: string }) {
@@ -37,6 +51,33 @@ export function loginWithPassword(email: string, password: string) {
 
 export function registerWithPassword(email: string, password: string) {
   return authenticate("/auth/register", { email, password });
+}
+
+export async function requestPasswordReset(email: string): Promise<PasswordResetRequestResult> {
+  const response = await apiFetchJson<PasswordResetRequestResponse>(
+    "/auth/request-password-reset",
+    {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    },
+    { public: true },
+  );
+  return {
+    ok: response.ok,
+    deliveryEnabled: response.delivery_enabled,
+  };
+}
+
+export async function resetPasswordWithToken(token: string, password: string): Promise<boolean> {
+  const response = await apiFetchJson<PasswordResetResponse>(
+    "/auth/reset-password",
+    {
+      method: "POST",
+      body: JSON.stringify({ token, password }),
+    },
+    { public: true },
+  );
+  return response.ok;
 }
 
 export async function getMe() {

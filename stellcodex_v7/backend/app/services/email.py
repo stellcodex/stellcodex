@@ -15,9 +15,13 @@ FROM_EMAIL = os.getenv("EMAIL_FROM", "Stellcodex <noreply@stellcodex.com>")
 SITE_URL = os.getenv("SITE_URL", "https://stellcodex.com")
 
 
+def email_delivery_enabled() -> bool:
+    return bool(RESEND_API_KEY)
+
+
 def _send(to: str, subject: str, html: str) -> bool:
     """Send email through the Resend API and fail closed when disabled."""
-    if not RESEND_API_KEY:
+    if not email_delivery_enabled():
         log.warning("RESEND_API_KEY is not configured, email was skipped: %s -> %s", to, subject)
         return False
 
