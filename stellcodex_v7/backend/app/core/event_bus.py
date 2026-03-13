@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 from typing import Any
 
@@ -26,12 +25,9 @@ class EventBus:
         self.redis = _redis_client()
 
     def publish(self, envelope: EventEnvelope) -> str:
-        payload = json.dumps(envelope.to_dict(), ensure_ascii=False, separators=(",", ":"))
         message_id = envelope.id
-        if self.redis is None:
-            message_id = envelope.id
-        else:
-            message_id = str(self.redis.xadd(self.stream_key, {"payload": payload, "type": envelope.type, "id": envelope.id}))
+        if self.redis is not None:
+            message_id = str(self.redis.xadd(self.stream_key, envelope.to_wire()))
         _dispatch_knowledge_ingestion(envelope)
         return message_id
 
@@ -66,12 +62,8 @@ class EventBus:
         rows = self.redis.xrevrange(self.stream_key, count=max(1, limit))
         out: list[EventEnvelope] = []
         for _message_id, fields in reversed(rows):
-            raw = fields.get("payload")
-            if not raw:
-                continue
             try:
-                payload = json.loads(raw)
-                out.append(EventEnvelope.from_dict(payload))
+                out.append(EventEnvelope.from_wire(fields))
             except Exception:
                 continue
         return out

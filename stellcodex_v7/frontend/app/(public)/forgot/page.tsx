@@ -1,56 +1,27 @@
 "use client";
-import { useState } from "react";
+
 import Link from "next/link";
-import { getApiBase } from "@/lib/apiClient";
+import { FormEvent, useState } from "react";
 import { AuthShell, authInputClassName, authPrimaryButtonClassName } from "@/components/auth/AuthShell";
 
 export default function ForgotPage() {
   const [email, setEmail] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setMessage(null);
-    setLoading(true);
-    try {
-      const res = await fetch(`${getApiBase()}/auth/forgot`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      if (!res.ok) throw new Error("Request failed.");
-      setMessage("Reset link sent if account exists.");
-    } catch {
-      setError("Service error. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSent(true);
+  }
 
   return (
-    <AuthShell
-      eyebrow="Recovery"
-      title="Reset password"
-      description="Enter the account email and STELLCODEX will send a recovery link if the account exists."
-      footer={
-        <Link href="/login" className="font-semibold text-[#0f766e] hover:underline">
-          Back to sign in
-        </Link>
-      }
-    >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-        <div>
-          <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[#6b7280]">Email address</label>
-          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="engineer@stellcodex.com" className={authInputClassName} />
-        </div>
-        {error ? <div className="rounded-2xl border border-[#f1c9c9] bg-[#fff5f5] px-4 py-3 text-sm text-[#b42318]">{error}</div> : null}
-        {message ? <div className="rounded-2xl border border-[#b7d9d5] bg-[#eef8f6] px-4 py-3 text-sm text-[#0f766e]">{message}</div> : null}
-        <button type="submit" disabled={loading} className={authPrimaryButtonClassName}>
-          {loading ? "Sending reset link..." : "Send reset link"}
+    <AuthShell title="Reset access" subtitle="Keep recovery simple and aligned with the main suite shell.">
+      <form className="auth-form" onSubmit={handleSubmit}>
+        <input className={authInputClassName} value={email} placeholder="name@company.com" onChange={(event) => setEmail(event.target.value)} />
+        <button className={authPrimaryButtonClassName} type="submit">
+          Send reset link
         </button>
+        {sent ? <p className="page-copy">If this email exists, a reset link has been prepared.</p> : null}
+        <Link href="/login">Back to login</Link>
       </form>
     </AuthShell>
   );

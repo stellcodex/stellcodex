@@ -2,12 +2,18 @@
 set -euo pipefail
 
 ROOT="/root/workspace"
+source "${ROOT}/scripts/stellcodex_lock.sh"
 REPORT_DIR="${ROOT}/_jobs/reports"
 SUMMARY_JSON="${REPORT_DIR}/stellcodex_cleanup_latest.json"
 SUMMARY_MD="${REPORT_DIR}/stellcodex_cleanup_latest.md"
 MAX_AGE_MINUTES="${MAX_AGE_MINUTES:-1440}"
+LOCK_WAIT_SECONDS="${STELLCODEX_CLEANUP_LOCK_WAIT_SECONDS:-0}"
 
 mkdir -p "${REPORT_DIR}"
+
+if ! stellcodex_acquire_lock "heavy_ops" "${LOCK_WAIT_SECONDS}"; then
+  exit 0
+fi
 
 DIRS=(
   "/tmp/stellcodex_output/evidence"

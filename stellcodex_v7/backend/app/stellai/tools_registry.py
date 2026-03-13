@@ -119,6 +119,7 @@ def register_default_tools(
     from app.stellai.tools.cad_tools import build_cad_tools
     from app.stellai.tools.core_tools import build_core_tools
     from app.stellai.tools.data_tools import build_data_tools
+    from app.stellai.tools.engineering_tools import build_engineering_tools
     from app.stellai.tools.file_tools import build_file_tools
     from app.stellai.tools.research_tools import build_research_tools
     from app.stellai.tools.system_tools import build_system_tools
@@ -132,6 +133,8 @@ def register_default_tools(
     for definition in build_data_tools(security_policy=security_policy):
         registry.register_tool(definition)
     for definition in build_cad_tools(security_policy=security_policy):
+        registry.register_tool(definition)
+    for definition in build_engineering_tools():
         registry.register_tool(definition)
     for definition in build_research_tools(retrieval_engine=retrieval_engine):
         registry.register_tool(definition)

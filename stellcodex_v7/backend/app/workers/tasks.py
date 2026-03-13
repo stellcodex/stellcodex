@@ -1041,9 +1041,9 @@ def _stage_pack(db, envelope, version_no: int) -> dict[str, Any]:
             "ASSEMBLY_META_FAIL" if kind == "3d" else "PACKAGE_FAIL",
         )
 
+    f.status = "ready"
     rules = load_rule_config_map(db)
     decision_json = build_decision_json(f, rules)
-    f.status = "ready"
     f.decision_json = decision_json
     next_meta = {
         **meta,

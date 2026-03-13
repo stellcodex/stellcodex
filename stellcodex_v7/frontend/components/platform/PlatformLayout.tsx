@@ -3,31 +3,32 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { getSidebarPlatformApps, platformCategories } from "@/data/platformCatalog";
-import { WorkspaceSession, ensureSession, loadSessions, newSession, saveActiveSessionId, saveSessions } from "@/lib/sessionStore";
-import { buildWorkspacePath, extractWorkspaceId, resolveWorkspaceHref } from "@/lib/workspace-routing";
 import { useUser } from "@/context/UserContext";
+import { getSidebarPlatformApps, platformCategories } from "@/data/platformCatalog";
+import {
+  ensureSession,
+  loadSessions,
+  newSession,
+  saveActiveSessionId,
+  saveSessions,
+  type WorkspaceSession,
+} from "@/lib/sessionStore";
+import { buildWorkspacePath, extractWorkspaceId, resolveWorkspaceHref } from "@/lib/workspace-routing";
 
 type PlatformLayoutProps = {
   title: string;
-  subtitle?: string;
+  subtitle: string;
   children: React.ReactNode;
-  sessionState?: {
-    sessions: WorkspaceSession[];
-    activeSessionId: string | null;
-    onSelectSession: (sessionId: string) => void;
-    onNewSession: () => void;
-  };
 };
 
-const baseNavItems = [
+const NAV_ITEMS = [
   { href: "/", label: "Home" },
   { href: "/apps", label: "Applications" },
   { href: "/projects", label: "Projects" },
   { href: "/files", label: "Files" },
   { href: "/library", label: "Library" },
-  { href: "/settings", label: "Plans" },
-];
+  { href: "/settings", label: "Settings" },
+] as const;
 
 function initials(name: string) {
   return (name || "SC")
@@ -38,197 +39,148 @@ function initials(name: string) {
     .toUpperCase();
 }
 
-export function PlatformLayout({ title, subtitle, children, sessionState }: PlatformLayoutProps) {
+export function PlatformLayout({ title, subtitle, children }: PlatformLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout, isAuthenticated } = useUser();
+  const { user, logout } = useUser();
   const [collapsed, setCollapsed] = useState(false);
-  const [showMenu, setShowMenu] = useState(false);
-  const [fallbackSessions, setFallbackSessions] = useState<WorkspaceSession[]>([]);
-  const workspaceId = extractWorkspaceId(pathname);
+  const [sessions, setSessions] = useState<WorkspaceSession[]>([]);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const workspaceId = extractWorkspaceId(pathname) || null;
+  const settingsHref = resolveWorkspaceHref(workspaceId, "/settings");
 
   useEffect(() => {
-    ensureSession(workspaceId || undefined);
-    setFallbackSessions(loadSessions());
-    setShowMenu(false);
-  }, [pathname, workspaceId]);
+    const session = ensureSession(workspaceId || undefined);
+    setSessions(loadSessions().length > 0 ? loadSessions() : [session]);
+    setMenuOpen(false);
+  }, [workspaceId]);
 
-  const sessions = sessionState?.sessions || fallbackSessions;
-  const activeSessionId = sessionState?.activeSessionId || workspaceId || sessions[0]?.id || null;
-  const apps = getSidebarPlatformApps(user.role);
-  const navItems = user.role === "admin" ? [...baseNavItems, { href: "/admin", label: "Admin" }] : baseNavItems;
-
-  function isActiveRoute(target: string, exactOnly = false) {
-    if (pathname === target) return true;
-    if (target.endsWith("/apps") && pathname.startsWith(target.replace(/\/apps$/, "/app/"))) return true;
-    if (exactOnly) return false;
-    return pathname.startsWith(`${target}/`);
-  }
-
-  function onCreateSession() {
-    if (sessionState) {
-      sessionState.onNewSession();
-      return;
-    }
-    const created = newSession();
+  function handleNewWorkspace() {
+    const created = newSession("Workspace");
     const next = [created, ...loadSessions()];
     saveSessions(next);
     saveActiveSessionId(created.id);
-    setFallbackSessions(next);
+    setSessions(next);
     router.push(buildWorkspacePath(created.id));
   }
 
-  function onSelectSession(sessionId: string) {
-    if (sessionState) {
-      sessionState.onSelectSession(sessionId);
-      return;
-    }
+  function handleSelectWorkspace(sessionId: string) {
     saveActiveSessionId(sessionId);
     router.push(buildWorkspacePath(sessionId));
   }
 
+  function isActive(target: string) {
+    const href = resolveWorkspaceHref(workspaceId, target);
+    if (href === pathname) return true;
+    return href !== "/" && pathname.startsWith(`${href}/`);
+  }
+
+  const activeApps = getSidebarPlatformApps(user.role);
+
   return (
-    <div className="flex min-h-screen bg-[var(--platform-bg)] text-[var(--platform-text)]">
-      <aside
-        className={`sticky top-0 hidden h-screen flex-col border-r border-[#d7dfde] bg-[var(--platform-sidebar)] transition-all duration-200 lg:flex ${
-          collapsed ? "w-[76px]" : "w-[260px]"
-        }`}
-      >
-        <div className="flex h-14 items-center justify-between px-3">
-          {!collapsed ? <div className="text-xs font-semibold tracking-[0.28em] text-[#111827]">STELLCODEX</div> : <div />}
-          <button
-            type="button"
-            onClick={() => setCollapsed((value) => !value)}
-            className="rounded-lg border border-[#d7dfde] bg-[#f6f8f7] px-2.5 py-1.5 text-xs text-[#4b5563] hover:bg-[#edf4f2]"
-          >
-            {collapsed ? "Open" : "Focus"}
+    <div className="layout-shell" data-collapsed={collapsed}>
+      <aside className="layout-sidebar">
+        <div className="page-section">
+          <div className="brand-mark">STELLCODEX</div>
+          <button className="button button--primary" type="button" onClick={handleNewWorkspace}>
+            New workspace
+          </button>
+          <button className="button button--ghost" type="button" onClick={() => setCollapsed((value) => !value)}>
+            {collapsed ? "Expand rail" : "Focus rail"}
           </button>
         </div>
 
-        <div className="px-3 pb-3">
-          <button
-            type="button"
-            onClick={onCreateSession}
-            className="flex w-full items-center justify-center rounded-2xl bg-[#0f766e] px-3 py-3 text-sm font-medium text-white hover:bg-[#0c5f59]"
-          >
-            {collapsed ? "+" : "New workspace"}
-          </button>
-        </div>
-
-        <nav className="space-y-1 px-2">
-          {navItems.map((item) => {
-            const href = resolveWorkspaceHref(workspaceId, item.href);
-            const active = isActiveRoute(href, item.href === "/");
-            return (
-              <Link
-                key={item.href}
-                href={href}
-                className={`flex items-center rounded-xl px-3 py-2 text-sm ${
-                  active ? "bg-[#edf4f2] text-[#111827]" : "text-[#4b5563] hover:bg-[#f4f7f6] hover:text-[#111827]"
-                }`}
-              >
-                {collapsed ? item.label.slice(0, 1) : item.label}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="mt-5 px-3">
-          <div className="mb-2 text-[11px] uppercase tracking-[0.2em] text-[#6b7280]">
-            {collapsed ? "W" : "Workspaces"}
-          </div>
-          <div className="space-y-1">
-            {sessions.slice(0, collapsed ? 6 : 10).map((session) => {
-              const active = session.id === activeSessionId;
+        <section className="sidebar-section">
+          <div className="sidebar-title">Navigation</div>
+          <div className="sidebar-list">
+            {NAV_ITEMS.map((item) => {
+              const href = item.href === "/settings" ? settingsHref : resolveWorkspaceHref(workspaceId, item.href);
               return (
-                <button
-                  key={session.id}
-                  type="button"
-                  onClick={() => onSelectSession(session.id)}
-                  className={`w-full rounded-xl px-3 py-2 text-left text-sm ${
-                    active ? "bg-[#edf4f2] text-[#111827]" : "text-[#4b5563] hover:bg-[#f4f7f6] hover:text-[#111827]"
-                  }`}
-                >
-                  {collapsed ? session.title.slice(0, 1) : session.title}
-                </button>
+                <Link key={item.href} className="sidebar-link" data-active={isActive(item.href)} href={href}>
+                  {collapsed ? item.label.slice(0, 1) : item.label}
+                </Link>
               );
             })}
+            {user.role === "admin" ? (
+              <Link className="sidebar-link" data-active={isActive("/admin")} href={resolveWorkspaceHref(workspaceId, "/admin")}>
+                {collapsed ? "A" : "Admin"}
+              </Link>
+            ) : null}
           </div>
-        </div>
+        </section>
 
-        <div className="mt-5 flex-1 overflow-y-auto px-3 pb-6">
-          <div className="mb-2 text-[11px] uppercase tracking-[0.2em] text-[#6b7280]">
-            {collapsed ? "A" : "Applications"}
+        <section className="sidebar-section">
+          <div className="sidebar-title">Workspaces</div>
+          <div className="sidebar-list">
+            {sessions.slice(0, 8).map((session) => (
+              <button
+                key={session.id}
+                className="session-button"
+                data-active={session.id === workspaceId}
+                type="button"
+                onClick={() => handleSelectWorkspace(session.id)}
+              >
+                {collapsed ? session.title.slice(0, 1) : session.title}
+              </button>
+            ))}
           </div>
-          <div className="space-y-3">
+        </section>
+
+        <section className="sidebar-section" style={{ overflowY: "auto" }}>
+          <div className="sidebar-title">Applications</div>
+          <div className="sidebar-list">
             {platformCategories.map((category) => {
-              const items = apps.filter((app) => app.category === category);
+              const items = activeApps.filter((app) => app.category === category);
               if (items.length === 0) return null;
+
               return (
                 <div key={category}>
-                  {!collapsed ? <div className="mb-1 text-xs text-[#6b7280]">{category}</div> : null}
-                  <div className="space-y-1">
-                    {items.map((app) => {
-                      const href = resolveWorkspaceHref(workspaceId, app.route);
-                      return (
-                        <Link
-                          key={app.id}
-                          href={href}
-                          className={`flex rounded-xl px-3 py-2 text-sm ${
-                            pathname === href ? "bg-[#edf4f2] text-[#111827]" : "text-[#4b5563] hover:bg-[#f4f7f6] hover:text-[#111827]"
-                          }`}
-                        >
-                          {collapsed ? app.shortName : app.name}
-                        </Link>
-                      );
-                    })}
+                  {!collapsed ? <div className="muted" style={{ marginBottom: "0.45rem", fontSize: "0.9rem" }}>{category}</div> : null}
+                  <div className="sidebar-list">
+                    {items.map((app) => (
+                      <Link
+                        key={app.id}
+                        className="sidebar-link"
+                        data-active={isActive(app.route)}
+                        href={resolveWorkspaceHref(workspaceId, app.route)}
+                      >
+                        {collapsed ? app.shortName : app.name}
+                      </Link>
+                    ))}
                   </div>
                 </div>
               );
             })}
           </div>
-        </div>
+        </section>
       </aside>
 
-      <div className="flex min-h-screen flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-[#d7dfde] bg-white/92 px-4 backdrop-blur">
+      <div className="layout-main">
+        <header className="layout-header">
           <div>
-            <div className="text-sm font-semibold text-[#111827]">{title}</div>
-            {subtitle ? <div className="text-xs text-[#6b7280]">{subtitle}</div> : null}
+            <h1 className="page-title">{title}</h1>
+            <p className="page-copy" style={{ margin: "0.35rem 0 0" }}>
+              {subtitle}
+            </p>
           </div>
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setShowMenu((value) => !value)}
-              className="flex items-center gap-3 rounded-full border border-[#d7dfde] bg-white px-2 py-1.5 text-sm text-[#111827] hover:bg-[#f4f7f6]"
-            >
-              <span className="grid h-8 w-8 place-items-center rounded-full bg-[#e8f3f1] text-xs font-semibold text-[#0f766e]">
-                {initials(user.name)}
-              </span>
-              <span className="hidden sm:block">{user.name}</span>
+          <div style={{ position: "relative" }}>
+            <button className="button button--ghost" type="button" onClick={() => setMenuOpen((value) => !value)}>
+              <span className="pill">{initials(user.name)}</span>
+              <span>{user.name}</span>
             </button>
 
-            {showMenu ? (
-              <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-[#d7dfde] bg-white p-2 shadow-[0_20px_50px_rgba(15,23,42,0.12)]">
-                <div className="rounded-xl px-3 py-2 text-sm text-[#111827]">
-                  <div>{user.name}</div>
-                  <div className="text-xs text-[#6b7280]">{isAuthenticated ? "Signed in" : "Guest workspace"}</div>
-                </div>
-                <Link href={resolveWorkspaceHref(workspaceId, "/settings")} className="block rounded-xl px-3 py-2 text-sm text-[#374151] hover:bg-[#f4f7f6]">
-                  Plan access
-                </Link>
-                <Link href={resolveWorkspaceHref(workspaceId, "/")} className="block rounded-xl px-3 py-2 text-sm text-[#374151] hover:bg-[#f4f7f6]">
-                  Suite Home
-                </Link>
+            {menuOpen ? (
+              <div className="menu">
+                <Link href={settingsHref}>Plan access</Link>
+                <Link href={resolveWorkspaceHref(workspaceId, "/")}>Suite home</Link>
                 <button
                   type="button"
                   onClick={() => {
-                    setShowMenu(false);
                     logout();
-                    router.push(resolveWorkspaceHref(workspaceId, "/"));
+                    setMenuOpen(false);
+                    router.push("/");
                   }}
-                  className="mt-1 block w-full rounded-xl px-3 py-2 text-left text-sm text-[#b42318] hover:bg-[#fff5f5]"
                 >
                   Logout
                 </button>
@@ -237,7 +189,7 @@ export function PlatformLayout({ title, subtitle, children, sessionState }: Plat
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto">{children}</main>
+        <main className="layout-content">{children}</main>
       </div>
     </div>
   );

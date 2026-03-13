@@ -8,10 +8,13 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.ids import format_scx_file_id, normalize_scx_file_id
+from app.core.identity.stell_identity import RUNTIME_UNAVAILABLE_TEXT
+from app.core.runtime.response_guard import build_safe_runtime_payload
 from app.db.session import get_db
 from app.models.file import UploadFile
 from app.security.deps import Principal, get_current_principal
 from app.services.tenant_identity import resolve_or_create_tenant_id
+from app.stellai.channel_runtime import execute_channel_runtime
 from app.stellai.service import get_stellai_runtime
 from app.stellai.tools import GLOBAL_ALLOWLIST
 from app.stellai.types import RuntimeContext, RuntimeRequest
@@ -138,6 +141,12 @@ _STANDARD_USER_TOOLS: frozenset[str] = frozenset(
         "mesh_volume",
         "mesh_surface_area",
         "mesh_bounds",
+        "cad_load",
+        "mesh_analyze",
+        "volume_compute",
+        "surface_area_compute",
+        "feature_extract",
+        "dfm_precheck",
         "doc_search",
         "repo_search",
         "knowledge_lookup",
@@ -149,6 +158,12 @@ _GUEST_TOOLS: frozenset[str] = frozenset(
         "runtime.echo",
         "upload.status",
         "upload.decision",
+        "cad_load",
+        "mesh_analyze",
+        "volume_compute",
+        "surface_area_compute",
+        "feature_extract",
+        "dfm_precheck",
         "doc_search",
         "repo_search",
         "knowledge_lookup",
@@ -218,7 +233,20 @@ def execute_stell_ai_runtime(
         tool_requests=[item.model_dump() if hasattr(item, "model_dump") else item.dict() for item in body.tool_requests],
         metadata_filters={"project_id": project_id},
     )
-    runtime = get_stellai_runtime()
-    result = runtime.run(request=request, db=db)
-    payload = result.to_dict()
-    return RuntimeExecuteOut(**payload)
+    try:
+        outcome = execute_channel_runtime(
+            request=request,
+            db=db,
+            runtime=get_stellai_runtime(),
+            channel="api",
+        )
+        return RuntimeExecuteOut(**outcome.payload)
+    except Exception:
+        payload = build_safe_runtime_payload(
+            session_id=context.session_id,
+            trace_id=context.trace_id,
+            message=message,
+            reply=RUNTIME_UNAVAILABLE_TEXT,
+            issue="runtime_unavailable",
+        )
+        return RuntimeExecuteOut(**payload)

@@ -336,12 +336,20 @@ def _ensure_knowledge_schema() -> None:
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_knowledge_index_jobs_failure_code ON knowledge_index_jobs (failure_code)"))
 
 
+def _ensure_engineering_schema() -> None:
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE artifact_manifest ADD COLUMN IF NOT EXISTS geometry_hash VARCHAR(64)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_artifact_manifest_geometry_hash ON artifact_manifest (geometry_hash)"))
+
+
 def register_startup(app: FastAPI) -> None:
     @app.on_event("startup")
     def _create_all() -> None:
         # Ensure models are imported before metadata create_all.
         from app.models import core as _core  # noqa: F401
         from app.models import file as _file  # noqa: F401
+        from app.models import phase2 as _phase2  # noqa: F401
+        from app.models import engineering as _engineering  # noqa: F401
         from app.models import library_item as _library_item  # noqa: F401
         from app.models import master_contract as _master_contract  # noqa: F401
         from app.models import orchestrator as _orchestrator  # noqa: F401
@@ -350,5 +358,6 @@ def register_startup(app: FastAPI) -> None:
         _ensure_uploaded_files_schema()
         _ensure_master_contract_schema()
         _ensure_knowledge_schema()
+        _ensure_engineering_schema()
         _ensure_rule_configs()
         ensure_bucket_exists(settings)

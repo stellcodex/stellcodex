@@ -42,3 +42,7 @@ audit/STELL_SYSTEM_CORE/10_reports/provider/provider_credential_status_*.json
 audit/STELL_SYSTEM_CORE/10_reports/provider/provider_credential_status_*.md
 audit/STELL_SYSTEM_CORE/10_reports/provider/provider_live_audit_*.json
 audit/STELL_SYSTEM_CORE/10_reports/provider/provider_live_audit_*.md
+stellcodex_v7/frontend/node_modules/
+stellcodex_v7/frontend/.next/
+stellcodex_v7/frontend/tsconfig.tsbuildinfo
+stellcodex_v7/backend/.venv-engineering/

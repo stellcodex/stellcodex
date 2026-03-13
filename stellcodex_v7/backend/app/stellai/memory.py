@@ -167,7 +167,7 @@ class MemoryManager:
         self.session_store.append(entry)
         self.working_store.append(entry)
 
-    def append_assistant_turn(
+    def append_stell_turn(
         self,
         *,
         context: RuntimeContext,
@@ -179,7 +179,7 @@ class MemoryManager:
             tenant_id=context.tenant_id,
             project_id=context.project_id,
             session_id=context.session_id,
-            role="assistant",
+            role="stell_ai",
             text=text,
             metadata=metadata or {},
         )

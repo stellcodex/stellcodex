@@ -171,6 +171,25 @@ def _as_list_of_str(raw: Any) -> list[str]:
     return [str(item) for item in raw if str(item).strip()]
 
 
+def _merge_str_lists(*values: Any) -> list[str]:
+    merged: list[str] = []
+    seen: set[str] = set()
+    for raw in values:
+        for item in _as_list_of_str(raw):
+            if item in seen:
+                continue
+            seen.add(item)
+            merged.append(item)
+    return merged
+
+
+def _state_rank(state: Any) -> int:
+    token = str(state or "").strip()
+    if token not in CANONICAL_STATES:
+        return -1
+    return CANONICAL_STATES.index(token)
+
+
 def _normalize_mode(value: Any) -> str:
     token = str(value or "").strip().lower()
     if token in ALLOWED_MODES:
@@ -459,7 +478,7 @@ def normalize_decision_json(
     if not isinstance(decision_json, dict):
         return canonical
 
-    merged = {**canonical, **decision_json}
+    merged = {**decision_json, **canonical}
     merged["state"] = str(merged.get("state") or merged.get("state_code") or canonical["state"])
     if merged["state"] not in CANONICAL_STATES:
         merged["state"] = canonical["state"]
@@ -469,15 +488,37 @@ def normalize_decision_json(
     if merged["status_gate"] not in {"PENDING", "PASS", "NEEDS_APPROVAL", "REJECTED"}:
         merged["status_gate"] = canonical["status_gate"]
     merged["approval_required"] = bool(merged.get("approval_required"))
-    merged["risk_flags"] = _as_list_of_str(merged.get("risk_flags"))
-    merged["conflict_flags"] = _as_list_of_str(merged.get("conflict_flags"))
-    merged["rule_explanations"] = _as_list_of_str(merged.get("rule_explanations")) or canonical["rule_explanations"]
-    merged["mode"] = _normalize_mode(merged.get("mode"))
-    merged["rule_version"] = str(merged.get("rule_version") or canonical["rule_version"])
-    merged["confidence"] = _clamp_confidence(merged.get("confidence"), canonical["confidence"])
-    merged["manufacturing_method"] = str(
-        merged.get("manufacturing_method") or canonical["manufacturing_method"]
+    merged["risk_flags"] = _merge_str_lists(canonical.get("risk_flags"), decision_json.get("risk_flags"))
+    merged["conflict_flags"] = _merge_str_lists(canonical.get("conflict_flags"), decision_json.get("conflict_flags"))
+    merged["rule_explanations"] = (
+        _merge_str_lists(canonical.get("rule_explanations"), decision_json.get("rule_explanations"))
+        or canonical["rule_explanations"]
     )
+    merged["mode"] = _normalize_mode(canonical.get("mode"))
+    merged["rule_version"] = str(canonical.get("rule_version") or RULE_VERSION_FALLBACK)
+    merged["confidence"] = _clamp_confidence(canonical.get("confidence"), canonical["confidence"])
+    merged["manufacturing_method"] = str(canonical.get("manufacturing_method") or canonical["manufacturing_method"])
+
+    canonical_state = str(canonical.get("state") or canonical.get("state_code") or "S0")
+    if _state_rank(canonical_state) >= 0:
+        merged["state"] = canonical_state
+        merged["state_code"] = canonical_state
+        merged["state_label"] = str(canonical.get("state_label") or _state_label(canonical_state))
+        merged["status_gate"] = str(canonical.get("status_gate") or "PENDING").upper()
+        merged["approval_required"] = bool(canonical.get("approval_required"))
+
+    raw_state = str(decision_json.get("state") or decision_json.get("state_code") or "").strip()
+    if raw_state == canonical_state:
+        raw_decision = str(decision_json.get("decision") or "").strip().lower()
+        if raw_decision in {"approve_manual", "approved_manual", "reject_manual"}:
+            merged["decision"] = decision_json.get("decision")
+        if isinstance(decision_json.get("state_transition_path"), list):
+            merged["state_transition_path"] = decision_json.get("state_transition_path")
+        if "approval_checkpoint_required" in decision_json:
+            merged["approval_checkpoint_required"] = bool(decision_json.get("approval_checkpoint_required"))
+        if isinstance(decision_json.get("required_inputs"), list):
+            merged["required_inputs"] = _as_list_of_str(decision_json.get("required_inputs"))
+
     merged["updated_at"] = _now_iso()
 
     missing = [key for key in REQUIRED_DECISION_KEYS if key not in merged or merged.get(key) in (None, "", [])]

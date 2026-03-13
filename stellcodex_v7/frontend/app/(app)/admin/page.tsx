@@ -1,5 +1,5 @@
-import { PlatformClient } from "@/components/platform/PlatformClient";
+import { WorkspaceRedirect } from "@/components/workspace/WorkspaceRedirect";
 
-export default function AdminOverviewPage() {
-  return <PlatformClient view="admin" />;
+export default function LegacyAdminPage() {
+  return <WorkspaceRedirect suffix="/admin" />;
 }

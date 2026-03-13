@@ -19,6 +19,7 @@ class ArtifactManifest(Base):
     file_id = Column(String(40), ForeignKey("uploaded_files.file_id", ondelete="CASCADE"), nullable=False, index=True)
     version_no = Column(Integer, nullable=False, default=1)
     stage = Column(String(32), nullable=False)
+    geometry_hash = Column(String(64), nullable=True, index=True)
     input_hash = Column(String(64), nullable=False)
     artifact_hash = Column(String(64), nullable=True)
     artifact_uri = Column(Text, nullable=True)

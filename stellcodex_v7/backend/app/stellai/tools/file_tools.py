@@ -108,12 +108,12 @@ def _build_read_file_handler(policy: ToolSecurityPolicy):
         try:
             with path.open("rb") as handle:
                 payload = handle.read(max_bytes + 1)
-        except Exception as exc:
+        except Exception:
             return ToolExecution(
                 tool_name="read_file",
                 status="failed",
                 reason="read_error",
-                output={"error": {"reason": "read_error", "detail": str(exc), "path": raw_path}},
+                output={"error": {"reason": "read_error"}},
             )
         truncated = len(payload) > max_bytes
         text = payload[:max_bytes].decode("utf-8", errors="ignore")
@@ -121,8 +121,7 @@ def _build_read_file_handler(policy: ToolSecurityPolicy):
             tool_name="read_file",
             status="ok",
             output={
-                "path": str(path),
-                "tenant_root": str(validated.tenant_root),
+                "resource": str(path.relative_to(validated.tenant_root)),
                 "size_bytes": len(payload[:max_bytes]),
                 "truncated": truncated,
                 "content": text,
@@ -166,19 +165,18 @@ def _build_write_file_handler(policy: ToolSecurityPolicy):
             write_mode = "a" if mode == "append" else "w"
             with path.open(write_mode, encoding="utf-8") as handle:
                 handle.write(content)
-        except Exception as exc:
+        except Exception:
             return ToolExecution(
                 tool_name="write_file",
                 status="failed",
                 reason="write_error",
-                output={"error": {"reason": "write_error", "detail": str(exc), "path": raw_path}},
+                output={"error": {"reason": "write_error"}},
             )
         return ToolExecution(
             tool_name="write_file",
             status="ok",
             output={
-                "path": str(path),
-                "tenant_root": str(validated.tenant_root),
+                "resource": str(path.relative_to(validated.tenant_root)),
                 "bytes_written": len(encoded),
                 "mode": mode,
             },
@@ -217,8 +215,7 @@ def _build_list_directory_handler(policy: ToolSecurityPolicy):
             tool_name="list_directory",
             status="ok",
             output={
-                "path": str(root),
-                "tenant_root": str(validated.tenant_root),
+                "resource": str(root.relative_to(validated.tenant_root)),
                 "recursive": recursive,
                 "entry_count": len(entries),
                 "entries": entries,
@@ -274,7 +271,6 @@ def _build_search_files_handler(policy: ToolSecurityPolicy):
                     continue
                 matches.append(
                     {
-                        "path": str(path),
                         "relative_path": str(path.relative_to(validated.tenant_root)),
                         "line": idx,
                         "snippet": line[:400],
@@ -287,7 +283,7 @@ def _build_search_files_handler(policy: ToolSecurityPolicy):
             tool_name="search_files",
             status="ok",
             output={
-                "path": str(validated.path),
+                "resource": str(validated.path.relative_to(validated.tenant_root)),
                 "pattern": pattern,
                 "regex": regex_mode,
                 "scanned_files": scanned,

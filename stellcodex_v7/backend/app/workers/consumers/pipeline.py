@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict
 
 from sqlalchemy.orm import Session
 
-from app.core.artifact_cache import cache_hit, get_manifest_row, stable_hash, upsert_manifest
+from app.core.artifact_cache import cache_hit, get_manifest_row, get_manifest_row_by_geometry, stable_hash, upsert_manifest
 from app.core.dlq import StageExecutionError, record_dead_letter
 from app.core.event_bus import EventBus
 from app.core.events import EventEnvelope
@@ -28,6 +28,7 @@ def consume_with_guards(
 ) -> dict[str, Any]:
     file_id = str(envelope.data.get("file_id") or "")
     version_no = int(envelope.data.get("version_no") or 1)
+    geometry_hash = str(envelope.data.get("geometry_hash") or "").strip() or None
     if not file_id:
         raise ValueError("event payload missing file_id")
 
@@ -40,7 +41,16 @@ def consume_with_guards(
 
     try:
         input_hash = stable_hash(envelope.data)
-        row = get_manifest_row(db, file_id, version_no, stage)
+        if geometry_hash:
+            row = get_manifest_row_by_geometry(
+                db,
+                file_id=file_id,
+                version_no=version_no,
+                stage=stage,
+                geometry_hash=geometry_hash,
+            )
+        else:
+            row = get_manifest_row(db, file_id, version_no, stage)
         if row is not None and row.input_hash == input_hash and str(row.status).lower() == "ready":
             cache_hit(db, row=row, file_id=file_id, version_no=version_no, stage=stage)
             mark_processed(
@@ -67,12 +77,14 @@ def consume_with_guards(
             try:
                 output = handler(db, envelope, version_no)
                 output_payload = output if isinstance(output, dict) else {}
+                output_geometry_hash = str(output_payload.get("geometry_hash") or geometry_hash or "").strip() or None
                 artifact_uri = output_payload.get("artifact_uri") if isinstance(output_payload.get("artifact_uri"), str) else None
                 upsert_manifest(
                     db,
                     file_id=file_id,
                     version_no=version_no,
                     stage=stage,
+                    geometry_hash=output_geometry_hash,
                     input_hash=input_hash,
                     artifact_uri=artifact_uri,
                     artifact_payload=output_payload,

@@ -100,6 +100,20 @@ class Phase2EventPipelineTests(unittest.TestCase):
             },
         )
 
+    def _geometry_envelope(self) -> EventEnvelope:
+        return EventEnvelope.build(
+            event_type=EventType.FILE_UPLOADED.value,
+            source="test",
+            subject="scx_file_aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            tenant_id="1",
+            project_id="p1",
+            data={
+                "file_id": "scx_file_aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                "version_no": 1,
+                "geometry_hash": "geom-2",
+            },
+        )
+
     def test_duplicate_event_noop(self) -> None:
         db = _DummyDb()
         env = self._envelope()
@@ -148,6 +162,35 @@ class Phase2EventPipelineTests(unittest.TestCase):
         self.assertEqual(out["payload"]["artifact_uri"], "converted/x.glb")
         self.assertTrue(cache_hit_mock.called)
         self.assertTrue(mark_processed_mock.called)
+
+    def test_geometry_hash_cache_hit_requires_exact_match(self) -> None:
+        db = _DummyDb()
+        env = self._geometry_envelope()
+
+        with patch.object(pipeline, "is_processed", return_value=False), patch.object(
+            pipeline, "acquire_stage_lock", return_value="token"
+        ), patch.object(pipeline, "get_manifest_row_by_geometry", return_value=None), patch.object(
+            pipeline, "get_manifest_row"
+        ) as legacy_lookup_mock, patch.object(
+            pipeline, "upsert_manifest"
+        ), patch.object(
+            pipeline, "mark_processed"
+        ), patch.object(
+            pipeline, "release_stage_lock"
+        ):
+            out = pipeline.consume_with_guards(
+                db,
+                SimpleNamespace(),
+                envelope=env,
+                consumer_name="phase2.consumer.convert",
+                stage="convert",
+                max_retries=3,
+                failure_code="CONVERT_FAIL",
+                handler=lambda *_args, **_kwargs: {"artifact_uri": "converted/exact.glb", "geometry_hash": "geom-2"},
+            )
+
+        self.assertEqual(out["status"], "processed")
+        legacy_lookup_mock.assert_not_called()
 
     def test_permanent_failure_goes_to_dlq(self) -> None:
         db = _DummyDb()
@@ -228,6 +271,65 @@ class Phase2EventPipelineTests(unittest.TestCase):
                 "file.ready",
             ],
         )
+
+    def test_stage_pack_builds_decision_after_status_becomes_ready(self) -> None:
+        fake_file = SimpleNamespace(
+            file_id="scx_file_cccccccc-cccc-cccc-cccc-cccccccccccc",
+            tenant_id=7,
+            status="running",
+            bucket="stellcodex",
+            gltf_key="renders/demo.glb",
+            thumbnail_key="thumbs/demo.jpg",
+            decision_json={},
+            meta={
+                "kind": "3d",
+                "mode": "visual_only",
+                "project_id": "demo",
+                "assembly_meta_key": "metadata/demo/assembly.json",
+                "assembly_meta": {"occurrences": [{"occurrence_id": "root", "part_id": "p1", "display_name": "Demo"}]},
+                "preview_jpg_keys": ["preview/0.jpg", "preview/1.jpg", "preview/2.jpg"],
+            },
+        )
+        fake_db = _FakeDb(fake_file)
+        observed: dict[str, str] = {}
+
+        def _build_decision(row, _rules):
+            observed["status_when_built"] = str(row.status)
+            return {
+                "state": "S5",
+                "state_code": "S5",
+                "state_label": "awaiting_approval",
+                "status_gate": "NEEDS_APPROVAL",
+                "approval_required": True,
+                "rule_version": "v7.0.0",
+                "mode": "visual_only",
+                "confidence": 0.1,
+                "manufacturing_method": "manual_review",
+                "rule_explanations": ["visual_only mode requires manual approval by policy."],
+                "conflict_flags": ["visual_only_mode"],
+                "risk_flags": ["visual_only_mode"],
+            }
+
+        with patch.object(tasks, "get_s3_client", return_value=object()), \
+             patch.object(tasks, "_upload_file", return_value=None), \
+             patch.object(tasks, "_is_ready_contract", return_value=True), \
+             patch.object(tasks, "load_rule_config_map", return_value={}), \
+             patch.object(tasks, "build_decision_json", side_effect=_build_decision), \
+             patch.object(tasks, "_current_geometry_hash", return_value="geom-1"), \
+             patch.object(tasks, "upsert_orchestrator_session", return_value=None), \
+             patch.object(tasks, "upsert_projection", return_value=None), \
+             patch.object(tasks, "log_event", return_value=None), \
+             patch.object(tasks, "write_memory_payload", return_value="/tmp/pkg"):
+            out = tasks._stage_pack(
+                fake_db,
+                SimpleNamespace(data={"file_id": fake_file.file_id}),
+                version_no=1,
+            )
+
+        self.assertEqual(observed["status_when_built"], "ready")
+        self.assertEqual(fake_file.status, "ready")
+        self.assertTrue(fake_file.decision_json["approval_required"])
+        self.assertEqual(out["approval_required"], True)
 
 
 if __name__ == "__main__":

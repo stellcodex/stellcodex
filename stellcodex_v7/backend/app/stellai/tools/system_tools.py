@@ -101,8 +101,7 @@ def _build_runtime_status_handler(*, registry: ToolRegistry, security_policy: To
                 "uptime_seconds": round(time.monotonic() - _START_TS, 3),
                 "tool_count": len(enabled_tools),
                 "categories": category_counts,
-                "enabled_tools": enabled_tools,
-                "tenant_safe_roots": list(security_policy.allowed_roots(context)),
+                "tenant_root_count": len(security_policy.allowed_roots(context)),
             },
         )
 
@@ -127,11 +126,11 @@ def handle_process_status(context: RuntimeContext, db, params: dict[str, Any]) -
 
 def _build_disk_usage_handler(*, security_policy: ToolSecurityPolicy):
     def _handler(context: RuntimeContext, db, params: dict[str, Any]) -> ToolExecution:
-        targets = [Path(root) for root in security_policy.allowed_roots(context)]
-        targets.append(Path("/root/workspace"))
+        targets = [("tenant_root", Path(root)) for root in security_policy.allowed_roots(context)]
+        targets.append(("workspace", Path("/root/workspace")))
         seen: set[Path] = set()
         usage_items: list[dict[str, Any]] = []
-        for target in targets:
+        for label, target in targets:
             resolved = target.resolve()
             if resolved in seen:
                 continue
@@ -142,7 +141,7 @@ def _build_disk_usage_handler(*, security_policy: ToolSecurityPolicy):
                 continue
             usage_items.append(
                 {
-                    "path": str(resolved),
+                    "scope": label,
                     "total_bytes": int(stats.total),
                     "used_bytes": int(stats.used),
                     "free_bytes": int(stats.free),

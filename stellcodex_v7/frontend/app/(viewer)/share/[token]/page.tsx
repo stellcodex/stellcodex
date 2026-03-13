@@ -1,7 +1,10 @@
-import { redirect } from "next/navigation";
+import { ShareViewerClient } from "@/components/share/ShareViewerClient";
 
-export default async function LegacyViewerShareRoute({ params }: { params: Promise<{ token: string }> }) {
+export default async function StandaloneSharePage({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}) {
   const { token } = await params;
-  redirect(`/s/${token}`);
+  return <ShareViewerClient token={token} />;
 }
-
