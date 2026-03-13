@@ -1,0 +1,43 @@
+export const designTokens = {
+  colors: {
+    bgApp: "var(--sc-bg-app)",
+    bgSidebar: "var(--sc-bg-sidebar)",
+    bgHeader: "var(--sc-bg-header)",
+    bgPanel: "var(--sc-bg-panel)",
+    bgPanelMuted: "var(--sc-bg-panel-muted)",
+    fgPrimary: "var(--sc-fg-primary)",
+    fgSecondary: "var(--sc-fg-secondary)",
+    fgMuted: "var(--sc-fg-muted)",
+    border: "var(--sc-border-default)",
+    borderStrong: "var(--sc-border-strong)",
+    accent: "var(--sc-accent)",
+    success: "var(--sc-success)",
+    warning: "var(--sc-warning)",
+    danger: "var(--sc-danger)",
+    info: "var(--sc-info)",
+  },
+  spacing: {
+    1: "var(--sc-space-1)",
+    2: "var(--sc-space-2)",
+    3: "var(--sc-space-3)",
+    4: "var(--sc-space-4)",
+    5: "var(--sc-space-5)",
+    6: "var(--sc-space-6)",
+    8: "var(--sc-space-8)",
+  },
+  radius: {
+    sm: "var(--sc-radius-sm)",
+    md: "var(--sc-radius-md)",
+    lg: "var(--sc-radius-lg)",
+  },
+  motion: {
+    fast: "var(--sc-duration-fast)",
+    normal: "var(--sc-duration-normal)",
+    slow: "var(--sc-duration-slow)",
+  },
+  shadow: {
+    sm: "var(--sc-shadow-sm)",
+    md: "var(--sc-shadow-md)",
+    lg: "var(--sc-shadow-lg)",
+  },
+} as const;

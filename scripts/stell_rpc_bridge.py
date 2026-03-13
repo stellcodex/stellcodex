@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import subprocess
 import sys
 import time
 import uuid
@@ -16,15 +15,23 @@ from urllib.parse import urlparse
 import redis
 from dotenv import load_dotenv
 
+BACKEND_ROOT = Path(__file__).resolve().parents[1] / "stellcodex_v7" / "backend"
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
+
 load_dotenv("/root/stell/webhook/.env")
 load_dotenv("/var/www/stellcodex/backend/.env")
+
+from app.core.identity.stell_identity import GENERAL_FAILURE_TEXT, RUNTIME_UNAVAILABLE_TEXT
+from app.stellai.channel_runtime import execute_channel_runtime
+from app.stellai.service import get_stellai_runtime
+from app.stellai.tools import GLOBAL_ALLOWLIST
+from app.stellai.types import RuntimeContext, RuntimeRequest
 
 LOG_DIR = Path(os.getenv("STELLCODEX_RPC_LOG_DIR", "/var/log/stellcodex"))
 STREAM_KEY = "stell:events:stream"
 RPC_REQUESTS_KEY = "stell:rpc:requests"
 RPC_RESPONSE_PREFIX = "stell:rpc:response:"
-WEBHOOK_PYTHON = Path("/root/stell/webhook/.venv/bin/python")
-STELL_BRAIN_PATH = Path("/root/stell/stell_brain.py")
 DESTRUCTIVE_KEYWORDS = (
     "deploy",
     "restart",
@@ -81,27 +88,28 @@ def render_reply(result: Any) -> str:
     return str(result)
 
 
-def run_handle_command(message: str) -> str:
-    cmd = [
-        str(WEBHOOK_PYTHON),
-        "-c",
-        (
-            "import importlib.util, json, sys; "
-            "spec = importlib.util.spec_from_file_location('stell_brain_live', sys.argv[1]); "
-            "mod = importlib.util.module_from_spec(spec); "
-            "spec.loader.exec_module(mod); "
-            "result = mod.handle_command(sys.argv[2], 'internal-admin'); "
-            "print(json.dumps(result, ensure_ascii=False))"
-        ),
-        str(STELL_BRAIN_PATH),
-        message,
-    ]
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-    if proc.returncode != 0:
-        raise RuntimeError(proc.stderr.strip() or proc.stdout.strip() or "handle_command subprocess failed")
-    raw = proc.stdout.strip()
-    payload = json.loads(raw) if raw else {"body": ""}
-    return render_reply(payload)
+def run_stell_runtime_message(message: str, sender: str) -> str:
+    try:
+        context = RuntimeContext(
+            tenant_id="0",
+            project_id="admin-rpc",
+            principal_type="internal",
+            principal_id=str(sender or "internal-admin"),
+            session_id=f"rpc_{uuid.uuid4().hex[:16]}",
+            trace_id=str(uuid.uuid4()),
+            allowed_tools=GLOBAL_ALLOWLIST,
+        )
+        request = RuntimeRequest(message=message, context=context, top_k=4)
+        outcome = execute_channel_runtime(
+            request=request,
+            db=None,
+            runtime=get_stellai_runtime(),
+            channel="admin",
+        )
+        return str(outcome.reply or RUNTIME_UNAVAILABLE_TEXT)
+    except Exception:
+        log.exception("STELL runtime invocation failed")
+        return RUNTIME_UNAVAILABLE_TEXT
 
 
 def publish_event(
@@ -154,7 +162,7 @@ def process_request(client: redis.Redis, raw: str) -> None:
     correlation_id = str(request.get("correlation_id") or request_id)
 
     if not message:
-        write_response(client, request_id, {"ok": False, "reply": "Bos mesaj alindi."})
+        write_response(client, request_id, {"ok": False, "reply": GENERAL_FAILURE_TEXT})
         return
 
     publish_event(
@@ -185,7 +193,10 @@ def process_request(client: redis.Redis, raw: str) -> None:
             request_id,
             {
                 "ok": True,
-                "reply": "Bu islem D-SAC onayi gerektirir. Owner WhatsApp kanalindan approval token alin.",
+                "reply": (
+                    "STELL-AI bu islemin D-SAC onayi gerektirdigini dogruladi. "
+                    "Owner WhatsApp kanalindan approval token alin."
+                ),
             },
         )
         return
@@ -204,11 +215,11 @@ def process_request(client: redis.Redis, raw: str) -> None:
     )
 
     try:
-        reply = run_handle_command(message)
+        reply = run_stell_runtime_message(message, sender)
         write_response(client, request_id, {"ok": True, "reply": reply})
-    except Exception as exc:
+    except Exception:
         log.exception("RPC request failed")
-        write_response(client, request_id, {"ok": False, "reply": f"Istek islenirken bir hata olustu: {exc}"})
+        write_response(client, request_id, {"ok": False, "reply": RUNTIME_UNAVAILABLE_TEXT})
 
 
 def main() -> int:

@@ -1,119 +1,85 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import { ThreeViewer } from "@/components/viewer/ThreeViewer";
+import { PublicShareExpiredState } from "@/components/shares/PublicShareExpiredState";
+import { PublicShareForbiddenState } from "@/components/shares/PublicShareForbiddenState";
+import { PublicShareLayout } from "@/components/shares/PublicShareLayout";
+import { PublicShareRevokedState } from "@/components/shares/PublicShareRevokedState";
+import { SharePermissionsBadge } from "@/components/shares/SharePermissionsBadge";
+import { usePublicShare } from "@/lib/hooks/useShares";
 
-type ShareViewerPolicy = {
-  permission: string;
-  canView: boolean;
-  canDownload: boolean;
-  expiresAt: string;
-  contentType: string;
-  originalFilename: string;
-  gltfUrl: string | null;
-  originalUrl: string | null;
-};
-
-type ShareViewerClientProps = {
-  fileId: string;
-  shareToken: string;
-  policy: ShareViewerPolicy;
-};
-
-function formatTimestamp() {
-  const now = new Date();
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+export interface ShareViewerClientProps {
+  token: string;
 }
 
-export function ShareViewerClient({ fileId, shareToken, policy }: ShareViewerClientProps) {
-  const [state] = useState(() => ({ fileId, shareToken, policy }));
-  const hostRef = useRef<HTMLDivElement | null>(null);
-  const canExport = state.policy.canDownload;
+function isImage(contentType?: string | null) {
+  return Boolean(contentType && contentType.startsWith("image/"));
+}
 
-  const subtitle = useMemo(() => {
-    if (state.policy.permission === "download") return "Read-only + download";
-    if (state.policy.permission === "comment") return "Read-only + comment";
-    return "Read-only";
-  }, [state.policy.permission]);
+function isDocument(contentType?: string | null) {
+  return Boolean(contentType && (contentType.startsWith("text/") || contentType === "application/pdf"));
+}
 
-  const exportPng = () => {
-    if (!canExport) return;
-    const canvas = hostRef.current?.querySelector("canvas");
-    if (!canvas) return;
-    canvas.toBlob((blob) => {
-      if (!blob) return;
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `stellcodex_${state.fileId}_${formatTimestamp()}.png`;
-      anchor.click();
-      URL.revokeObjectURL(url);
-    }, "image/png");
-  };
+export function ShareViewerClient({ token }: ShareViewerClientProps) {
+  const { data, loading, error } = usePublicShare(token);
 
-  const renderSurface = () => {
-    if (!state.policy.canView) {
-      return <div className="p-4 text-sm text-[#6b7280]">Viewing is not allowed for this share.</div>;
-    }
-    if (state.policy.gltfUrl) {
-      return (
-        <div ref={hostRef} className="h-full">
-          <ThreeViewer url={state.policy.gltfUrl} />
+  if (loading) {
+    return (
+      <PublicShareLayout title="Resolving shared file">
+        <div className="viewer-card">
+          <p className="page-copy">Resolving the share link.</p>
         </div>
-      );
-    }
-    if (!state.policy.originalUrl) {
-      return <div className="p-4 text-sm text-[#6b7280]">Content is not ready.</div>;
-    }
-    if (state.policy.contentType === "application/pdf") {
-      return <iframe title="Shared PDF" src={state.policy.originalUrl} className="h-full w-full rounded-xl" />;
-    }
-    if (state.policy.contentType === "text/html") {
-      return (
-        <iframe
-          title="Shared HTML"
-          src={state.policy.originalUrl}
-          sandbox="allow-same-origin"
-          className="h-full w-full rounded-xl bg-white"
-        />
-      );
-    }
-    if (state.policy.contentType.startsWith("image/")) {
-      return <img src={state.policy.originalUrl} alt={state.policy.originalFilename} className="h-full w-full object-contain" />;
-    }
-    return <div className="p-4 text-sm text-[#6b7280]">This content type cannot be previewed in the share viewer.</div>;
-  };
+      </PublicShareLayout>
+    );
+  }
+
+  if (!data && error) {
+    return (
+      <PublicShareLayout title="Share unavailable">
+        <div className="viewer-card">
+          <p className="page-copy">{error}</p>
+        </div>
+      </PublicShareLayout>
+    );
+  }
+
+  if (!data || data.status === "expired") return <PublicShareExpiredState />;
+  if (data.status === "revoked") return <PublicShareRevokedState />;
+  if (data.status === "forbidden" || data.status === "invalid") return <PublicShareForbiddenState />;
 
   return (
-    <main className="h-full overflow-hidden bg-[#0b1220] text-[#e5e7eb]">
-      <div className="mx-auto flex h-full max-w-[1600px] flex-col gap-3 px-3 py-3 sm:px-6 sm:py-5">
-        <header className="flex items-center justify-between rounded-xl border border-[#1f2937] bg-[#0f172a] px-3 py-2">
-          <div className="min-w-0">
-            <div className="truncate text-sm font-semibold">File ID: {state.fileId}</div>
-            <div className="text-xs text-[#93c5fd]">{subtitle}</div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={exportPng}
-              disabled={!canExport}
-              className={`rounded-md border px-3 py-1.5 text-xs font-semibold ${
-                canExport ? "border-[#334155] bg-[#111827] text-white hover:bg-[#1f2937]" : "cursor-not-allowed border-[#1f2937] bg-[#0f172a] text-[#64748b]"
-              }`}
-              title={canExport ? "Export PNG" : "Downloads are disabled for this share"}
-            >
-              Export PNG
-            </button>
-            <Link href="/" className="rounded-md border border-[#334155] bg-[#111827] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1f2937]">
-              Home
-            </Link>
-          </div>
-        </header>
-
-        <section className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-[#1f2937] bg-[#020617]">{renderSurface()}</section>
+    <PublicShareLayout
+      title={data.fileName}
+      meta={
+        <div className="sc-inline">
+          {data.permission ? <SharePermissionsBadge permission={data.permission} /> : null}
+          {data.expiresAt ? <span className="page-copy">Expires {data.expiresAt}</span> : null}
+        </div>
+      }
+    >
+      <div className="viewer-card">
+        {isImage(data.contentType) && data.viewerUrl ? (
+          <img src={data.viewerUrl} alt={data.fileName} style={{ width: "100%", height: "auto" }} />
+        ) : null}
+        {isDocument(data.contentType) && data.viewerUrl ? (
+          <iframe title={data.fileName} src={data.viewerUrl} style={{ width: "100%", minHeight: "70vh", border: 0 }} />
+        ) : null}
+        {!isImage(data.contentType) && !isDocument(data.contentType) ? (
+          <p className="page-copy">Viewer unavailable: assembly metadata missing</p>
+        ) : null}
       </div>
-    </main>
+      <div className="viewer-card">
+        <div className="sc-stack">
+          <p className="page-copy">Public share token: {token}</p>
+          <p className="page-copy">Public file identity: {data.fileId || "Unavailable"}</p>
+          {data.downloadUrl ? (
+            <a href={data.downloadUrl} target="_blank" rel="noreferrer">
+              Download
+            </a>
+          ) : (
+            <p className="page-copy">Download not permitted for this share</p>
+          )}
+        </div>
+      </div>
+    </PublicShareLayout>
   );
 }

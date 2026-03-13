@@ -35,6 +35,12 @@ GLOBAL_ALLOWLIST: frozenset[str] = frozenset(
         "mesh_volume",
         "mesh_surface_area",
         "mesh_bounds",
+        "cad_load",
+        "mesh_analyze",
+        "volume_compute",
+        "surface_area_compute",
+        "feature_extract",
+        "dfm_precheck",
         "doc_search",
         "repo_search",
         "knowledge_lookup",
@@ -129,8 +135,8 @@ class SafeToolExecutor:
             result = definition.handler(context, db, params)
             if not isinstance(result, ToolExecution):
                 result = self._error_result(tool_name=tool_name, status="failed", reason="invalid_handler_output")
-        except Exception as exc:
-            result = self._error_result(tool_name=tool_name, status="failed", reason=f"tool_error:{exc}")
+        except Exception:
+            result = self._error_result(tool_name=tool_name, status="failed", reason="tool_error")
 
         self._audit(context=context, db=db, definition=definition, result=result, params=params)
         return result

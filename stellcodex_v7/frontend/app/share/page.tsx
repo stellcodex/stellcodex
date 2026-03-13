@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { WorkspaceRedirect } from "@/components/workspace/WorkspaceRedirect";
 
-export default function ShareRootPage() {
-  redirect("/shares");
+export default function SharePage() {
+  return <WorkspaceRedirect suffix="/files" />;
 }

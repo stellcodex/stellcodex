@@ -20,8 +20,10 @@ class ReleaseGateContractTests(unittest.TestCase):
         payload = (
             ROOT / "stellcodex_v7" / "infrastructure" / "deploy" / "scripts" / "release_gate_v7.sh"
         ).read_text(encoding="utf-8")
+        self.assertIn('"${SCRIPT_DIR}/engineering_tests.sh"', payload)
         self.assertIn('"${SCRIPT_DIR}/smoke_test.sh"', payload)
         self.assertIn('"${SCRIPT_DIR}/restore.sh"', payload)
+        self.assertIn('"${SCRIPT_DIR}/drive_export.sh"', payload)
         self.assertIn('echo "[gate] PASS"', payload)
 
     def test_smoke_script_pins_share_and_approval_contracts(self) -> None:
@@ -33,6 +35,16 @@ class ReleaseGateContractTests(unittest.TestCase):
         self.assertIn('share_revoke_http', payload)
         self.assertIn('.state=="S7" and .approval_required==false', payload)
         self.assertIn('.state=="S4"', payload)
+
+    def test_drive_export_script_generates_manifest_and_cleans_large_local_artifacts(self) -> None:
+        payload = (
+            ROOT / "stellcodex_v7" / "infrastructure" / "deploy" / "scripts" / "drive_export.sh"
+        ).read_text(encoding="utf-8")
+        self.assertIn('drive_export_manifest.json', payload)
+        self.assertIn('drive_export_status.txt', payload)
+        self.assertIn('stellcodex_v10_engineering_report.json', payload)
+        self.assertIn('rm -f "${DB_DUMP_PATH}"', payload)
+        self.assertIn('rm -rf "${STORAGE_DIR}"', payload)
 
 
 if __name__ == "__main__":

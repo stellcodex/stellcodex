@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { WorkspaceRedirect } from "@/components/workspace/WorkspaceRedirect";
 
-export default function ViewRootPage() {
-  redirect("/upload");
+export default function ViewPage() {
+  return <WorkspaceRedirect suffix="/files" />;
 }

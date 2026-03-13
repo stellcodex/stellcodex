@@ -1,12 +1,18 @@
-import { ErrorState } from "@/components/ui/StateBlocks";
+import Link from "next/link";
 
 export default function NotFound() {
   return (
-    <div className="mx-auto max-w-3xl px-6 py-8">
-      <ErrorState
-        title="Page not found"
-        description="The requested page does not exist."
-      />
+    <div className="auth-shell">
+      <section className="hero-card" style={{ maxWidth: "720px" }}>
+        <div className="eyebrow">Not found</div>
+        <h1 className="page-title">The requested STELLCODEX surface does not exist.</h1>
+        <p className="page-copy">Return to the suite entry and continue inside the canonical workspace shell.</p>
+        <div className="hero-actions">
+          <Link className="button button--primary" href="/">
+            Go home
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }

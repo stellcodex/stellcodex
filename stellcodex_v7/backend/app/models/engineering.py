@@ -53,6 +53,22 @@ class FeatureMap(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class DesignIntentRecord(Base):
+    __tablename__ = "design_intent"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "file_id", "geometry_hash", name="ux_design_intent_tenant_file_hash"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(BigInteger, nullable=False, index=True)
+    file_id = Column(String(40), ForeignKey("uploaded_files.file_id", ondelete="CASCADE"), nullable=False, index=True)
+    session_id = Column(String(64), nullable=True, index=True)
+    geometry_hash = Column(String(64), nullable=False, index=True)
+    intent_json = Column(JSON, nullable=False, default=dict)
+    intent_hash = Column(String(64), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class DfmReportRecord(Base):
     __tablename__ = "dfm_reports"
     __table_args__ = (
@@ -92,6 +108,22 @@ class CostEstimateRecord(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class CostOptimizationRecord(Base):
+    __tablename__ = "cost_optimizations"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "file_id", "geometry_hash", name="ux_cost_optimizations_tenant_file_hash"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(BigInteger, nullable=False, index=True)
+    file_id = Column(String(40), ForeignKey("uploaded_files.file_id", ondelete="CASCADE"), nullable=False, index=True)
+    session_id = Column(String(64), nullable=True, index=True)
+    geometry_hash = Column(String(64), nullable=False, index=True)
+    optimization_json = Column(JSON, nullable=False, default=dict)
+    optimization_hash = Column(String(64), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class ManufacturingPlanRecord(Base):
     __tablename__ = "manufacturing_plans"
     __table_args__ = (
@@ -112,6 +144,22 @@ class ManufacturingPlanRecord(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class ProcessSimulationRecord(Base):
+    __tablename__ = "process_simulations"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "file_id", "geometry_hash", name="ux_process_simulations_tenant_file_hash"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(BigInteger, nullable=False, index=True)
+    file_id = Column(String(40), ForeignKey("uploaded_files.file_id", ondelete="CASCADE"), nullable=False, index=True)
+    session_id = Column(String(64), nullable=True, index=True)
+    geometry_hash = Column(String(64), nullable=False, index=True)
+    simulation_json = Column(JSON, nullable=False, default=dict)
+    simulation_hash = Column(String(64), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class EngineeringReportRecord(Base):
     __tablename__ = "engineering_reports"
     __table_args__ = (
@@ -126,6 +174,22 @@ class EngineeringReportRecord(Base):
     capability_status = Column(String(32), nullable=False, default="degraded")
     report_json = Column(JSON, nullable=False, default=dict)
     report_hash = Column(String(64), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class DesignOptimizationRecord(Base):
+    __tablename__ = "design_optimizations"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "file_id", "geometry_hash", name="ux_design_optimizations_tenant_file_hash"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(BigInteger, nullable=False, index=True)
+    file_id = Column(String(40), ForeignKey("uploaded_files.file_id", ondelete="CASCADE"), nullable=False, index=True)
+    session_id = Column(String(64), nullable=True, index=True)
+    geometry_hash = Column(String(64), nullable=False, index=True)
+    optimization_json = Column(JSON, nullable=False, default=dict)
+    optimization_hash = Column(String(64), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 

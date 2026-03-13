@@ -1,7 +1,5 @@
-export default function AppLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return <>{children}</>;
+import { TenantGuard } from "@/components/shell/TenantGuard";
+
+export default function AppGroupLayout({ children }: { children: React.ReactNode }) {
+  return <TenantGuard>{children}</TenantGuard>;
 }

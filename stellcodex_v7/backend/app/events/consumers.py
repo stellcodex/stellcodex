@@ -26,6 +26,13 @@ _RETRY_BACKOFF_SECONDS = [1, 3, 8]  # exponential-ish
 EventHandler = Callable[[CloudEvent, Session], None]
 
 
+def _safe_int(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 class StreamConsumer:
     """Consumer that reads from a Redis Stream group, handles retries and DLQ."""
 
@@ -76,7 +83,16 @@ class StreamConsumer:
         db = SessionLocal()
         try:
             # Idempotency check
-            already = ensure_idempotent(db, event.id, event.type)
+            already = ensure_idempotent(
+                db,
+                event.id,
+                event.type,
+                consumer=f"{self.group}:{self.consumer}",
+                file_id=str(event.data.get("file_id") or "") or None,
+                version_no=_safe_int(event.data.get("version_no")),
+                trace_id=event.trace_id,
+                payload=event.to_dict(),
+            )
             if already:
                 log.debug("consumer.duplicate_skipped event_id=%s", event.id)
                 db.commit()

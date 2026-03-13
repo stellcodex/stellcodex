@@ -81,8 +81,15 @@ def test_mesh_analysis_reports_mesh_approx_mode(tmp_path: Path) -> None:
     assert result["manufacturing_plan"]["recommended_process"] == result["recommended_process"]
     assert result["cost_estimate"]["recommended_process"] == result["recommended_process"]
     assert result["cost_estimate"]["estimated_unit_cost"] is not None
+    assert result["design_intent"]["functional_features"]
+    assert result["process_simulation"]["machining_feasibility"] in {"feasible", "review_required"}
+    assert result["cost_optimization"]["optimized_cost"] <= result["cost_optimization"]["baseline_cost"]
+    assert result["engineering_decision"]["recommended_process"] == result["recommended_process"]
     assert result["dfm_report"]["manufacturing_recommendation"]["recommended_process"] == result["recommended_process"]
     assert result["engineering_report"]["manufacturing_recommendation"]["recommended_process"] == result["recommended_process"]
+    assert result["engineering_master_report"]["process_simulation"]["machining_feasibility"] in {"feasible", "review_required"}
+    assert result["engineering_capabilities"]["design_interpreter"] == "enabled"
+    assert result["engineering_pipeline"][-1]["stage"] == "report_generation"
     assert result["engineering_report"]["report_hash"]
 
 

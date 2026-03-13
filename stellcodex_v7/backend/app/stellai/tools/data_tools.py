@@ -222,16 +222,16 @@ def _build_json_transform_handler(policy: ToolSecurityPolicy):
                     tool_name="json_transform",
                     status="denied",
                     reason=validated.reason,
-                    output={"error": {"reason": validated.reason, "path": raw_path}},
+                    output={"error": {"reason": validated.reason}},
                 )
             try:
                 payload = json.loads(validated.path.read_text(encoding="utf-8"))
-            except Exception as exc:
+            except Exception:
                 return ToolExecution(
                     tool_name="json_transform",
                     status="failed",
                     reason="json_parse_error",
-                    output={"error": {"reason": "json_parse_error", "detail": str(exc)}},
+                    output={"error": {"reason": "json_parse_error"}},
                 )
 
         operation = str(params.get("operation") or "identity").strip().lower()
@@ -298,18 +298,18 @@ def _load_csv(*, policy: ToolSecurityPolicy, context: RuntimeContext, params: di
             tool_name=tool_name,
             status="denied",
             reason=validated.reason,
-            output={"error": {"reason": validated.reason, "path": raw_path}},
+            output={"error": {"reason": validated.reason}},
         )
     try:
         nrows = _bounded_int(params.get("nrows"), default=2000, minimum=1, maximum=10_000)
         df = pd.read_csv(validated.path, nrows=nrows)
         return df
-    except Exception as exc:
+    except Exception:
         return ToolExecution(
             tool_name=tool_name,
             status="failed",
             reason="csv_read_error",
-            output={"error": {"reason": "csv_read_error", "detail": str(exc), "path": str(validated.path)}},
+            output={"error": {"reason": "csv_read_error"}},
         )
 
 

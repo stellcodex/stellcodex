@@ -1,0 +1,10 @@
+[Unit]
+Description=Run STELLCODEX daily autopilot check
+
+[Timer]
+OnCalendar=*-*-* 06:30:00
+Persistent=true
+Unit=stellcodex-autopilot-daily.service
+
+[Install]
+WantedBy=timers.target

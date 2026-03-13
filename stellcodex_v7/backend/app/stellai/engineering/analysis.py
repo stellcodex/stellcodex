@@ -18,6 +18,7 @@ from typing import Any, Iterator
 
 from sqlalchemy.orm import Session
 
+from app.core.autonomous_engineering import build_autonomous_engineering_bundle
 from app.core.engineering import (
     MODE_VISUAL_ONLY,
     build_cost_estimate,
@@ -279,7 +280,18 @@ def _analyze_mesh(*, file_id: str, local_path: Path, capability: dict[str, Any])
         capability_status=capability["capability_status"],
         unavailable_reason=None,
     )
-    engineering_report = build_engineering_report(
+    autonomous_bundle = _build_autonomous_bundle(
+        file_id=file_id,
+        geometry_metrics=geometry_metrics,
+        feature_map=feature_map,
+        manufacturing_decision=manufacturing_decision,
+        manufacturing_plan=manufacturing_plan,
+        cost_estimate=cost_estimate,
+        dfm_report=dfm_report,
+        assembly_structure=_assembly_structure_summary(mode=capability["mode"], part_count=part_count),
+    )
+    manufacturing_plan = autonomous_bundle.get("manufacturing_plan") or manufacturing_plan
+    engineering_report = autonomous_bundle.get("engineering_master_report") or build_engineering_report(
         file_id=file_id,
         geometry_metrics=geometry_metrics,
         feature_map=feature_map,
@@ -306,8 +318,17 @@ def _analyze_mesh(*, file_id: str, local_path: Path, capability: dict[str, Any])
         "manufacturing_decision": manufacturing_decision,
         "manufacturing_plan": manufacturing_plan,
         "cost_estimate": cost_estimate,
+        "design_intent": autonomous_bundle.get("design_intent"),
+        "process_simulation": autonomous_bundle.get("process_simulation"),
+        "cost_optimization": autonomous_bundle.get("cost_optimization"),
+        "design_optimization": autonomous_bundle.get("design_optimization"),
+        "engineering_decision": autonomous_bundle.get("engineering_decision"),
+        "engineering_master_report": engineering_report,
         "dfm_report": dfm_report,
         "engineering_report": engineering_report,
+        "engineering_capabilities": autonomous_bundle.get("engineering_capabilities"),
+        "engineering_pipeline": autonomous_bundle.get("engineering_pipeline"),
+        "knowledge_refs": (autonomous_bundle.get("engineering_decision") or {}).get("knowledge_refs"),
         "recommended_process": manufacturing_decision.get("recommended_process"),
         "estimated_unit_cost": cost_estimate.get("estimated_unit_cost"),
         "estimated_batch_cost": cost_estimate.get("estimated_batch_cost"),
@@ -409,7 +430,18 @@ def _analyze_step(*, file_id: str, local_path: Path, capability: dict[str, Any])
         capability_status=capability["capability_status"],
         unavailable_reason=capability.get("unavailable_reason"),
     )
-    engineering_report = build_engineering_report(
+    autonomous_bundle = _build_autonomous_bundle(
+        file_id=file_id,
+        geometry_metrics=geometry_metrics,
+        feature_map=feature_map,
+        manufacturing_decision=manufacturing_decision,
+        manufacturing_plan=manufacturing_plan,
+        cost_estimate=cost_estimate,
+        dfm_report=dfm_report,
+        assembly_structure=_assembly_structure_summary(mode="brep", part_count=int(result.part_count)),
+    )
+    manufacturing_plan = autonomous_bundle.get("manufacturing_plan") or manufacturing_plan
+    engineering_report = autonomous_bundle.get("engineering_master_report") or build_engineering_report(
         file_id=file_id,
         geometry_metrics=geometry_metrics,
         feature_map=feature_map,
@@ -436,8 +468,17 @@ def _analyze_step(*, file_id: str, local_path: Path, capability: dict[str, Any])
         "manufacturing_decision": manufacturing_decision,
         "manufacturing_plan": manufacturing_plan,
         "cost_estimate": cost_estimate,
+        "design_intent": autonomous_bundle.get("design_intent"),
+        "process_simulation": autonomous_bundle.get("process_simulation"),
+        "cost_optimization": autonomous_bundle.get("cost_optimization"),
+        "design_optimization": autonomous_bundle.get("design_optimization"),
+        "engineering_decision": autonomous_bundle.get("engineering_decision"),
+        "engineering_master_report": engineering_report,
         "dfm_report": dfm_report,
         "engineering_report": engineering_report,
+        "engineering_capabilities": autonomous_bundle.get("engineering_capabilities"),
+        "engineering_pipeline": autonomous_bundle.get("engineering_pipeline"),
+        "knowledge_refs": (autonomous_bundle.get("engineering_decision") or {}).get("knowledge_refs"),
         "recommended_process": manufacturing_decision.get("recommended_process"),
         "estimated_unit_cost": cost_estimate.get("estimated_unit_cost"),
         "estimated_batch_cost": cost_estimate.get("estimated_batch_cost"),
@@ -495,7 +536,18 @@ def _base_unavailable(
         capability_status=capability.get("capability_status"),
         unavailable_reason=unavailable_reason or capability.get("unavailable_reason"),
     )
-    engineering_report = build_engineering_report(
+    autonomous_bundle = _build_autonomous_bundle(
+        file_id=file_id,
+        geometry_metrics=geometry_metrics,
+        feature_map=feature_map,
+        manufacturing_decision=manufacturing_decision,
+        manufacturing_plan=manufacturing_plan,
+        cost_estimate=cost_estimate,
+        dfm_report=dfm_report,
+        assembly_structure=_assembly_structure_summary(mode=str(capability.get("mode") or MODE_VISUAL_ONLY), part_count=None),
+    )
+    manufacturing_plan = autonomous_bundle.get("manufacturing_plan") or manufacturing_plan
+    engineering_report = autonomous_bundle.get("engineering_master_report") or build_engineering_report(
         file_id=file_id,
         geometry_metrics=geometry_metrics,
         feature_map=feature_map,
@@ -522,8 +574,17 @@ def _base_unavailable(
         "manufacturing_decision": manufacturing_decision,
         "manufacturing_plan": manufacturing_plan,
         "cost_estimate": cost_estimate,
+        "design_intent": autonomous_bundle.get("design_intent"),
+        "process_simulation": autonomous_bundle.get("process_simulation"),
+        "cost_optimization": autonomous_bundle.get("cost_optimization"),
+        "design_optimization": autonomous_bundle.get("design_optimization"),
+        "engineering_decision": autonomous_bundle.get("engineering_decision"),
+        "engineering_master_report": engineering_report,
         "dfm_report": dfm_report,
         "engineering_report": engineering_report,
+        "engineering_capabilities": autonomous_bundle.get("engineering_capabilities"),
+        "engineering_pipeline": autonomous_bundle.get("engineering_pipeline"),
+        "knowledge_refs": (autonomous_bundle.get("engineering_decision") or {}).get("knowledge_refs"),
         "recommended_process": manufacturing_decision.get("recommended_process"),
         "estimated_unit_cost": cost_estimate.get("estimated_unit_cost"),
         "estimated_batch_cost": cost_estimate.get("estimated_batch_cost"),
@@ -545,6 +606,37 @@ def _thin_ratio(extents: list[float]) -> float:
     if not values:
         return 0.0
     return min(values) / max(values)
+
+
+def _assembly_structure_summary(*, mode: str, part_count: int | None) -> dict[str, Any]:
+    occurrence_count = max(1, int(part_count or 1))
+    return {
+        "mode": str(mode or MODE_VISUAL_ONLY),
+        "occurrence_count": occurrence_count,
+    }
+
+
+def _build_autonomous_bundle(
+    *,
+    file_id: str,
+    geometry_metrics: dict[str, Any],
+    feature_map: dict[str, Any],
+    manufacturing_decision: dict[str, Any],
+    manufacturing_plan: dict[str, Any],
+    cost_estimate: dict[str, Any],
+    dfm_report: dict[str, Any],
+    assembly_structure: dict[str, Any],
+) -> dict[str, Any]:
+    return build_autonomous_engineering_bundle(
+        file_id=file_id,
+        geometry_metrics=geometry_metrics,
+        feature_map=feature_map,
+        manufacturing_decision=manufacturing_decision,
+        manufacturing_plan=manufacturing_plan,
+        cost_estimate=cost_estimate,
+        dfm_report=dfm_report,
+        assembly_structure=assembly_structure,
+    )
 
 
 def _build_engineering_outputs(

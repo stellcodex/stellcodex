@@ -22,6 +22,7 @@ from app.api.v1.routes.apps import router as apps_router
 from app.api.v1.routes.dfm import router as dfm_router
 from app.api.v1.routes.approvals import router as approvals_router
 from app.api.v1.routes.stell_ai import router as stell_ai_router
+from app.api.v1.routes.whatsapp import router as whatsapp_router
 from app.api.v1.routes.knowledge import router as knowledge_router
 
 api_router = APIRouter()
@@ -47,4 +48,5 @@ api_router.include_router(dfm_router, tags=["dfm"])
 api_router.include_router(approvals_router, tags=["approvals"])
 api_router.include_router(apps_router, tags=["apps"])
 api_router.include_router(stell_ai_router, tags=["stell-ai"])
+api_router.include_router(whatsapp_router, tags=["whatsapp"])
 api_router.include_router(knowledge_router, tags=["knowledge"])

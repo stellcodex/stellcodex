@@ -28,11 +28,15 @@ from app.models.engineering import (
     AnalysisRun,
     ArtifactCacheEntry,
     CostEstimateRecord,
+    CostOptimizationRecord,
+    DesignIntentRecord,
+    DesignOptimizationRecord,
     DfmReportRecord,
     EngineeringReportRecord,
     FeatureMap,
     GeometryMetric,
     ManufacturingPlanRecord,
+    ProcessSimulationRecord,
 )
 from app.models.file import UploadFile
 
@@ -228,6 +232,22 @@ def _build_manufacturing_plan(result: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def _build_design_intent(result: dict[str, Any]) -> dict[str, Any]:
+    return _as_dict(result.get("design_intent"))
+
+
+def _build_process_simulation(result: dict[str, Any]) -> dict[str, Any]:
+    return _as_dict(result.get("process_simulation"))
+
+
+def _build_cost_optimization(result: dict[str, Any]) -> dict[str, Any]:
+    return _as_dict(result.get("cost_optimization"))
+
+
+def _build_design_optimization(result: dict[str, Any]) -> dict[str, Any]:
+    return _as_dict(result.get("design_optimization"))
+
+
 def _build_cost_estimate(result: dict[str, Any]) -> dict[str, Any]:
     payload = _as_dict(result.get("cost_estimate"))
     if payload:
@@ -393,6 +413,39 @@ def _upsert_dfm_report(
     return record
 
 
+def _upsert_design_intent(
+    db: Session,
+    *,
+    row: UploadFile,
+    geometry_hash: str,
+    result: dict[str, Any],
+    session_id: str | None,
+) -> DesignIntentRecord | None:
+    payload = _build_design_intent(result)
+    if not payload:
+        return None
+    record = (
+        db.query(DesignIntentRecord)
+        .filter(
+            DesignIntentRecord.tenant_id == int(row.tenant_id),
+            DesignIntentRecord.file_id == str(row.file_id),
+            DesignIntentRecord.geometry_hash == str(geometry_hash),
+        )
+        .first()
+    )
+    if record is None:
+        record = DesignIntentRecord(
+            tenant_id=int(row.tenant_id),
+            file_id=str(row.file_id),
+            geometry_hash=str(geometry_hash),
+        )
+    record.session_id = str(session_id or "") or None
+    record.intent_json = payload
+    record.intent_hash = _stable_hash(payload)
+    db.add(record)
+    return record
+
+
 def _upsert_cost_estimate(
     db: Session,
     *,
@@ -424,6 +477,39 @@ def _upsert_cost_estimate(
     record.estimated_batch_cost = _as_float(estimate.get("estimated_batch_cost"))
     record.estimate_json = estimate
     record.estimate_hash = _stable_hash(estimate)
+    db.add(record)
+    return record
+
+
+def _upsert_cost_optimization(
+    db: Session,
+    *,
+    row: UploadFile,
+    geometry_hash: str,
+    result: dict[str, Any],
+    session_id: str | None,
+) -> CostOptimizationRecord | None:
+    payload = _build_cost_optimization(result)
+    if not payload:
+        return None
+    record = (
+        db.query(CostOptimizationRecord)
+        .filter(
+            CostOptimizationRecord.tenant_id == int(row.tenant_id),
+            CostOptimizationRecord.file_id == str(row.file_id),
+            CostOptimizationRecord.geometry_hash == str(geometry_hash),
+        )
+        .first()
+    )
+    if record is None:
+        record = CostOptimizationRecord(
+            tenant_id=int(row.tenant_id),
+            file_id=str(row.file_id),
+            geometry_hash=str(geometry_hash),
+        )
+    record.session_id = str(session_id or "") or None
+    record.optimization_json = payload
+    record.optimization_hash = _stable_hash(payload)
     db.add(record)
     return record
 
@@ -463,6 +549,39 @@ def _upsert_manufacturing_plan(
     return record
 
 
+def _upsert_process_simulation(
+    db: Session,
+    *,
+    row: UploadFile,
+    geometry_hash: str,
+    result: dict[str, Any],
+    session_id: str | None,
+) -> ProcessSimulationRecord | None:
+    payload = _build_process_simulation(result)
+    if not payload:
+        return None
+    record = (
+        db.query(ProcessSimulationRecord)
+        .filter(
+            ProcessSimulationRecord.tenant_id == int(row.tenant_id),
+            ProcessSimulationRecord.file_id == str(row.file_id),
+            ProcessSimulationRecord.geometry_hash == str(geometry_hash),
+        )
+        .first()
+    )
+    if record is None:
+        record = ProcessSimulationRecord(
+            tenant_id=int(row.tenant_id),
+            file_id=str(row.file_id),
+            geometry_hash=str(geometry_hash),
+        )
+    record.session_id = str(session_id or "") or None
+    record.simulation_json = payload
+    record.simulation_hash = _stable_hash(payload)
+    db.add(record)
+    return record
+
+
 def _upsert_engineering_report(
     db: Session,
     *,
@@ -495,13 +614,46 @@ def _upsert_engineering_report(
     return record
 
 
+def _upsert_design_optimization(
+    db: Session,
+    *,
+    row: UploadFile,
+    geometry_hash: str,
+    result: dict[str, Any],
+    session_id: str | None,
+) -> DesignOptimizationRecord | None:
+    payload = _build_design_optimization(result)
+    if not payload:
+        return None
+    record = (
+        db.query(DesignOptimizationRecord)
+        .filter(
+            DesignOptimizationRecord.tenant_id == int(row.tenant_id),
+            DesignOptimizationRecord.file_id == str(row.file_id),
+            DesignOptimizationRecord.geometry_hash == str(geometry_hash),
+        )
+        .first()
+    )
+    if record is None:
+        record = DesignOptimizationRecord(
+            tenant_id=int(row.tenant_id),
+            file_id=str(row.file_id),
+            geometry_hash=str(geometry_hash),
+        )
+    record.session_id = str(session_id or "") or None
+    record.optimization_json = payload
+    record.optimization_hash = _stable_hash(payload)
+    db.add(record)
+    return record
+
+
 def _upsert_artifact_cache(
     db: Session,
     *,
     row: UploadFile,
     geometry_hash: str,
     analysis_type: str,
-    result: dict[str, Any],
+    payload: dict[str, Any],
 ) -> ArtifactCacheEntry:
     record = (
         db.query(ArtifactCacheEntry)
@@ -520,15 +672,33 @@ def _upsert_artifact_cache(
             geometry_hash=str(geometry_hash),
             analysis_type=str(analysis_type),
         )
-    record.artifact_hash = _stable_hash(result)
+    record.artifact_hash = _stable_hash(payload)
     record.artifact_uri_ref = f"scx://files/{row.file_id}/{analysis_type}"
     record.metadata_json = {
-        "mode": result.get("mode"),
-        "capability_status": result.get("capability_status"),
-        "unavailable_reason": result.get("unavailable_reason"),
+        "mode": payload.get("mode") or payload.get("recommended_process"),
+        "capability_status": payload.get("capability_status"),
+        "unavailable_reason": payload.get("unavailable_reason"),
     }
     db.add(record)
     return record
+
+
+def _artifact_payloads(result: dict[str, Any], analysis_type: str) -> dict[str, dict[str, Any]]:
+    payloads: dict[str, dict[str, Any]] = {
+        analysis_type: _as_dict(result),
+    }
+    for artifact_type in (
+        "design_intent",
+        "process_simulation",
+        "cost_optimization",
+        "design_optimization",
+        "engineering_decision",
+        "engineering_master_report",
+    ):
+        payload = _as_dict(result.get(artifact_type))
+        if payload:
+            payloads[artifact_type] = payload
+    return payloads
 
 
 def persist_engineering_analysis(
@@ -542,15 +712,20 @@ def persist_engineering_analysis(
     geometry_hash = geometry_hash_for_upload(row, analysis_result=result)
     _upsert_geometry_metrics(db, row=row, result=result, geometry_hash=geometry_hash)
     _upsert_feature_map(db, row=row, geometry_hash=geometry_hash, result=result)
+    _upsert_design_intent(db, row=row, geometry_hash=geometry_hash, result=result, session_id=session_id)
     _upsert_dfm_report(db, row=row, geometry_hash=geometry_hash, result=result, session_id=session_id)
     _upsert_cost_estimate(db, row=row, geometry_hash=geometry_hash, result=result, session_id=session_id)
+    _upsert_cost_optimization(db, row=row, geometry_hash=geometry_hash, result=result, session_id=session_id)
     _upsert_manufacturing_plan(db, row=row, geometry_hash=geometry_hash, result=result, session_id=session_id)
+    _upsert_process_simulation(db, row=row, geometry_hash=geometry_hash, result=result, session_id=session_id)
     _upsert_engineering_report(db, row=row, geometry_hash=geometry_hash, result=result, session_id=session_id)
-    _upsert_artifact_cache(
-        db,
-        row=row,
-        geometry_hash=geometry_hash,
-        analysis_type=analysis_type,
-        result=result,
-    )
+    _upsert_design_optimization(db, row=row, geometry_hash=geometry_hash, result=result, session_id=session_id)
+    for artifact_type, payload in _artifact_payloads(result, analysis_type).items():
+        _upsert_artifact_cache(
+            db,
+            row=row,
+            geometry_hash=geometry_hash,
+            analysis_type=artifact_type,
+            payload=payload,
+        )
     return geometry_hash

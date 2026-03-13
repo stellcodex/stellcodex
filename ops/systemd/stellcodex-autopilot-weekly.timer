@@ -1,0 +1,10 @@
+[Unit]
+Description=Run STELLCODEX weekly integrity autopilot check
+
+[Timer]
+OnCalendar=Sun *-*-* 07:15:00
+Persistent=true
+Unit=stellcodex-autopilot-weekly.service
+
+[Install]
+WantedBy=timers.target

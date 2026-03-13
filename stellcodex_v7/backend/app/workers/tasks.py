@@ -1041,9 +1041,9 @@ def _stage_pack(db, envelope, version_no: int) -> dict[str, Any]:
             "ASSEMBLY_META_FAIL" if kind == "3d" else "PACKAGE_FAIL",
         )
 
+    f.status = "ready"
     rules = load_rule_config_map(db)
     decision_json = build_decision_json(f, rules)
-    f.status = "ready"
     f.decision_json = decision_json
     next_meta = {
         **meta,
@@ -1597,9 +1597,17 @@ def engineering_analysis_job(file_id: str) -> dict[str, Any]:
             "engineering_analysis": result,
             "engineering_geometry_metrics": result.get("geometry_metrics"),
             "engineering_feature_map": result.get("feature_map"),
+            "engineering_design_intent": result.get("design_intent"),
             "engineering_dfm_report": result.get("dfm_report"),
             "engineering_cost_estimate": result.get("cost_estimate"),
+            "engineering_cost_optimization": result.get("cost_optimization"),
             "engineering_manufacturing_plan": result.get("manufacturing_plan"),
+            "engineering_process_simulation": result.get("process_simulation"),
+            "engineering_design_optimization": result.get("design_optimization"),
+            "engineering_decision": result.get("engineering_decision"),
+            "engineering_master_report": result.get("engineering_master_report"),
+            "engineering_capabilities": result.get("engineering_capabilities"),
+            "engineering_pipeline": result.get("engineering_pipeline"),
             "engineering_report": result.get("engineering_report"),
             "engineering_analysis_job_id": job_id,
             "engineering_geometry_hash": geometry_hash,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ensureSession } from "@/lib/sessionStore";
 import { buildWorkspacePath } from "@/lib/workspace-routing";
 
@@ -14,20 +14,24 @@ export function WorkspaceRedirect({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   useEffect(() => {
     const workspace = ensureSession();
-    const baseTarget = buildWorkspacePath(workspace.id, suffix);
-    const search = preserveSearch ? searchParams.toString() : "";
-    const target = search ? `${baseTarget}?${search}` : baseTarget;
-    if (pathname === baseTarget) return;
+    const targetPath = buildWorkspacePath(workspace.id, suffix);
+    const search = preserveSearch && typeof window !== "undefined" ? window.location.search.replace(/^\?/, "") : "";
+    const target = search ? `${targetPath}?${search}` : targetPath;
+
+    if (pathname === targetPath) return;
     router.replace(target);
-  }, [pathname, preserveSearch, router, searchParams, suffix]);
+  }, [pathname, preserveSearch, router, suffix]);
 
   return (
-    <div className="grid min-h-screen place-items-center bg-[var(--platform-bg)] px-6 text-center text-sm text-slate-500">
-      Preparing the workspace...
+    <div className="auth-shell">
+      <section className="hero-card" style={{ maxWidth: "680px" }}>
+        <div className="eyebrow">Workspace routing</div>
+        <h1 className="page-title">Preparing the active workspace</h1>
+        <p className="page-copy">Canonical routes stay inside one shell. Redirecting now.</p>
+      </section>
     </div>
   );
 }

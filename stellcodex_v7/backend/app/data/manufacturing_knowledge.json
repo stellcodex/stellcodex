@@ -1,0 +1,38 @@
+[
+  {
+    "id": "kb_cnc_holes_threads",
+    "title": "CNC machining for holes and threaded features",
+    "text": "Parts with drilled holes, tapped threads, and tight positional control are usually better aligned with CNC machining. Threaded details and secondary drilling operations increase setup time but remain predictable on machining workflows.",
+    "tags": ["cnc_machining", "holes", "threads", "machining", "setup"]
+  },
+  {
+    "id": "kb_injection_draft_walls",
+    "title": "Injection molding requires draft and stable wall sections",
+    "text": "Injection molding benefits from draft angles, consistent wall thickness, and reduced undercut complexity. Missing draft angles or threaded details increase tooling complexity and raise mold release risk.",
+    "tags": ["injection_molding", "draft", "thin_walls", "tooling", "molding"]
+  },
+  {
+    "id": "kb_additive_mesh_low_volume",
+    "title": "Additive manufacturing for low volume mesh-first programs",
+    "text": "Low volume production and mesh-first geometry often fit additive manufacturing. Support removal, post-processing, and surface finishing remain important for final accuracy and presentation quality.",
+    "tags": ["3d_printing", "mesh_approx", "low_volume", "support_removal", "postprocess"]
+  },
+  {
+    "id": "kb_tool_access_and_collision",
+    "title": "Tool accessibility and collision review",
+    "text": "Deep pockets, narrow access regions, and multi-setup orientations can reduce tool accessibility and increase collision risk. Early fixture review lowers setup churn and machining uncertainty.",
+    "tags": ["tool_access", "collision", "setup", "cnc_machining", "process_simulation"]
+  },
+  {
+    "id": "kb_cost_drivers_setup_material",
+    "title": "Primary manufacturing cost drivers",
+    "text": "Material usage, setup count, cycle time, and tooling amortization dominate deterministic manufacturing cost baselines. Reducing setup count and simplifying feature complexity typically improves cost performance.",
+    "tags": ["cost", "setup", "cycle_time", "material", "optimization"]
+  },
+  {
+    "id": "kb_design_optimization_manufacturability",
+    "title": "Design optimization for manufacturability",
+    "text": "Manufacturability improves when unnecessary feature complexity is reduced, thin sections are stabilized, draft is increased for molded parts, and tolerance-sensitive details are isolated from flexible walls.",
+    "tags": ["design_optimization", "thin_walls", "draft", "complexity", "manufacturability"]
+  }
+]

@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import patch
 
 from app.core.orchestrator import ensure_session_decision
-from app.services.orchestrator_engine import build_decision_json, upsert_orchestrator_session
+from app.services.orchestrator_engine import build_decision_json, normalize_decision_json, upsert_orchestrator_session
 
 
 def _file(status: str, kind: str = "3d", mode: str = "brep", extra_meta: dict | None = None):
@@ -92,6 +92,71 @@ class OrchestratorCoreTests(unittest.TestCase):
         self.assertEqual(decision["state"], "S5")
         self.assertEqual(decision["status_gate"], "NEEDS_APPROVAL")
         self.assertIn("visual_only_mode", decision["risk_flags"])
+
+    def test_normalize_decision_json_replaces_stale_processing_state_with_canonical_policy(self) -> None:
+        file_row = _file(
+            "ready",
+            mode="visual_only",
+            extra_meta={"dfm_findings": {"status_gate": "PASS", "risk_flags": []}},
+        )
+        stale = {
+            "state": "S3",
+            "state_code": "S3",
+            "state_label": "analyzing",
+            "status_gate": "PENDING",
+            "approval_required": False,
+            "decision": "manual_review",
+            "rule_version": "v7.0.0",
+            "mode": "visual_only",
+            "confidence": 0.1,
+            "manufacturing_method": "manual_review",
+            "rule_explanations": ["legacy snapshot"],
+            "conflict_flags": ["manufacturing_geometry_missing"],
+            "risk_flags": [],
+        }
+
+        decision = normalize_decision_json(file_row, _rules(), stale)
+
+        self.assertEqual(decision["state"], "S5")
+        self.assertEqual(decision["status_gate"], "NEEDS_APPROVAL")
+        self.assertTrue(decision["approval_required"])
+        self.assertIn("visual_only_mode", decision["risk_flags"])
+        self.assertIn("legacy snapshot", decision["rule_explanations"])
+
+    def test_normalize_decision_json_keeps_manual_transition_metadata_when_state_matches(self) -> None:
+        file_row = _file(
+            "ready",
+            mode="visual_only",
+            extra_meta={
+                "approval_override": "approved",
+                "dfm_findings": {"status_gate": "PASS", "risk_flags": []},
+            },
+        )
+        manual = {
+            "state": "S7",
+            "state_code": "S7",
+            "state_label": "share_ready",
+            "status_gate": "PASS",
+            "approval_required": False,
+            "decision": "approve_manual",
+            "state_transition_path": ["S5", "S6", "S7"],
+            "rule_version": "v7.0.0",
+            "mode": "visual_only",
+            "confidence": 0.4,
+            "manufacturing_method": "cnc_milling",
+            "rule_explanations": ["approval note: ship it"],
+            "conflict_flags": [],
+            "risk_flags": [],
+        }
+
+        decision = normalize_decision_json(file_row, _rules(), manual)
+
+        self.assertEqual(decision["state"], "S7")
+        self.assertEqual(decision["status_gate"], "PASS")
+        self.assertFalse(decision["approval_required"])
+        self.assertEqual(decision["decision"], "approve_manual")
+        self.assertEqual(decision["state_transition_path"], ["S5", "S6", "S7"])
+        self.assertIn("approval note: ship it", decision["rule_explanations"])
 
     def test_failed_file_stays_dfm_ready_rejected(self) -> None:
         file_row = _file("failed")

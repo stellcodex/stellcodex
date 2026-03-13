@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT="/root/workspace"
+source "${ROOT}/scripts/stellcodex_lock.sh"
 REMOTE_BASE="${REMOTE_BASE:-gdrive:stellcodex}"
 REPORT_DIR="${ROOT}/_jobs/reports"
 EVIDENCE_ROOT="${ROOT}/evidence"
@@ -9,10 +10,19 @@ STATE_FILE="${REPORT_DIR}/stellcodex_backup_guard_state.env"
 SUMMARY_JSON="${REPORT_DIR}/stellcodex_backup_guard_latest.json"
 SUMMARY_MD="${REPORT_DIR}/stellcodex_backup_guard_latest.md"
 FULL_BACKUP_INTERVAL_SECONDS="${FULL_BACKUP_INTERVAL_SECONDS:-86400}"
+LOCK_WAIT_SECONDS="${STELLCODEX_BACKUP_LOCK_WAIT_SECONDS:-0}"
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 RUN_DIR="${EVIDENCE_ROOT}/stateless_backup_${TS}"
 
 mkdir -p "${REPORT_DIR}" "${EVIDENCE_ROOT}" "${RUN_DIR}"
+
+if ! stellcodex_acquire_lock "heavy_ops" "${LOCK_WAIT_SECONDS}"; then
+  log() {
+    printf '[%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"
+  }
+  log "backup guard skipped: heavy_ops lock busy"
+  exit 0
+fi
 
 if ! command -v rclone >/dev/null 2>&1; then
   echo "rclone is required" >&2

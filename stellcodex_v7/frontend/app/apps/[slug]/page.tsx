@@ -6,5 +6,5 @@ export default async function AppModulePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  return <WorkspaceRedirect suffix={`/app/${slug}`} preserveSearch />;
+  return <WorkspaceRedirect suffix={`/app/${slug}`} />;
 }

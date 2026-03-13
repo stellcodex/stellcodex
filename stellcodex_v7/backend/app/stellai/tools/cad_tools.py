@@ -81,7 +81,7 @@ def _build_mesh_info_handler(policy: ToolSecurityPolicy):
             tool_name="mesh_info",
             status="ok",
             output={
-                "path": str(path),
+                "resource": path.name,
                 "format": path.suffix.lower().lstrip("."),
                 "vertex_count": int(len(mesh.vertices)),
                 "face_count": int(len(mesh.faces)),
@@ -107,7 +107,7 @@ def _build_mesh_volume_handler(policy: ToolSecurityPolicy):
             tool_name="mesh_volume",
             status="ok",
             output={
-                "path": str(path),
+                "resource": path.name,
                 "volume": float(mesh.volume),
                 "is_watertight": bool(mesh.is_watertight),
             },
@@ -125,7 +125,7 @@ def _build_mesh_surface_area_handler(policy: ToolSecurityPolicy):
         return ToolExecution(
             tool_name="mesh_surface_area",
             status="ok",
-            output={"path": str(path), "surface_area": float(mesh.area)},
+            output={"resource": path.name, "surface_area": float(mesh.area)},
         )
 
     return _handler
@@ -142,7 +142,7 @@ def _build_mesh_bounds_handler(policy: ToolSecurityPolicy):
             tool_name="mesh_bounds",
             status="ok",
             output={
-                "path": str(path),
+                "resource": path.name,
                 "min": bounds[0].tolist(),
                 "max": bounds[1].tolist(),
                 "extents": mesh.extents.tolist(),
@@ -182,7 +182,7 @@ def _load_mesh(
             tool_name=tool_name,
             status="denied",
             reason=validated.reason,
-            output={"error": {"reason": validated.reason, "path": raw_path}},
+            output={"error": {"reason": validated.reason}},
         )
 
     path = validated.path
@@ -191,7 +191,7 @@ def _load_mesh(
             tool_name=tool_name,
             status="denied",
             reason="unsupported_mesh_format",
-            output={"error": {"reason": "unsupported_mesh_format", "path": str(path), "allowed": sorted(_ALLOWED_EXT)}},
+            output={"error": {"reason": "unsupported_mesh_format", "allowed": sorted(_ALLOWED_EXT)}},
         )
 
     try:
@@ -204,10 +204,10 @@ def _load_mesh(
         if not isinstance(loaded, trimesh.Trimesh):
             raise TypeError("mesh_unavailable")
         return loaded, path
-    except Exception as exc:
+    except Exception:
         return ToolExecution(
             tool_name=tool_name,
             status="failed",
             reason="geometry_error",
-            output={"error": {"reason": "geometry_error", "detail": str(exc), "path": str(path)}},
+            output={"error": {"reason": "geometry_error"}},
         )

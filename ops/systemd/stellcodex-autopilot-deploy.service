@@ -1,0 +1,9 @@
+[Unit]
+Description=STELLCODEX deploy validation autopilot check
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/root/workspace
+ExecStart=/root/workspace/scripts/stellcodex_autopilot.sh deploy --archive

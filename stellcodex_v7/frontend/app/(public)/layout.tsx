@@ -1,9 +1,26 @@
-import type { ReactNode } from "react";
-import { MasterFrame } from "@/components/layout/MasterFrame";
+import Link from "next/link";
 
-// Public pages should refresh on a calm interval in Vercel without forcing request-time rendering.
 export const revalidate = 1800;
+// Public marketing pages refresh on a calm interval.
 
-export default function PublicLayout({ children }: { children: ReactNode }) {
-  return <MasterFrame>{children}</MasterFrame>;
+export default function PublicLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="public-shell">
+      <div className="public-frame">
+        <header className="public-header">
+          <Link className="brand-mark" href="/">
+            STELLCODEX
+          </Link>
+          <nav className="public-nav">
+            <Link href="/home">Home</Link>
+            <Link href="/features">Features</Link>
+            <Link href="/pricing">Pricing</Link>
+            <Link href="/docs">Docs</Link>
+            <Link href="/upload">Upload</Link>
+          </nav>
+        </header>
+        <main className="public-content">{children}</main>
+      </div>
+    </div>
+  );
 }

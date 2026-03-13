@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function DashboardSharesPage() {
+export default function LegacyDashboardSharesPage() {
   redirect("/files");
 }
