@@ -55,7 +55,7 @@ jobs:
         env:
           PYTHONPATH: backend
           DATABASE_URL: postgresql://test:test@localhost/test
-          JWT_SECRET: ci-test-secret-not-real
+          JWT_SECRET: ci-test-secret-not-real-xxxxxxxxxxxxxxxx
         run: |
           pytest -q \
             backend/tests/test_format_registry_contract.py \
