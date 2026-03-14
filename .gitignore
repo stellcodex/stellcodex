@@ -15,3 +15,26 @@ frontend/public/build_id.txt
 # local agents / plugins
 .claude/
 .aider*
+
+# Sunucu geçici dizinleri (Drive'a yüklenir, repo'ya girmez)
+_runs/
+_models/
+_knowledge/
+_vector_store/
+_truth/
+_jobs/
+_runtime/
+_packages/
+AI/
+audit/
+handoff/
+live_services/
+stellcodex_v7/
+
+# Geçici işlem dosyaları
+.current_*
+.guest_token
+.abacusai/
+
+# Node
+frontend/node_modules/

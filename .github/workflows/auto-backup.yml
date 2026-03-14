@@ -1,0 +1,63 @@
+name: Config Backup → Drive
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ops/**'
+      - '.github/workflows/**'
+      - 'backend/requirements.txt'
+      - 'backend/Dockerfile*'
+  schedule:
+    # Her gün 02:00 UTC — sunucu backup'ından önce
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  backup:
+    name: Backup Config to Drive
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: rclone kur
+        run: curl https://rclone.org/install.sh | sudo bash -s stable
+
+      - name: rclone konfigüre et
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf <<'EOF'
+          [gdrive]
+          type = drive
+          scope = drive
+          token = ${{ secrets.RCLONE_GDRIVE_TOKEN }}
+          EOF
+
+      - name: ops/ → Drive
+        run: |
+          TS=$(date +%Y%m%d_%H%M%S)
+          rclone copy ops/ \
+            "gdrive:stellcodex-genois/backups/config/ops_${TS}/" \
+            --include "*.sh" --include "*.yml" --include "*.yaml" \
+            --include "*.json"
+
+      - name: CI workflows → Drive
+        run: |
+          TS=$(date +%Y%m%d_%H%M%S)
+          rclone copy .github/workflows/ \
+            "gdrive:stellcodex-genois/backups/config/ci_${TS}/"
+
+      - name: Eski config backup'ları temizle (max 10)
+        run: |
+          # ops_ ve ci_ prefix'li klasörleri al, eski olanları sil
+          for prefix in ops_ ci_; do
+            COUNT=$(rclone lsf "gdrive:stellcodex-genois/backups/config/" \
+              --dirs-only 2>/dev/null | grep "^${prefix}" | wc -l)
+            if [ "$COUNT" -gt 10 ]; then
+              OLDEST=$(rclone lsf "gdrive:stellcodex-genois/backups/config/" \
+                --dirs-only 2>/dev/null | grep "^${prefix}" | sort | head -1)
+              rclone purge "gdrive:stellcodex-genois/backups/config/${OLDEST}" || true
+              echo "Silindi: $OLDEST"
+            fi
+          done
