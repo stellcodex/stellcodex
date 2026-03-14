@@ -60,7 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     # Sadece elle tetiklendiğinde veya commit mesajında [build-worker] varsa
     if: |
-      (github.event_name == 'workflow_dispatch' && inputs.build_worker == 'true') ||
+      (github.event_name == 'workflow_dispatch' && inputs.build_worker) ||
       contains(github.event.head_commit.message, '[build-worker]')
     permissions:
       contents: read
