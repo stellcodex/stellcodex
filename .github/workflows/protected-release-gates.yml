@@ -52,6 +52,8 @@ jobs:
 
       - name: Run backend contract smoke
         if: steps.backend_changes.outputs.changed == 'true'
+        env:
+          PYTHONPATH: backend
         run: |
           pytest -q \
             backend/tests/test_format_registry_contract.py \
