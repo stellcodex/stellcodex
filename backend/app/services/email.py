@@ -22,8 +22,8 @@ def _send(to: str, subject: str, html: str) -> bool:
         return False
 
     try:
-        import httpx
-        resp = httpx.post(
+        import requests
+        resp = requests.post(
             "https://api.resend.com/emails",
             headers={
                 "Authorization": f"Bearer {RESEND_API_KEY}",

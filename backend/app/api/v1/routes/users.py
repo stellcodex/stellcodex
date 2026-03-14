@@ -1,16 +1,19 @@
 """Email + password authentication: register, login, invite."""
 from __future__ import annotations
 
+import secrets
+from datetime import datetime, timedelta
+
 import bcrypt
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models.user import User
+from app.models.user import PasswordResetToken, User
 from app.security.deps import get_current_principal, Principal
 from app.security.jwt import create_user_token
-from app.services.email import send_welcome, send_invite
+from app.services.email import send_welcome, send_invite, send_password_reset
 
 router = APIRouter(tags=["users"])
 
@@ -166,6 +169,65 @@ def change_password(
 
 
 def _generate_temp_password() -> str:
-    import secrets, string
+    import string
     alphabet = string.ascii_letters + string.digits
     return "".join(secrets.choice(alphabet) for _ in range(12))
+
+
+# ---------- password reset ----------
+class ForgotPasswordIn(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordIn(BaseModel):
+    token: str
+    new_password: str
+
+
+@router.post("/auth/forgot-password", status_code=200)
+def forgot_password(data: ForgotPasswordIn, db: Session = Depends(get_db)):
+    """Token üretir ve email ile gönderir. Kullanıcı yoksa da 200 döner (enumeration koruması)."""
+    user = db.query(User).filter(User.email == data.email).first()
+    if user:
+        token = secrets.token_urlsafe(32)
+        token_hash = secrets.token_hex(32)  # store a hash, send the raw token
+        import hashlib
+        token_hash = hashlib.sha256(token.encode()).hexdigest()[:64]
+        prt = PasswordResetToken(
+            user_id=user.id,
+            token_hash=token_hash,
+            expires_at=datetime.utcnow() + timedelta(hours=1),
+        )
+        db.add(prt)
+        db.commit()
+        try:
+            send_password_reset(user.email, token)
+        except Exception:
+            pass
+    return {"ok": True, "detail": "Şifre sıfırlama linki email adresinize gönderildi."}
+
+
+@router.post("/auth/reset-password", status_code=200)
+def reset_password(data: ResetPasswordIn, db: Session = Depends(get_db)):
+    import hashlib
+    if len(data.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Şifre en az 6 karakter olmalı.")
+
+    token_hash = hashlib.sha256(data.token.encode()).hexdigest()[:64]
+    prt = db.query(PasswordResetToken).filter(
+        PasswordResetToken.token_hash == token_hash,
+        PasswordResetToken.used_at.is_(None),
+    ).first()
+    if not prt:
+        raise HTTPException(status_code=400, detail="Geçersiz veya kullanılmış token.")
+    if prt.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Token süresi dolmuş.")
+
+    user = db.get(User, prt.user_id)
+    if not user:
+        raise HTTPException(status_code=400, detail="Kullanıcı bulunamadı.")
+
+    user.password_hash = _hash_password(data.new_password)
+    prt.used_at = datetime.utcnow()
+    db.commit()
+    return {"ok": True, "detail": "Şifreniz başarıyla sıfırlandı."}

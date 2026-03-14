@@ -1,0 +1,55 @@
+{
+  "updated_at": "2026-03-13T23:48:03.308308Z",
+  "models": {
+    "gemini_conductor": {
+      "plan_score": 0.92,
+      "code_score": 0.62,
+      "review_score": 0.5,
+      "analysis_score": 0.82,
+      "ops_check_score": 0.5,
+      "doc_score": 0.5
+    },
+    "codex_executor": {
+      "plan_score": 0.5,
+      "code_score": 0.95,
+      "review_score": 0.5,
+      "analysis_score": 0.68,
+      "ops_check_score": 0.5,
+      "doc_score": 0.5
+    },
+    "claude_reviewer": {
+      "plan_score": 0.5,
+      "code_score": 0.5,
+      "review_score": 0.94,
+      "analysis_score": 0.74,
+      "ops_check_score": 0.5,
+      "doc_score": 0.5
+    },
+    "abacus_analyst": {
+      "plan_score": 0.5,
+      "code_score": 0.5,
+      "review_score": 0.7,
+      "analysis_score": 0.9,
+      "ops_check_score": 0.5,
+      "doc_score": 0.5
+    },
+    "local_fast": {
+      "plan_score": 0.5,
+      "code_score": 0.5,
+      "review_score": 0.5,
+      "analysis_score": 0.55,
+      "ops_check_score": 0.72,
+      "doc_score": 0.74
+    },
+    "local_reason": {
+      "plan_score": 0.5,
+      "code_score": 0.58,
+      "review_score": 0.66,
+      "analysis_score": 0.7,
+      "ops_check_score": 0.5,
+      "doc_score": 0.5
+    }
+  },
+  "last_profile_attempted": 0,
+  "last_profile_succeeded": 0
+}
