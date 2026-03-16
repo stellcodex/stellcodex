@@ -1,0 +1,6 @@
+# Runtime log rotation keeps append-only audit logs from exhausting the root volume.
+15 1 * * * /usr/sbin/logrotate -s /var/lib/logrotate/status-stellcodex /etc/logrotate.d/stellcodex-runtime > /tmp/stellcodex-logrotate.log 2>&1
+# Storage hygiene jobs keep only the latest log snapshot in /tmp.
+0 2 * * * /root/workspace/ops/scripts/backup-state.sh > /tmp/stellcodex-backup.log 2>&1
+30 2 * * * /root/workspace/ops/scripts/cleanup.sh > /tmp/stellcodex-cleanup.log 2>&1
+0 3 * * 0 docker image prune -af > /tmp/stellcodex-docker-prune.log 2>&1

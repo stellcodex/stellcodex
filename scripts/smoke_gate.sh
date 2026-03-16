@@ -6,6 +6,7 @@ EVIDENCE_DIR="${ROOT_DIR}/evidence"
 OUT_FILE="${EVIDENCE_DIR}/smoke_gate_output.txt"
 API_BASE="${API_BASE:-http://127.0.0.1:8000/api/v1}"
 FRONT_BASE="${FRONT_BASE:-http://127.0.0.1:3010}"
+API_ORIGIN="${API_BASE%/api/v1}"
 STEP_SAMPLE="${STEP_SAMPLE:-/var/stellcodex/work/samples/parca.STEP}"
 STL_SAMPLE="${STL_SAMPLE:-/var/www/stellcodex/frontend/public/models/demo.STL}"
 
@@ -163,7 +164,7 @@ print((d.get("preview_urls") or [""])[0])
 PY
 )"
 [[ -n "${STEP_PREVIEW}" ]] || fail "step preview url empty"
-curl -sS -D "${EVIDENCE_DIR}/3d_preview_fetch.txt" -o /dev/null "${AUTH[@]}" "http://127.0.0.1:8000${STEP_PREVIEW}" || fail "step preview fetch failed"
+curl -sS -D "${EVIDENCE_DIR}/3d_preview_fetch.txt" -o /dev/null "${AUTH[@]}" "${API_ORIGIN}${STEP_PREVIEW}" || fail "step preview fetch failed"
 grep -q "200" "${EVIDENCE_DIR}/3d_preview_fetch.txt" || fail "step preview not 200"
 pass "step contract ok"
 
@@ -196,7 +197,7 @@ print(urls[0] if urls else "")
 PY
 )"
 [[ -n "${DOC_PDF}" ]] || fail "docx preview pdf missing"
-DOC_PDF_HTTP="$(curl -sS -o /dev/null -w "%{http_code}" "${AUTH[@]}" "http://127.0.0.1:8000${DOC_PDF}" || true)"
+DOC_PDF_HTTP="$(curl -sS -o /dev/null -w "%{http_code}" "${AUTH[@]}" "${API_ORIGIN}${DOC_PDF}" || true)"
 [[ "${DOC_PDF_HTTP}" == "200" ]] || fail "docx pdf preview http=${DOC_PDF_HTTP}"
 pass "docx contract ok"
 
