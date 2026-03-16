@@ -1,35 +1,23 @@
 @import "tailwindcss";
-
-:root {
-  color-scheme: light;
-  --bg: #ffffff;
-  --surface: #ffffff;
-  --border: #e5e7eb;
-  --text: #0f172a;
-  --primary: #0f172a;
-  --platform-bg: #ffffff;
-  --platform-sidebar: #fbfbfa;
-  --platform-text: #0f172a;
-  --platform-muted: #64748b;
-  --accent: #1f5c57;
-  --accent-soft: #eef4f3;
-  --platform-font: "Soehne", "Avenir Next", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
-}
+@import "../styles/tokens.css";
 
 * {
   box-sizing: border-box;
 }
 
 html {
-  background: var(--platform-bg);
+  background: var(--background-canvas);
 }
 
 body {
-  background-color: var(--bg);
-  color: var(--text);
   margin: 0;
-  padding: 0;
-  font-family: var(--platform-font);
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(17, 19, 21, 0.03), transparent 28%),
+    linear-gradient(180deg, #fafaf8 0%, var(--background-canvas) 100%);
+  color: var(--foreground-default);
+  font-family: "Soehne", "Avenir Next", "Segoe UI", sans-serif;
+  text-rendering: optimizeLegibility;
 }
 
 a {
@@ -44,18 +32,22 @@ select {
   font: inherit;
 }
 
+::selection {
+  background: rgba(17, 19, 21, 0.12);
+}
+
 ::-webkit-scrollbar {
-  height: 12px;
   width: 12px;
+  height: 12px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f3f4f6;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
+  background: rgba(17, 19, 21, 0.18);
   border: 3px solid transparent;
   border-radius: 999px;
-  background: rgba(100, 116, 139, 0.32);
   background-clip: padding-box;
 }

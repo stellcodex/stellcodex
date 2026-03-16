@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 from app.core.ids import generate_scx_id
-from sqlalchemy import String, Text, DateTime, JSON, BigInteger, Boolean
+from sqlalchemy import String, Text, DateTime, JSON, BigInteger, Boolean, ForeignKey
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -17,6 +20,7 @@ class UploadFile(Base):
     )
 
     owner_sub: Mapped[str] = mapped_column(Text, nullable=False, index=True)
+    tenant_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("tenants.id"), nullable=False, index=True)
     owner_user_id: Mapped[str | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     owner_anon_sub: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
     is_anonymous: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
@@ -35,6 +39,7 @@ class UploadFile(Base):
     folder_key: Mapped[str | None] = mapped_column(Text, index=True)
 
     meta: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
+    decision_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     status: Mapped[str] = mapped_column(String(16), default="pending")
     visibility: Mapped[str] = mapped_column(String(16), default="private")
     archived_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True))

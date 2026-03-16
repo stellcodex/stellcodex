@@ -1,14 +1,17 @@
 {
   "/dashboard": "system.status.read",
-  "/dashboard/files": "system.status.read",
-  "/dashboard/activity": "system.status.read",
-  "/dashboard/settings": "system.status.read",
+  "/projects": "system.status.read",
+  "/projects/[projectId]": "system.status.read",
+  "/files/[fileId]": "system.status.read",
+  "/files/[fileId]/viewer": "system.status.read",
+  "/files/[fileId]/versions": "system.status.read",
+  "/shares": "system.status.read",
   "/admin": "system.status.read",
+  "/admin/health": "system.status.read",
+  "/admin/queues": "system.queues.read",
+  "/admin/queues/failed": "system.queues.read",
+  "/admin/audit": "logs.audit.read",
   "/admin/users": "admin.users.read",
   "/admin/files": "admin.files.read",
-  "/admin/approvals": "approvals.read",
-  "/admin/ai": "ai.suggestions.read",
-  "/admin/audit": "logs.audit.read",
-  "/admin/rbac": "rbac.roles.read",
-  "/admin/system": "system.status.read"
+  "/settings": "system.status.read"
 }

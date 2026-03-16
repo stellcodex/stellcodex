@@ -1,69 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { SectionHeader } from "@/components/layout/SectionHeader";
-import { EmptyState } from "@/components/ui/StateBlocks";
-import { fetchAdminUsers } from "@/services/admin";
-
-type UserItem = {
-  id: string;
-  email: string | null;
-  role: string;
-  is_suspended: boolean;
-  created_at?: string;
-};
+import { AdminUsersTable } from "@/components/admin/AdminUsersTable";
+import { Card } from "@/components/primitives/Card";
+import { PageHeader } from "@/components/shell/PageHeader";
+import { RouteErrorState } from "@/components/states/RouteErrorState";
+import { RouteLoadingState } from "@/components/states/RouteLoadingState";
+import { useAdminUsers } from "@/lib/hooks/useAdminUsers";
 
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState<UserItem[]>([]);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    fetchAdminUsers()
-      .then((data) => {
-        if (!active) return;
-        setUsers(data.items || []);
-      })
-      .catch((e: any) => {
-        if (!active) return;
-        setError(e?.message || "Users could not be loaded.");
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
+  const { items, loading, error, refresh } = useAdminUsers();
+  if (loading) return <RouteLoadingState title="Loading users" />;
+  if (error) return <RouteErrorState actionLabel="Retry" description={error} onAction={() => void refresh()} title="Users unavailable" />;
   return (
     <div className="space-y-6">
-      <SectionHeader
-        title="User Management"
-        description="Roles, status, and security actions."
-        crumbs={[{ label: "Admin", href: "/admin" }, { label: "Users" }]}
-      />
-      {error ? (
-        <EmptyState title="No user data" description={error} />
-      ) : (
-        <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <div className="text-sm font-semibold text-slate-900">Users</div>
-          <div className="mt-3 space-y-2 text-sm text-slate-700">
-            {users.length ? (
-              users.map((u) => (
-                <div key={u.id} className="flex items-center justify-between rounded-lg border border-slate-100 p-2">
-                  <div>
-                    <div className="font-medium">{u.email || u.id}</div>
-                    <div className="text-xs text-slate-500">{u.role}</div>
-                  </div>
-                  <div className="text-xs text-slate-500">
-                    {u.is_suspended ? "Suspended" : "Active"}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-sm text-slate-500">No users are available.</div>
-            )}
-          </div>
-        </div>
-      )}
+      <PageHeader subtitle="User operations are rendered only from the supported admin users endpoint." title="Users" />
+      <Card title="Users">
+        <AdminUsersTable items={items} />
+      </Card>
     </div>
   );
 }

@@ -190,7 +190,7 @@ def list_projects(
                 name=_project_name_from_row(project_row, project_id),
                 file_count=len(files),
                 updated_at=updated_at,
-                files=[],
+                files=[_serialize_project_file(row) for row in files],
             )
         )
     items.sort(key=lambda item: item.updated_at or datetime(1970, 1, 1, tzinfo=timezone.utc), reverse=True)

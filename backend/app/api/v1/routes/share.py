@@ -18,12 +18,15 @@ from app.models.share import Share
 from app.queue import redis_conn
 from app.security.deps import Principal, get_current_principal
 from app.services.audit import log_event
+from app.services.orchestrator_sessions import build_decision_json, upsert_orchestrator_session
 
 router = APIRouter()
 
 SHARE_RATE_LIMIT_WINDOW_SECONDS = 60
-SHARE_RATE_LIMIT_REQUESTS = 120
-SHARE_RATE_LIMIT_KEY_PREFIX = "stell:share:rate:"
+SHARE_RATE_LIMIT_REQUESTS = 30
+SHARE_RATE_LIMIT_SCOPE = "share_resolve"
+SHARE_RATE_LIMIT_KEY_PREFIX = "rl"
+SHARE_TOKEN_BYTES = 40
 
 
 def _now() -> datetime:
@@ -52,6 +55,10 @@ def _public_file_id(value: str) -> str:
         return normalize_scx_id(value)
     except ValueError:
         return value
+
+
+def _new_share_token() -> str:
+    return secrets.token_hex(SHARE_TOKEN_BYTES)
 
 
 def _get_file_by_identifier(db: Session, value: str) -> UploadFileModel | None:
@@ -111,24 +118,30 @@ def _audit_share_event(
 
 def _enforce_share_rate_limit(db: Session, share: Share, token: str, request: Request | None) -> None:
     try:
-        window_bucket = int(_now().timestamp()) // SHARE_RATE_LIMIT_WINDOW_SECONDS
-        rate_key = f"{SHARE_RATE_LIMIT_KEY_PREFIX}{share.id}:{_client_ip(request)}:{window_bucket}"
+        identifier = _client_ip(request)
+        now_epoch = int(_now().timestamp())
+        window_start_epoch = now_epoch - (now_epoch % SHARE_RATE_LIMIT_WINDOW_SECONDS)
+        rate_key = f"{SHARE_RATE_LIMIT_KEY_PREFIX}:{SHARE_RATE_LIMIT_SCOPE}:{identifier}:{window_start_epoch}"
         request_count = int(redis_conn.incr(rate_key))
         if request_count == 1:
             redis_conn.expire(rate_key, SHARE_RATE_LIMIT_WINDOW_SECONDS + 5)
         if request_count > SHARE_RATE_LIMIT_REQUESTS:
-            _audit_share_event(
+            log_event(
                 db,
-                "share.rate_limited",
-                share,
-                token,
-                request,
-                extra={
+                "RATE_LIMIT",
+                file_id=share.file_id,
+                data={
+                    **_share_event_data(token, share, request),
+                    "target_type": "endpoint",
+                    "scope": SHARE_RATE_LIMIT_SCOPE,
+                    "identifier": identifier,
                     "limit": SHARE_RATE_LIMIT_REQUESTS,
-                    "window_seconds": SHARE_RATE_LIMIT_WINDOW_SECONDS,
+                    "window": SHARE_RATE_LIMIT_WINDOW_SECONDS,
+                    "window_start_epoch": window_start_epoch,
                     "request_count": request_count,
                 },
             )
+            db.commit()
             raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Too many share requests")
     except HTTPException:
         raise
@@ -137,7 +150,72 @@ def _enforce_share_rate_limit(db: Session, share: Share, token: str, request: Re
         return
 
 
+def _authorize_share_owner(principal: Principal, f: UploadFileModel) -> None:
+    if principal.typ == "guest":
+        if f.owner_anon_sub != principal.owner_sub and f.owner_sub != principal.owner_sub:
+            raise HTTPException(status_code=403, detail="Forbidden")
+        return
+    if str(f.owner_user_id or "") != principal.user_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+
+def _create_share_for_file(
+    file_id: str,
+    permission: str,
+    expires_in_seconds: int,
+    db: Session,
+    principal: Principal,
+) -> ShareCreateOut:
+    f = _get_file_by_identifier(db, file_id)
+    if not f:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    _authorize_share_owner(principal, f)
+
+    if f.status != "ready":
+        raise HTTPException(status_code=409, detail="File not ready")
+
+    token = _new_share_token()
+    expires_at = _now() + timedelta(seconds=expires_in_seconds)
+    share = Share(
+        file_id=f.file_id,
+        created_by_user_id=principal.user_id,
+        token=token,
+        permission=permission,
+        expires_at=expires_at,
+    )
+    db.add(share)
+    log_event(
+        db,
+        "share.created",
+        actor_user_id=principal.user_id,
+        actor_anon_sub=principal.owner_sub,
+        file_id=f.file_id,
+        data={"permission": permission, "expires_at": expires_at.isoformat()},
+    )
+    db.commit()
+    db.refresh(share)
+    meta = f.meta if isinstance(f.meta, dict) else {}
+    decision_json = meta.get("decision_json") if isinstance(meta.get("decision_json"), dict) else build_decision_json(
+        mode=str(meta.get("mode") or "visual_only"),
+        rule_version=str(meta.get("rule_version") or "v0.0"),
+        geometry_meta=meta.get("geometry_meta_json") if isinstance(meta.get("geometry_meta_json"), dict) else None,
+        dfm_findings=meta.get("dfm_findings") if isinstance(meta.get("dfm_findings"), dict) else None,
+    )
+    upsert_orchestrator_session(
+        db,
+        file_id=f.file_id,
+        state="S7 ShareReady",
+        decision_json=decision_json,
+        rule_version=str(decision_json.get("rule_version") or meta.get("rule_version") or "v0.0"),
+        mode=str(meta.get("mode") or "visual_only"),
+    )
+    db.commit()
+    return ShareCreateOut(id=str(share.id), token=share.token, expires_at=share.expires_at, permission=share.permission)
+
+
 class ShareCreateIn(BaseModel):
+    file_id: str | None = None
     permission: str = Field(default="view", pattern="^(view|comment|download)$")
     expires_in_seconds: int = Field(default=7 * 24 * 60 * 60, ge=60, le=30 * 24 * 60 * 60)
 
@@ -226,48 +304,38 @@ def _resolve_active_share(
     return share, f
 
 
-@router.post("/files/{file_id}/share", response_model=ShareCreateOut)
+@router.post("/shares", response_model=ShareCreateOut)
 def create_share(
+    data: ShareCreateIn,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
+):
+    effective_file_id = (data.file_id or "").strip()
+    if not effective_file_id:
+        raise HTTPException(status_code=400, detail="file_id is required")
+    return _create_share_for_file(
+        effective_file_id,
+        permission=data.permission,
+        expires_in_seconds=data.expires_in_seconds,
+        db=db,
+        principal=principal,
+    )
+
+
+@router.post("/files/{file_id}/share", response_model=ShareCreateOut, include_in_schema=False)
+def create_share_legacy(
     file_id: str,
     data: ShareCreateIn,
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_current_principal),
 ):
-    f = _get_file_by_identifier(db, file_id)
-    if not f:
-        raise HTTPException(status_code=404, detail="File not found")
-
-    if principal.typ == "guest":
-        if f.owner_anon_sub != principal.owner_sub and f.owner_sub != principal.owner_sub:
-            raise HTTPException(status_code=403, detail="Forbidden")
-    else:
-        if str(f.owner_user_id or "") != principal.user_id:
-            raise HTTPException(status_code=403, detail="Forbidden")
-
-    if f.status != "ready":
-        raise HTTPException(status_code=409, detail="File not ready")
-
-    token = secrets.token_urlsafe(24)
-    expires_at = _now() + timedelta(seconds=data.expires_in_seconds)
-    share = Share(
-        file_id=f.file_id,
-        created_by_user_id=principal.user_id,
-        token=token,
+    return _create_share_for_file(
+        file_id,
         permission=data.permission,
-        expires_at=expires_at,
+        expires_in_seconds=data.expires_in_seconds,
+        db=db,
+        principal=principal,
     )
-    db.add(share)
-    log_event(
-        db,
-        "share.created",
-        actor_user_id=principal.user_id,
-        actor_anon_sub=principal.owner_sub,
-        file_id=f.file_id,
-        data={"permission": data.permission, "expires_at": expires_at.isoformat()},
-    )
-    db.commit()
-    db.refresh(share)
-    return ShareCreateOut(id=str(share.id), token=share.token, expires_at=share.expires_at, permission=share.permission)
 
 
 @router.get("/files/{file_id}/shares", response_model=ShareListOut)
@@ -280,12 +348,7 @@ def list_shares(
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
 
-    if principal.typ == "guest":
-        if f.owner_anon_sub != principal.owner_sub and f.owner_sub != principal.owner_sub:
-            raise HTTPException(status_code=403, detail="Forbidden")
-    else:
-        if str(f.owner_user_id or "") != principal.user_id:
-            raise HTTPException(status_code=403, detail="Forbidden")
+    _authorize_share_owner(principal, f)
 
     rows = (
         db.query(Share)

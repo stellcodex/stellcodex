@@ -20,10 +20,10 @@ This document is governed by `docs/v10/00_V10_MASTER_CONSTITUTION.md` and `docs/
 
 ## Immediate Next Work
 
-1. finish legacy file relocation and superseded markers wherever old authority still appears
-2. replace inline archive metadata `hash_sha256: PENDING` values during freeze-time normalization
-3. expand Drive inventory from spot checks to a fuller recursive catalog
-4. observe the new logrotate path over another cycle
+1. replace inline archive metadata `hash_sha256: PENDING` values during freeze-time normalization
+2. expand Drive inventory from spot checks to a fuller recursive catalog
+3. observe the new logrotate path over another cycle
+4. export the GitHub V10 master package into the Drive `01_CANONICAL_CONTEXT` hierarchy
 5. reduce remaining route and terminology drift between current UI paths and the canonical surface map
 
 ## Guardrails

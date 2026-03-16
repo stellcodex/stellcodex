@@ -54,5 +54,7 @@ def register_startup(app: FastAPI) -> None:
         from app.models import core as _core  # noqa: F401
         from app.models import file as _file  # noqa: F401
         from app.models import library_item as _library_item  # noqa: F401
+        from app.models import orchestrator as _orchestrator  # noqa: F401
+        from app.models import rule_config as _rule_config  # noqa: F401
         Base.metadata.create_all(bind=engine)
         _ensure_uploaded_files_schema()

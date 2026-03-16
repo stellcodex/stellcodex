@@ -9,7 +9,9 @@
     "dev:verify": "ss -ltnp | egrep ':3000|:3010' || true && curl -I http://127.0.0.1:3010/ | head -n 5 && curl -I http://127.0.0.1:3000/ | head -n 5 && curl -I http://$(hostname -I | awk '{print $1}'):3000/ | head -n 5",
     "build": "node scripts/prisma-safe.cjs && next build",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "TS_NODE_COMPILER_OPTIONS='{ \"module\": \"CommonJS\" }' ts-node -r tsconfig-paths/register src/tests/frontend-contracts.test.tsx",
     "gen:access": "TS_NODE_COMPILER_OPTIONS='{ \"module\": \"CommonJS\" }' ts-node scripts/generate-access-control.ts",
     "write:build-id": "node scripts/write-build-id.cjs",
     "rbac:validate": "python3 ../infrastructure/scripts/validate_rbac_policy.py",
@@ -56,6 +58,7 @@
     "prisma": "^6.19.2",
     "tailwindcss": "^4.1.18",
     "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5"
   }
 }

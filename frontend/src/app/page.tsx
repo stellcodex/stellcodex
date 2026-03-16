@@ -1,5 +1,5 @@
-import { WorkspaceRedirect } from "@/components/workspace/WorkspaceRedirect";
+import { redirect } from "next/navigation";
 
-export default function LandingPage() {
-  return <WorkspaceRedirect />;
+export default function RootPage() {
+  redirect("/dashboard");
 }

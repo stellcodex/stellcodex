@@ -22,8 +22,12 @@ from app.core.storage import get_s3_client
 from app.db.session import SessionLocal
 from app.models.file import UploadFile
 from app.models.job_failure import JobFailure
+from app.models.orchestrator import OrchestratorSession
 from app.queue import get_queue
 from app.services.audit import log_event
+from app.services.orchestrator_sessions import build_decision_json, upsert_orchestrator_session
+from app.services.rule_configs import load_hybrid_v1_config
+from app.services.tenants import ensure_owner_tenant_id
 
 DEFAULT_RESULT_TTL_SECONDS = 3600
 DEFAULT_JOB_TTL_SECONDS = 3600
@@ -560,11 +564,16 @@ def _pipeline_3d(f: UploadFile, input_path: Path, mode: str, s3) -> dict:
     }
 
 
-def _hybrid_artifacts_if_step(input_path: Path, ext: str) -> tuple[dict | None, dict | None]:
+def _hybrid_artifacts_if_step(
+    input_path: Path,
+    ext: str,
+    *,
+    config: dict | None = None,
+) -> tuple[dict | None, dict | None]:
     if ext not in STEP_EXTS:
         return None, None
     try:
-        out = run_hybrid_v1_step_pipeline(str(input_path))
+        out = run_hybrid_v1_step_pipeline(str(input_path), config=config)
     except Exception:
         return None, None
     geometry_report = out.get("geometry_report")
@@ -627,18 +636,22 @@ def convert_file(file_id: str):
             meta = f.meta if isinstance(f.meta, dict) else {}
             kind = rule.kind
             mode = rule.mode
+            effective_project_id = str(meta.get("project_id") or "default")
+            hybrid_config, hybrid_rule_version = load_hybrid_v1_config(db, project_id=effective_project_id)
             result_payload: dict = {}
 
             _set_progress(db, f, stage="pipeline", percent=45, hint="processing", status="running")
             if kind == "3d":
                 result_payload = _pipeline_3d(f, local_path, mode, s3)
-                geometry_report, dfm_findings = _hybrid_artifacts_if_step(local_path, _ext(f.original_filename))
+                geometry_report, dfm_findings = _hybrid_artifacts_if_step(
+                    local_path,
+                    _ext(f.original_filename),
+                    config=hybrid_config,
+                )
                 if geometry_report is not None:
                     result_payload["geometry_report"] = geometry_report
                 if dfm_findings is not None:
                     result_payload["dfm_findings"] = dfm_findings
-                if mode == "visual_only":
-                    result_payload["decision_json"] = {"dfm": {"enabled": False, "reason": "visual_only"}}
             elif kind == "2d":
                 result_payload = _pipeline_2d(f, local_path, s3)
             elif kind == "doc":
@@ -664,11 +677,27 @@ def convert_file(file_id: str):
         elif isinstance(meta.get("part_count"), int):
             part_count = int(meta.get("part_count"))
 
+        effective_geometry = geometry if isinstance(geometry, dict) else (
+            meta.get("geometry_meta_json") if isinstance(meta.get("geometry_meta_json"), dict) else None
+        )
+        effective_dfm = result_payload.get("dfm_findings") if isinstance(result_payload.get("dfm_findings"), dict) else (
+            meta.get("dfm_findings") if isinstance(meta.get("dfm_findings"), dict) else None
+        )
+        decision_json = result_payload.get("decision_json") if isinstance(result_payload.get("decision_json"), dict) else None
+        if decision_json is None:
+            decision_json = build_decision_json(
+                mode=mode,
+                rule_version=hybrid_rule_version,
+                geometry_meta=effective_geometry,
+                dfm_findings=effective_dfm,
+            )
+            result_payload["decision_json"] = decision_json
+
         f.meta = {
             **meta,
             "kind": kind,
             "mode": mode,
-            "project_id": str(meta.get("project_id") or "default"),
+            "project_id": effective_project_id,
             "virus_scan_status": "clean",
             "assembly_meta_key": result_payload.get("assembly_meta_key"),
             "preview_jpg_keys": result_payload.get("preview_jpg_keys"),
@@ -682,8 +711,9 @@ def convert_file(file_id: str):
             "geometry_meta_json": geometry if isinstance(geometry, dict) else meta.get("geometry_meta_json"),
             "part_count": part_count if part_count is not None else meta.get("part_count"),
             "geometry_report": result_payload.get("geometry_report") if isinstance(result_payload.get("geometry_report"), dict) else meta.get("geometry_report"),
-            "dfm_findings": result_payload.get("dfm_findings") if isinstance(result_payload.get("dfm_findings"), dict) else meta.get("dfm_findings"),
-            "decision_json": result_payload.get("decision_json") if isinstance(result_payload.get("decision_json"), dict) else meta.get("decision_json"),
+            "dfm_findings": effective_dfm,
+            "decision_json": decision_json,
+            "rule_version": hybrid_rule_version,
             "stage": "finalize",
             "progress_percent": 90,
             "progress": "finalizing",
@@ -694,6 +724,14 @@ def convert_file(file_id: str):
             f.status = "ready"
             f.meta = {**(f.meta or {}), "stage": "ready", "progress_percent": 100, "progress": "ready"}
             db.add(f)
+            upsert_orchestrator_session(
+                db,
+                file_id=f.file_id,
+                state="S2 AssemblyReady" if kind == "3d" else "S1 Converted",
+                decision_json=decision_json,
+                rule_version=hybrid_rule_version,
+                mode=mode,
+            )
             log_event(db, "job.succeeded", file_id=f.file_id, data={"kind": kind, "mode": mode})
             db.commit()
             return {"status": "ready", "kind": kind, "mode": mode}
@@ -823,6 +861,7 @@ def mesh2d3d_export(source_file_id: str):
 
         generated = UploadFile(
             owner_sub=source.owner_sub,
+            tenant_id=source.tenant_id,
             owner_user_id=source.owner_user_id,
             owner_anon_sub=source.owner_anon_sub,
             is_anonymous=source.is_anonymous,
@@ -836,6 +875,10 @@ def mesh2d3d_export(source_file_id: str):
             visibility="private",
             folder_key=f"project/{project_id}/3d/mesh_approx",
             thumbnail_key=thumb_key,
+            decision_json=build_decision_json(
+                mode="mesh_approx",
+                rule_version=str((meta.get("rule_version") or "v0.0")),
+            ),
             meta={
                 "kind": "3d",
                 "mode": "mesh_approx",
@@ -901,8 +944,11 @@ def moldcodes_export_job(
               parsed_owner_user_id = UUID(owner_user_id)
           except Exception:
               parsed_owner_user_id = None
+        tenant_id = ensure_owner_tenant_id(db, owner_sub)
+        _cfg, rule_version = load_hybrid_v1_config(db, project_id=safe_project_id)
         generated = UploadFile(
             owner_sub=owner_sub,
+            tenant_id=tenant_id,
             owner_user_id=parsed_owner_user_id,
             owner_anon_sub=owner_anon_sub,
             is_anonymous=is_anonymous,
@@ -916,10 +962,12 @@ def moldcodes_export_job(
             visibility="private",
             folder_key=f"project/{safe_project_id}/3d/brep",
             thumbnail_key=thumb_key,
+            decision_json=build_decision_json(mode="brep", rule_version=rule_version),
             meta={
                 "kind": "3d",
                 "mode": "brep",
                 "project_id": safe_project_id,
+                "rule_version": rule_version,
                 "generated_by": "moldcodes_export",
                 "category": safe_category,
                 "family": safe_family,
@@ -980,6 +1028,7 @@ def retention_purge():
                         except Exception:
                             pass
             log_event(db, "retention.purge", actor_anon_sub=f.owner_anon_sub or f.owner_sub, file_id=f.file_id)
+            db.query(OrchestratorSession).filter(OrchestratorSession.file_id == f.file_id).delete(synchronize_session=False)
             db.delete(f)
             removed += 1
         db.commit()

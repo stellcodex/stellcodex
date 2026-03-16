@@ -17,3 +17,7 @@
 ## Current Historical Passing Release Bundle
 
 - `gdrive:stellcodex-genois/backups/handoff/V7_STABIL_20260227_EVIDENCE/`
+
+## Current GitHub Canonical Context Bundle
+
+- `gdrive:stellcodex-genois/STELLCODEX/01_CANONICAL_CONTEXT/V10_MASTER_PACKAGE/V10_GITHUB_CANONICAL_CONTEXT_20260316_121111/`

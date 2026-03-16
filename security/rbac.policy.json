@@ -16,7 +16,8 @@
     {
       "name": "support",
       "permissions": [
-        "system.status.read"
+        "system.status.read",
+        "system.queues.read"
       ]
     },
     {
@@ -34,262 +35,19 @@
   ],
   "permission_definitions": [
     {
-      "key": "admin.comments.disable_on_file"
-    },
-    {
-      "key": "admin.comments.enable_on_file"
-    },
-    {
-      "key": "admin.files.archive"
-    },
-    {
-      "key": "admin.files.delete"
-    },
-    {
-      "key": "admin.files.hide"
-    },
-    {
-      "key": "admin.files.purge_versions"
-    },
-    {
       "key": "admin.files.read"
-    },
-    {
-      "key": "admin.files.storage_purge"
-    },
-    {
-      "key": "admin.files.unarchive"
-    },
-    {
-      "key": "admin.files.unhide"
-    },
-    {
-      "key": "admin.files.view_metadata"
-    },
-    {
-      "key": "admin.files.view_processing_history"
-    },
-    {
-      "key": "admin.library.assign_category"
-    },
-    {
-      "key": "admin.library.curate_basic"
-    },
-    {
-      "key": "admin.library.feature"
-    },
-    {
-      "key": "admin.library.read"
-    },
-    {
-      "key": "admin.library.remove_from_library"
-    },
-    {
-      "key": "admin.library.unfeature"
-    },
-    {
-      "key": "admin.notes.read"
-    },
-    {
-      "key": "admin.notes.remove"
-    },
-    {
-      "key": "admin.presentations.delete"
-    },
-    {
-      "key": "admin.presentations.lock"
-    },
-    {
-      "key": "admin.presentations.read"
-    },
-    {
-      "key": "admin.presentations.unlock"
-    },
-    {
-      "key": "admin.shares.downgrade_permission"
-    },
-    {
-      "key": "admin.shares.make_public"
-    },
-    {
-      "key": "admin.shares.org_wide"
-    },
-    {
-      "key": "admin.shares.read"
-    },
-    {
-      "key": "admin.shares.remove_expiry"
-    },
-    {
-      "key": "admin.shares.revoke"
-    },
-    {
-      "key": "admin.shares.set_expiry"
-    },
-    {
-      "key": "admin.shares.set_no_expiry"
-    },
-    {
-      "key": "admin.shares.upgrade_permission"
-    },
-    {
-      "key": "admin.users.delete"
-    },
-    {
-      "key": "admin.users.disable_sharing"
-    },
-    {
-      "key": "admin.users.enable_sharing"
     },
     {
       "key": "admin.users.read"
     },
     {
-      "key": "admin.users.revoke_sessions"
-    },
-    {
-      "key": "admin.users.suspend"
-    },
-    {
-      "key": "admin.users.unsuspend"
-    },
-    {
-      "key": "ai.suggestions.approve"
-    },
-    {
-      "key": "ai.suggestions.read"
-    },
-    {
-      "key": "ai.suggestions.reject"
-    },
-    {
-      "key": "analytics.read_aggregate"
-    },
-    {
-      "key": "approvals.approve"
-    },
-    {
-      "key": "approvals.cancel"
-    },
-    {
-      "key": "approvals.execute"
-    },
-    {
-      "key": "approvals.read"
-    },
-    {
-      "key": "approvals.reject"
-    },
-    {
-      "key": "approvals.request_create"
-    },
-    {
       "key": "logs.audit.read"
-    },
-    {
-      "key": "logs.export_full"
-    },
-    {
-      "key": "logs.export_redacted"
-    },
-    {
-      "key": "logs.system.read_full"
-    },
-    {
-      "key": "logs.system.read_redacted"
-    },
-    {
-      "key": "rbac.assignments.read"
-    },
-    {
-      "key": "rbac.assignments.update"
-    },
-    {
-      "key": "rbac.roles.create"
-    },
-    {
-      "key": "rbac.roles.delete"
-    },
-    {
-      "key": "rbac.roles.read"
-    },
-    {
-      "key": "rbac.roles.update"
-    },
-    {
-      "key": "security.abuse.read"
-    },
-    {
-      "key": "security.emergency.disable_public_shares"
-    },
-    {
-      "key": "security.emergency.disable_uploads"
-    },
-    {
-      "key": "security.emergency.enable_public_shares"
-    },
-    {
-      "key": "security.emergency.enable_uploads"
-    },
-    {
-      "key": "security.emergency.readonly_disable"
-    },
-    {
-      "key": "security.emergency.readonly_enable"
-    },
-    {
-      "key": "security.files.quarantine"
-    },
-    {
-      "key": "security.files.unquarantine"
-    },
-    {
-      "key": "security.ip.block"
-    },
-    {
-      "key": "security.ip.unblock"
-    },
-    {
-      "key": "security.policies.read"
-    },
-    {
-      "key": "security.policies.update"
-    },
-    {
-      "key": "system.backups.read"
-    },
-    {
-      "key": "system.backups.restore_test"
-    },
-    {
-      "key": "system.deploy.read"
-    },
-    {
-      "key": "system.deploy.rollback"
-    },
-    {
-      "key": "system.queues.pause"
     },
     {
       "key": "system.queues.read"
     },
     {
-      "key": "system.queues.resume"
-    },
-    {
-      "key": "system.queues.set_concurrency"
-    },
-    {
-      "key": "system.secrets.rotate"
-    },
-    {
       "key": "system.status.read"
-    },
-    {
-      "key": "system.workers.restart"
-    },
-    {
-      "key": "system.workers.scale"
     }
   ],
   "ui_prefix_permissions": [

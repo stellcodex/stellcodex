@@ -1,12 +1,12 @@
-import { ErrorState } from "@/components/ui/StateBlocks";
+import { RouteEmptyState } from "@/components/states/RouteEmptyState";
 
-export default function NotFound() {
+export default function NotFoundPage() {
   return (
-    <div className="mx-auto max-w-3xl px-6 py-8">
-      <ErrorState
-        title="Page not found"
-        description="The requested page does not exist."
+    <main className="mx-auto max-w-3xl px-6 py-16">
+      <RouteEmptyState
+        description="The requested STELLCODEX route does not exist."
+        title="Route not found"
       />
-    </div>
+    </main>
   );
 }
