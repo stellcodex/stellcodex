@@ -6,6 +6,8 @@
 - leak_scan_repo.sh: public-contract forbidden token scan for `docs/contracts` and `schemas`
 - backup_db.sh: daily DB dump
 - backup_object_mirror.sh: object mirror via MinIO client (mc) or docker cp fallback; defaults to local path target under `./backups/object_mirror`
+- object_restore_drill.sh: restores the local object mirror into an isolated MinIO probe and verifies object visibility via S3 listing
+- runtime_restore_probe.sh: restores the latest DB dump, mounts the object mirror into isolated Redis/MinIO/backend/worker probes, and verifies a STEP upload can complete end-to-end
 - weekly_restore_gate.sh: restore latest DB dump into a temporary database and rerun release gate; can optionally run smoke gate too
 
 ## smoke_gate.sh

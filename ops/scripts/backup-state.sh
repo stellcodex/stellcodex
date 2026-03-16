@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ops/scripts/backup-state.sh
 # State + DB + config → Google Drive
-# Cron: 0 2 * * * /root/workspace/ops/scripts/backup-state.sh >> /var/log/stellcodex-backup.log 2>&1
+# Cron source: ops/cron/stellcodex-cleanup.cron
 set -euo pipefail
 
 DRIVE_ROOT="gdrive:stellcodex-genois"
