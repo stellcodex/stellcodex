@@ -6,7 +6,7 @@ canonical_status: "ACTIVE_MAP"
 owner_layer: "OPERATIONS"
 related_release: "V10_CONSTITUTION_ACTIVATION"
 hash_sha256: "PENDING"
-last_verified_at: "2026-03-16T00:00:00Z"
+last_verified_at: "2026-03-16T12:19:07Z"
 sync_reference: "ARCHIVE:00_MASTER_INDEX/RUNTIME_TO_ARCHIVE_MAP.md"
 ---
 
@@ -27,4 +27,5 @@ Current registered producers:
 - `scripts/release_gate.sh` -> release gate outputs under `06_OPERATIONS`
 - `scripts/weekly_restore_gate.sh` -> restore proof records under `03_GDRIVE_ARCHIVE` and `06_OPERATIONS`
 - `ops/scripts/backup-state.sh` -> Drive mirror payloads under `03_GDRIVE_ARCHIVE`
+- `docs/v10/`, `docs/indexes/`, `docs/manifests/`, and root `README.md` -> canonical context export under `03_GDRIVE_ARCHIVE` and Drive path `STELLCODEX/01_CANONICAL_CONTEXT/V10_MASTER_PACKAGE/`
 - `docs/ops/evidence/*` -> GitHub-backed operational evidence under `02_GITHUB_CANON`

@@ -6,7 +6,7 @@ canonical_status: "ACTIVE_LEDGER"
 owner_layer: "SYSTEM"
 related_release: "V10_CONSTITUTION_ACTIVATION"
 hash_sha256: "PENDING"
-last_verified_at: "2026-03-16T12:30:00Z"
+last_verified_at: "2026-03-16T12:19:07Z"
 sync_reference: "ARCHIVE:00_MASTER_INDEX/SYSTEM_STATE_LEDGER.md"
 ---
 
@@ -36,3 +36,4 @@ sync_reference: "ARCHIVE:00_MASTER_INDEX/SYSTEM_STATE_LEDGER.md"
 - Current runtime recovery evidence bundle was superseded by `gdrive:stellcodex-genois/backups/handoff/V10_RUNTIME_RECOVERY_20260316_111840/` to include runtime rebuild proof and probe logs.
 - GitHub canonical documentation was consolidated under `docs/v10/` with indexes and manifests under `docs/indexes/` and `docs/manifests/`.
 - Legacy V6, V7, prompt, and frozen report authority files were moved into explicit archive zones under `docs/archive/`.
+- Full recursive Drive inventory was imported into `03_GDRIVE_ARCHIVE`, and the GitHub V10 canonical context package was exported to `gdrive:stellcodex-genois/STELLCODEX/01_CANONICAL_CONTEXT/V10_MASTER_PACKAGE/V10_GITHUB_CANONICAL_CONTEXT_20260316_121111/`.
