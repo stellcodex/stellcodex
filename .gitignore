@@ -15,6 +15,7 @@ frontend/.turbo/
 frontend/.next/
 frontend/.next_broken_*/
 frontend/public/build_id.txt
+infrastructure/deploy/.env
 *.bak
 *.bak.*
 # local agents / plugins
