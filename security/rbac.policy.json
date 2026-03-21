@@ -27,7 +27,7 @@
       ]
     },
     {
-      "name": "user",
+      "name": "member",
       "permissions": [
         "system.status.read"
       ]

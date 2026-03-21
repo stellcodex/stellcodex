@@ -2,7 +2,7 @@
 
 - Status: `Active Canonical Index`
 - Parent authority: `docs/v10/14_V10_DRIVE_ARCHIVE_HIERARCHY.md`
-- Last updated: `2026-03-16`
+- Last updated: `2026-03-21`
 - Language: `English`
 
 ## Drive Authority
@@ -12,7 +12,11 @@
 
 ## Current Runtime Recovery Bundle
 
-- `gdrive:stellcodex-genois/backups/handoff/V10_RUNTIME_RECOVERY_20260316_111840/`
+- `gdrive:stellcodex-genois/backups/handoff/V10_RUNTIME_RECOVERY_20260320_223337/`
+
+## Current Runtime Evidence Mirror
+
+- `gdrive:stellcodex-genois/server-artifacts/evidence/`
 
 ## Current Historical Passing Release Bundle
 

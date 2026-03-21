@@ -1,6 +1,6 @@
-import { FileDetailScreen } from "@/components/files/FileDetailScreen";
+import { FileWorkspace } from "@/components/product/FileWorkspace";
 
 export default async function FileDetailPage({ params }: { params: Promise<{ fileId: string }> }) {
   const { fileId } = await params;
-  return <FileDetailScreen fileId={fileId} />;
+  return <FileWorkspace fileId={fileId} />;
 }

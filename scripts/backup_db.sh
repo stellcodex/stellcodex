@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${ROOT_DIR}/scripts/lib/runtime_env.sh"
+
 OUT_DIR="${OUT_DIR:-./backups}"
 DB_HOST="${DB_HOST:-localhost}"
-DB_PORT="${DB_PORT:-5432}"
+DB_PORT="${DB_PORT:-}"
 DB_USER="${DB_USER:-stellcodex}"
 DB_NAME="${DB_NAME:-stellcodex}"
-DB_CONTAINER="${DB_CONTAINER:-stellcodex-postgres}"
+DB_CONTAINER="${DB_CONTAINER:-$(runtime_resolve_db_container 2>/dev/null || true)}"
 TS="$(date +%Y%m%d_%H%M%S)"
 
 mkdir -p "$OUT_DIR"
@@ -20,8 +23,15 @@ cleanup() {
 trap cleanup EXIT
 
 run_local_dump() {
-  PGPASSWORD="${DB_PASSWORD:-}" \
-    pg_dump --no-password -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" "$DB_NAME"
+  local port
+  for port in "${DB_PORT:-}" "15432" "5432"; do
+    [ -n "${port}" ] || continue
+    if PGPASSWORD="${DB_PASSWORD:-}" \
+      pg_dump --no-password -h "$DB_HOST" -p "$port" -U "$DB_USER" "$DB_NAME"; then
+      return 0
+    fi
+  done
+  return 1
 }
 
 run_container_dump() {

@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_URL="${BASE_URL:-http://127.0.0.1:8000}"
-BACKEND_BASE_URL="${BACKEND_BASE_URL:-http://127.0.0.1:8000}"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${ROOT_DIR}/scripts/lib/runtime_env.sh"
+
+BASE_URL="${BASE_URL:-}"
+BACKEND_BASE_URL="${BACKEND_BASE_URL:-}"
 CURL_MAX_TIME="${CURL_MAX_TIME:-5}"
 RESOLVED_BASE_URL_FILE="${RESOLVED_BASE_URL_FILE:-/tmp/stellcodex_smoke_base_url}"
 
@@ -36,6 +39,9 @@ add_base_url_candidate() {
 
 add_base_url_candidate "$BASE_URL"
 add_base_url_candidate "$BACKEND_BASE_URL"
+add_base_url_candidate "$(runtime_resolve_backend_base_url 2>/dev/null || true)"
+add_base_url_candidate "http://127.0.0.1:18000"
+add_base_url_candidate "http://127.0.0.1:8000"
 
 echo "Smoke: health endpoint discovery"
 HEALTH_OK_PATH=""

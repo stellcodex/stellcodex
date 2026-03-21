@@ -12,10 +12,15 @@ class User(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(Text, nullable=True, unique=True)
+    full_name = Column(Text, nullable=True)
+    auth_provider = Column(String(32), nullable=False, default="local")
     password_hash = Column(Text, nullable=True)
-    role = Column(String(32), nullable=False, default="user")
+    google_sub = Column(Text, nullable=True)
+    role = Column(String(32), nullable=False, default="member")
+    is_active = Column(Boolean, nullable=False, default=True)
     is_suspended = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    last_login_at = Column(DateTime, nullable=True)
 
 
 class PasswordResetToken(Base):

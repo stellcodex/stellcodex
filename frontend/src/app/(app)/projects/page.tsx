@@ -1,5 +1,5 @@
-import { ProjectsScreen } from "@/components/projects/ProjectsScreen";
+import { ProjectsWorkspace } from "@/components/product/ProjectsWorkspace";
 
 export default function ProjectsPage() {
-  return <ProjectsScreen />;
+  return <ProjectsWorkspace />;
 }

@@ -3,17 +3,20 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.v1.routes.files import download_content, get_file as get_file_detail
 from app.api.v1.routes.me import me as get_me
 from app.api.v1.routes.share import ShareCreateIn, create_share
+from app.core.config import settings
 from app.db.session import get_db
 from app.models.core import Privacy, Project
 from app.models.file import UploadFile as UploadFileModel
-from app.security.deps import Principal, get_current_principal
+from app.security.deps import Principal, get_current_principal, get_optional_principal
+from app.security.jwt import clear_session_cookie
+from app.services.auth_access import revoke_token
 from app.workers.tasks import (
     enqueue_convert_file,
     enqueue_mesh2d3d_export,
@@ -145,14 +148,27 @@ def _project_rows_for_owner(db: Session, principal: Principal) -> dict[str, Proj
 
 @router.get("/auth/me")
 def auth_me(
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal | None = Depends(get_optional_principal),
     db: Session = Depends(get_db),
 ):
     return get_me(principal=principal, db=db)
 
 
 @router.post("/auth/logout", response_model=LogoutOut)
-def auth_logout():
+def auth_logout(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    auth_header = str(request.headers.get("Authorization") or "").strip()
+    token = ""
+    if auth_header.startswith("Bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+    if not token:
+        token = str(request.cookies.get(settings.auth_session_cookie_name) or "").strip()
+    if token:
+        revoke_token(db, token, reason="logout")
+    clear_session_cookie(response, secure=(request.headers.get("x-forwarded-proto") or request.url.scheme) == "https")
     return LogoutOut()
 
 

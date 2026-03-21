@@ -1,0 +1,23 @@
+// AUTO-GENERATED. DO NOT EDIT.
+export const RENDER_PRESETS = [
+  {
+    "name": "preview_low",
+    "label": "Preview Low",
+    "engine": "eevee"
+  },
+  {
+    "name": "studio_soft",
+    "label": "Studio Soft",
+    "engine": "cycles"
+  },
+  {
+    "name": "technical_white",
+    "label": "Technical White",
+    "engine": "eevee"
+  },
+  {
+    "name": "exploded_shadow",
+    "label": "Exploded Shadow",
+    "engine": "cycles"
+  }
+] as const;

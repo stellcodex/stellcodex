@@ -232,7 +232,6 @@ class ShareListOut(BaseModel):
 
 
 class ShareResolveOut(BaseModel):
-    file_id: str
     status: str
     permission: str
     can_view: bool
@@ -255,7 +254,6 @@ def _serialize_share_resolve(token: str, share: Share, f: UploadFileModel) -> Sh
         original_url = f"/api/v1/share/{token}/content"
 
     return ShareResolveOut(
-        file_id=_public_file_id(f.file_id),
         status=f.status,
         permission=share.permission,
         can_view=True,

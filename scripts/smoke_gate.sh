@@ -2,13 +2,16 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${ROOT_DIR}/scripts/lib/runtime_env.sh"
+
 EVIDENCE_DIR="${ROOT_DIR}/evidence"
 OUT_FILE="${EVIDENCE_DIR}/smoke_gate_output.txt"
-API_BASE="${API_BASE:-http://127.0.0.1:8000/api/v1}"
-FRONT_BASE="${FRONT_BASE:-http://127.0.0.1:3010}"
+BACKEND_BASE_URL="${BACKEND_BASE_URL:-$(runtime_resolve_backend_base_url)}"
+API_BASE="${API_BASE:-${BACKEND_BASE_URL%/}/api/v1}"
+FRONT_BASE="${FRONT_BASE:-$(runtime_resolve_front_base_url)}"
 API_ORIGIN="${API_BASE%/api/v1}"
-STEP_SAMPLE="${STEP_SAMPLE:-/var/stellcodex/work/samples/parca.STEP}"
-STL_SAMPLE="${STL_SAMPLE:-/var/www/stellcodex/frontend/public/models/demo.STL}"
+STEP_SAMPLE="${STEP_SAMPLE:-$(runtime_resolve_step_sample_path 2>/dev/null || true)}"
+STL_SAMPLE="${STL_SAMPLE:-$(runtime_resolve_stl_sample_path 2>/dev/null || true)}"
 
 mkdir -p "${EVIDENCE_DIR}"
 exec > >(tee "${OUT_FILE}") 2>&1
@@ -41,7 +44,7 @@ print(value if value is not None else "")
 PY
 }
 
-echo "# V7 smoke gate"
+echo "# V10 smoke gate"
 date -Iseconds
 echo "api_base=${API_BASE}"
 echo "front_base=${FRONT_BASE}"
@@ -51,12 +54,11 @@ HEALTH_CODE="$(curl -sS -o "${TMP_DIR}/health.json" -w "%{http_code}" "${API_BAS
 [[ "${HEALTH_CODE}" == "200" ]] || fail "backend health http=${HEALTH_CODE}"
 pass "backend health 200"
 
-echo "[2/12] guest token"
-curl -sS -X POST "${API_BASE}/auth/guest" > "${TMP_DIR}/guest.json" || fail "guest token request failed"
-TOKEN="$(parse_json_field "${TMP_DIR}/guest.json" "access_token")"
-[[ -n "${TOKEN}" ]] || fail "guest token empty"
+echo "[2/12] authenticated session"
+TOKEN="$(runtime_request_auth_token "${API_BASE}" 2>/dev/null || true)"
+[[ -n "${TOKEN}" ]] || fail "auth token unavailable"
 AUTH=(-H "Authorization: Bearer ${TOKEN}")
-pass "guest token issued"
+pass "authenticated session issued"
 
 echo "[3/12] formats registry endpoint"
 FORMATS_HTTP="$(curl -sS -o "${EVIDENCE_DIR}/formats_registry_dump.json" -w "%{http_code}" "${API_BASE}/formats" || true)"

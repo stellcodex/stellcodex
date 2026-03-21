@@ -1,5 +1,5 @@
 // AUTO-GENERATED. DO NOT EDIT.
-// source: /root/workspace/frontend/src/security/access-control.source.json
+// source: /var/www/stellcodex/frontend/src/security/access-control.source.json
 
 export const PERMISSION_KEYS = [
   "admin.files.read",

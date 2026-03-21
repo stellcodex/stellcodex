@@ -1,6 +1,6 @@
-import { ProjectDetailScreen } from "@/components/projects/ProjectDetailScreen";
+import { ProjectWorkspace } from "@/components/product/ProjectWorkspace";
 
 export default async function ProjectDetailPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
-  return <ProjectDetailScreen projectId={projectId} />;
+  return <ProjectWorkspace projectId={projectId} />;
 }
