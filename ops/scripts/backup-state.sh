@@ -4,7 +4,12 @@
 # Cron source: ops/cron/stellcodex-cleanup.cron
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../../scripts/lib/runtime_env.sh"
+
 DRIVE_ROOT="gdrive:stellcodex-genois"
+WORKSPACE="${WORKSPACE:-$(cd "${SCRIPT_DIR}/../.." && pwd)}"
+LOCAL_BACKUP_DIR="${LOCAL_BACKUP_DIR:-${WORKSPACE}/backups}"
 TS="$(date +%Y%m%d_%H%M%S)"
 LOG_PREFIX="[backup-state $TS]"
 TMP="/tmp/stellcodex-backup-$$"
@@ -15,15 +20,17 @@ echo "$LOG_PREFIX Başlıyor..."
 
 # 1. PostgreSQL dump → Drive/backups/db/
 echo "$LOG_PREFIX DB dump alınıyor..."
-DB_CONTAINER="${DB_CONTAINER:-deploy_postgres_1}"
+DB_CONTAINER="${DB_CONTAINER:-$(runtime_resolve_db_container 2>/dev/null || true)}"
 DB_USER="${POSTGRES_USER:-stellcodex}"
 DB_NAME="${POSTGRES_DB:-stellcodex}"
 
-if docker ps --format "{{.Names}}" | grep -q "^${DB_CONTAINER}$"; then
-  DUMP="$TMP/db_${TS}.sql.gz"
+if [ -n "${DB_CONTAINER}" ] && docker ps --format "{{.Names}}" | grep -q "^${DB_CONTAINER}$"; then
+  mkdir -p "${LOCAL_BACKUP_DIR}"
+  DUMP="$TMP/db_${DB_NAME}_${TS}.sql.gz"
   docker exec "$DB_CONTAINER" sh -c \
     "PGPASSWORD=\"\${POSTGRES_PASSWORD}\" pg_dump -U ${DB_USER} ${DB_NAME}" \
     | gzip > "$DUMP"
+  cp "$DUMP" "${LOCAL_BACKUP_DIR}/"
   rclone copy "$DUMP" "${DRIVE_ROOT}/backups/db/"
   echo "$LOG_PREFIX DB dump → Drive OK"
 
@@ -74,5 +81,12 @@ echo "$LOG_PREFIX Knowledge sync..."
 [ -d /root/stell/knowledge ] && \
   rclone sync /root/stell/knowledge/ "${DRIVE_ROOT}/knowledge/stell/" 2>/dev/null || true
 echo "$LOG_PREFIX Knowledge OK"
+
+# 5. Runtime evidence → Drive/server-artifacts/evidence/
+echo "$LOG_PREFIX Evidence sync..."
+if [ -d "${WORKSPACE}/evidence" ] && [ "$(find "${WORKSPACE}/evidence" -mindepth 1 -print -quit 2>/dev/null)" ]; then
+  rclone sync "${WORKSPACE}/evidence/" "${DRIVE_ROOT}/server-artifacts/evidence/" --create-empty-src-dirs
+  echo "$LOG_PREFIX Evidence → Drive OK"
+fi
 
 echo "$LOG_PREFIX Tüm backup tamamlandı."

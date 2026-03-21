@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 POLICY_PATH = ROOT / "security" / "rbac.policy.json"
 
-REQUIRED_ROLES = {"admin", "support", "moderator", "user"}
+REQUIRED_ROLES = {"admin", "support", "moderator", "member"}
 
 
 def fail(msg: str) -> None:

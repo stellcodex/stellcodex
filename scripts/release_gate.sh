@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_URL="${BASE_URL:-http://127.0.0.1:8000}"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${ROOT_DIR}/scripts/lib/runtime_env.sh"
+
+BASE_URL="${BASE_URL:-$(runtime_resolve_backend_base_url)}"
 AUTH_TOKEN="${AUTH_TOKEN:-}"
 SAMPLE_FILE="${SAMPLE_FILE:-}"
 
 fail(){ echo "FAIL: $1" >&2; exit 1; }
 pass(){ echo "PASS: $1"; }
 
-echo "== V7 RELEASE GATE =="
+echo "== V10 RELEASE GATE =="
 
 # 1) Health
 BASE_URL="$BASE_URL" bash scripts/smoke_test.sh >/dev/null || fail "health endpoint"
@@ -43,11 +46,10 @@ pass "openapi endpoint"
 if [ -n "$SAMPLE_FILE" ]; then
   [ -f "$SAMPLE_FILE" ] || fail "SAMPLE_FILE not found"
 
-  # guest auth (optional)
   if [ -z "$AUTH_TOKEN" ]; then
-    AUTH_TOKEN="$(curl -fsS -X POST "$BASE_URL/api/v1/auth/guest" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("access_token",""))')"
+    AUTH_TOKEN="$(runtime_request_auth_token "$BASE_URL/api/v1" 2>/dev/null || true)"
   fi
-  [ -n "$AUTH_TOKEN" ] || fail "guest auth token missing"
+  [ -n "$AUTH_TOKEN" ] || fail "auth token missing (set AUTH_TOKEN or login credentials)"
 
   FILE_ID="$(curl -fsS -X POST "$BASE_URL/api/v1/files/upload" -H "Authorization: Bearer $AUTH_TOKEN" -F "upload=@$SAMPLE_FILE" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("file_id",""))')"
   [ -n "$FILE_ID" ] || fail "upload did not return file_id"

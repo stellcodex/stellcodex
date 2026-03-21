@@ -33,6 +33,9 @@ from app.models.file import UploadFile as UploadFileModel
 from app.security.deps import get_current_principal, Principal
 from app.services.dxf import load_doc, manifest_from_doc, render_svg
 from app.services.audit import log_event
+from app.services.orchestrator_sessions import build_decision_json, upsert_orchestrator_session
+from app.services.rule_configs import load_hybrid_v1_config
+from app.services.tenants import ensure_owner_tenant_id
 
 router = APIRouter(tags=["files"])
 log = logging.getLogger("uvicorn.error")
@@ -704,13 +707,24 @@ def initiate_upload(
     owner_sub = principal.owner_sub or principal.user_id or ""
     if not owner_sub:
         raise HTTPException(status_code=401, detail="Unauthorized")
+    tenant_id = ensure_owner_tenant_id(db, owner_sub)
     bucket = settings.s3_bucket
     key = _safe_object_key(owner_sub)
     kind, mode = _derive_kind_mode(data.filename)
-    file_meta = {"kind": kind, "mode": mode, "project_id": "default", "virus_scan_status": "queued"}
+    _cfg, rule_version = load_hybrid_v1_config(db, project_id="default")
+    decision_json = build_decision_json(mode=mode, rule_version=rule_version)
+    file_meta = {
+        "kind": kind,
+        "mode": mode,
+        "project_id": "default",
+        "virus_scan_status": "queued",
+        "decision_json": decision_json,
+        "rule_version": rule_version,
+    }
 
     f = UploadFileModel(
         owner_sub=owner_sub,
+        tenant_id=tenant_id,
         owner_user_id=principal.user_id if principal.typ == "user" else None,
         owner_anon_sub=principal.owner_sub if principal.typ == "guest" else None,
         is_anonymous=principal.typ == "guest",
@@ -725,6 +739,7 @@ def initiate_upload(
         visibility="private",
         folder_key=_derive_folder_key(data.filename, file_meta),
         meta=file_meta,
+        decision_json=decision_json,
         created_at=_now(),
         updated_at=_now(),
     )
@@ -775,6 +790,7 @@ async def direct_upload(
     owner_sub = principal.owner_sub or principal.user_id or ""
     if not owner_sub:
         raise HTTPException(status_code=401, detail="Unauthorized")
+    tenant_id = ensure_owner_tenant_id(db, owner_sub)
     bucket = settings.s3_bucket
     key = _safe_object_key(owner_sub)
     kind, mode = _derive_kind_mode(upload.filename)
@@ -786,9 +802,13 @@ async def direct_upload(
         "sniffed_content_type": sniffed,
         "virus_scan_status": "queued",
     }
+    _cfg, rule_version = load_hybrid_v1_config(db, project_id=effective_project_id)
+    file_meta["decision_json"] = build_decision_json(mode=mode, rule_version=rule_version)
+    file_meta["rule_version"] = rule_version
 
     f = UploadFileModel(
         owner_sub=owner_sub,
+        tenant_id=tenant_id,
         owner_user_id=principal.user_id if principal.typ == "user" else None,
         owner_anon_sub=principal.owner_sub if principal.typ == "guest" else None,
         is_anonymous=principal.typ == "guest",
@@ -802,6 +822,7 @@ async def direct_upload(
         visibility="private",
         folder_key=_derive_folder_key(upload.filename, file_meta),
         meta=file_meta,
+        decision_json=file_meta["decision_json"],
         created_at=_now(),
         updated_at=_now(),
     )
@@ -815,6 +836,15 @@ async def direct_upload(
         bucket,
         key,
         ExtraArgs={"ContentType": content_type},
+    )
+
+    upsert_orchestrator_session(
+        db,
+        file_id=f.file_id,
+        state="S0 Uploaded",
+        decision_json=file_meta["decision_json"],
+        rule_version=rule_version,
+        mode=mode,
     )
 
     try:
@@ -882,6 +912,7 @@ def complete_upload(
 
     meta = f.meta if isinstance(f.meta, dict) else {}
     kind, mode = _derive_kind_mode(f.original_filename, meta)
+    _cfg, rule_version = load_hybrid_v1_config(db, project_id=str(meta.get("project_id") or "default"))
     f.status = "queued"
     f.folder_key = f.folder_key or _derive_folder_key(f.original_filename, meta)
     f.meta = {
@@ -890,9 +921,19 @@ def complete_upload(
         "mode": mode,
         "project_id": str(meta.get("project_id") or "default"),
         "virus_scan_status": str(meta.get("virus_scan_status") or "queued"),
+        "decision_json": build_decision_json(mode=mode, rule_version=rule_version),
+        "rule_version": rule_version,
     }
     f.updated_at = _now()
     db.add(f)
+    upsert_orchestrator_session(
+        db,
+        file_id=f.file_id,
+        state="S0 Uploaded",
+        decision_json=f.meta["decision_json"],
+        rule_version=rule_version,
+        mode=mode,
+    )
     db.commit()
     db.refresh(f)
     print(

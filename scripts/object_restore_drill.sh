@@ -2,6 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${ROOT_DIR}/scripts/lib/runtime_env.sh"
+
 EVIDENCE_DIR="${ROOT_DIR}/evidence"
 OUT_FILE="${EVIDENCE_DIR}/object_restore_drill_output.txt"
 LISTING_FILE="${EVIDENCE_DIR}/object_restore_probe_listing.txt"
@@ -12,7 +14,7 @@ PROBE_NAME="${PROBE_NAME:-minio_restore_probe}"
 PROBE_IMAGE="${PROBE_IMAGE:-}"
 PROBE_ACCESS_KEY="${PROBE_ACCESS_KEY:-restoreprobe}"
 PROBE_SECRET_KEY="${PROBE_SECRET_KEY:-restoreprobe123}"
-LIVE_MINIO_CONTAINER="${LIVE_MINIO_CONTAINER:-deploy_minio_1}"
+LIVE_MINIO_CONTAINER="${LIVE_MINIO_CONTAINER:-$(runtime_resolve_minio_container 2>/dev/null || true)}"
 AWS_REGION="${AWS_REGION:-us-east-1}"
 
 mkdir -p "${EVIDENCE_DIR}"

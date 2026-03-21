@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import List, Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -15,12 +16,14 @@ from app.db.session import get_db
 from app.models.audit import AuditEvent
 from app.models.file import UploadFile
 from app.models.job_failure import JobFailure
+from app.models.orchestrator import OrchestratorSession
 from app.models.share import Share
 from app.models.user import RevokedToken, User
 from app.queue import get_queue, redis_conn
 from app.security.deps import require_role, Principal
 from app.security.jwt import create_user_token
 from app.services.audit import log_event
+from app.services.orchestrator_sessions import apply_session_state, approval_required, normalize_state_code, state_label
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_role("admin"))])
 
@@ -36,8 +39,41 @@ class RevokeSessionsIn(BaseModel):
     reason: str | None = None
 
 
+class AdminApprovalIn(BaseModel):
+    reason: str | None = Field(default=None, max_length=500)
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _approval_payload(session: OrchestratorSession, file_row: UploadFile | None) -> dict:
+    decision_json = session.decision_json if isinstance(session.decision_json, dict) else {}
+    flags = decision_json.get("conflict_flags")
+    return {
+        "id": str(session.id),
+        "file_id": session.file_id,
+        "filename": file_row.original_filename if file_row is not None else None,
+        "file_status": file_row.status if file_row is not None else None,
+        "state": session.state,
+        "state_label": state_label(session.state),
+        "approval_required": approval_required(decision_json),
+        "risk_flags": [str(item) for item in flags] if isinstance(flags, list) else [],
+        "decision_json": decision_json,
+        "created_at": session.created_at,
+        "updated_at": session.updated_at,
+    }
+
+
+def _approval_session_or_404(db: Session, approval_id: str) -> OrchestratorSession:
+    try:
+        approval_uuid = UUID(approval_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid approval id")
+    session = db.query(OrchestratorSession).filter(OrchestratorSession.id == approval_uuid).first()
+    if session is None:
+        raise HTTPException(status_code=404, detail="Approval not found")
+    return session
 
 
 @router.get("/health")
@@ -329,6 +365,88 @@ def admin_shares(db: Session = Depends(get_db)):
             for s in rows
         ]
     }
+
+
+@router.get("/approvals")
+def admin_approvals(state: Optional[str] = None, limit: int = 200, db: Session = Depends(get_db)):
+    limit = max(1, min(limit, 200))
+    q = db.query(OrchestratorSession)
+    if state:
+        q = q.filter(OrchestratorSession.state == normalize_state_code(state))
+    else:
+        q = q.filter(OrchestratorSession.state == "S5")
+    rows = q.order_by(desc(OrchestratorSession.updated_at)).limit(limit).all()
+    file_ids = [row.file_id for row in rows]
+    file_rows = (
+        db.query(UploadFile)
+        .filter(UploadFile.file_id.in_(file_ids))
+        .all()
+        if file_ids
+        else []
+    )
+    by_file_id = {row.file_id: row for row in file_rows}
+    return {"items": [_approval_payload(row, by_file_id.get(row.file_id)) for row in rows]}
+
+
+@router.get("/approvals/{approval_id}")
+def admin_approval_detail(approval_id: str, db: Session = Depends(get_db)):
+    session = _approval_session_or_404(db, approval_id)
+    file_row = db.query(UploadFile).filter(UploadFile.file_id == session.file_id).first()
+    return _approval_payload(session, file_row)
+
+
+@router.post("/approvals/{approval_id}:approve")
+def admin_approve_approval(
+    approval_id: str,
+    data: AdminApprovalIn,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(require_role("admin")),
+):
+    session = _approval_session_or_404(db, approval_id)
+    apply_session_state(
+        session,
+        state="S6 Approved",
+        decision_json=session.decision_json if isinstance(session.decision_json, dict) else {},
+    )
+    db.add(session)
+    log_event(
+        db,
+        "admin.approval.approve",
+        actor_user_id=principal.user_id,
+        file_id=session.file_id,
+        data={"approval_id": approval_id, "reason": data.reason},
+    )
+    db.commit()
+    db.refresh(session)
+    file_row = db.query(UploadFile).filter(UploadFile.file_id == session.file_id).first()
+    return _approval_payload(session, file_row)
+
+
+@router.post("/approvals/{approval_id}:reject")
+def admin_reject_approval(
+    approval_id: str,
+    data: AdminApprovalIn,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(require_role("admin")),
+):
+    session = _approval_session_or_404(db, approval_id)
+    apply_session_state(
+        session,
+        state="S4 DFMReady",
+        decision_json=session.decision_json if isinstance(session.decision_json, dict) else {},
+    )
+    db.add(session)
+    log_event(
+        db,
+        "admin.approval.reject",
+        actor_user_id=principal.user_id,
+        file_id=session.file_id,
+        data={"approval_id": approval_id, "reason": data.reason},
+    )
+    db.commit()
+    db.refresh(session)
+    file_row = db.query(UploadFile).filter(UploadFile.file_id == session.file_id).first()
+    return _approval_payload(session, file_row)
 
 
 @router.post("/shares/{share_id}/revoke")

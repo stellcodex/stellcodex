@@ -2,15 +2,17 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${ROOT_DIR}/scripts/lib/runtime_env.sh"
+
 EVIDENCE_DIR="${ROOT_DIR}/evidence"
 OUT_FILE="${EVIDENCE_DIR}/runtime_restore_probe_output.txt"
 BACKUP_DIR="${BACKUP_DIR:-${ROOT_DIR}/backups}"
 MIRROR_ROOT="${MIRROR_ROOT:-${ROOT_DIR}/backups/object_mirror}"
-DB_CONTAINER="${DB_CONTAINER:-deploy_postgres_1}"
+DB_CONTAINER="${DB_CONTAINER:-$(runtime_resolve_db_container 2>/dev/null || true)}"
 DB_USER="${DB_USER:-stellcodex}"
 DB_NAME="${DB_NAME:-stellcodex}"
 RESTORE_DB_NAME="${RESTORE_DB_NAME:-stellcodex_restore_runtime_probe}"
-PROBE_NETWORK="${PROBE_NETWORK:-deploy_default}"
+PROBE_NETWORK="${PROBE_NETWORK:-$(runtime_resolve_docker_network 2>/dev/null || true)}"
 PROBE_BACKEND_NAME="${PROBE_BACKEND_NAME:-restore_backend_probe}"
 PROBE_WORKER_NAME="${PROBE_WORKER_NAME:-restore_worker_probe}"
 PROBE_REDIS_NAME="${PROBE_REDIS_NAME:-restore_redis_probe}"
@@ -21,14 +23,14 @@ PROBE_BACKEND_PORT="${PROBE_BACKEND_PORT:-18180}"
 PROBE_MINIO_PORT="${PROBE_MINIO_PORT:-19110}"
 PROBE_ACCESS_KEY="${PROBE_ACCESS_KEY:-stellcodex}"
 PROBE_SECRET_KEY="${PROBE_SECRET_KEY:-stellcodex123}"
-STEP_SAMPLE="${STEP_SAMPLE:-/var/stellcodex/work/samples/parca.STEP}"
+STEP_SAMPLE="${STEP_SAMPLE:-$(runtime_resolve_step_sample_path 2>/dev/null || true)}"
 DUMP_FILE="${DUMP_FILE:-}"
 KEEP_RESTORE_DB="${KEEP_RESTORE_DB:-0}"
 KEEP_PROBE_CONTAINERS="${KEEP_PROBE_CONTAINERS:-0}"
 KEEP_PROBE_DATA="${KEEP_PROBE_DATA:-0}"
-LIVE_BACKEND_CONTAINER="${LIVE_BACKEND_CONTAINER:-deploy_backend_1}"
-LIVE_WORKER_CONTAINER="${LIVE_WORKER_CONTAINER:-deploy_worker_1}"
-LIVE_MINIO_CONTAINER="${LIVE_MINIO_CONTAINER:-deploy_minio_1}"
+LIVE_BACKEND_CONTAINER="${LIVE_BACKEND_CONTAINER:-$(runtime_resolve_backend_container 2>/dev/null || true)}"
+LIVE_WORKER_CONTAINER="${LIVE_WORKER_CONTAINER:-$(runtime_resolve_worker_container 2>/dev/null || true)}"
+LIVE_MINIO_CONTAINER="${LIVE_MINIO_CONTAINER:-$(runtime_resolve_minio_container 2>/dev/null || true)}"
 
 mkdir -p "${EVIDENCE_DIR}"
 exec > >(tee "${OUT_FILE}") 2>&1
@@ -86,7 +88,7 @@ pick_port() {
 }
 
 find_latest_dump() {
-  find "${BACKUP_DIR}" -maxdepth 1 -type f -name "db_${DB_NAME}_*.sql.gz" | sort | tail -n 1
+  find "${BACKUP_DIR}" -maxdepth 1 -type f \( -name "db_${DB_NAME}_*.sql.gz" -o -name "db_*.sql.gz" \) | sort | tail -n 1
 }
 
 parse_json_field() {
@@ -258,15 +260,14 @@ done
 curl -fsS "http://127.0.0.1:${PROBE_BACKEND_PORT}/api/v1/health" >/dev/null 2>&1 || fail "backend probe health failed"
 pass "backend probe healthy"
 
-echo "[5/7] issue guest token"
+echo "[5/7] issue authenticated session"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"; cleanup' EXIT
 API_BASE="http://127.0.0.1:${PROBE_BACKEND_PORT}/api/v1"
-curl -sS -X POST "${API_BASE}/auth/guest" > "${TMP_DIR}/guest.json" || fail "guest token request failed"
-TOKEN="$(parse_json_field "${TMP_DIR}/guest.json" "access_token")"
-[[ -n "${TOKEN}" ]] || fail "guest token empty"
+TOKEN="$(runtime_request_auth_token "${API_BASE}" 2>/dev/null || true)"
+[[ -n "${TOKEN}" ]] || fail "auth token unavailable for restored runtime"
 AUTH=(-H "Authorization: Bearer ${TOKEN}")
-pass "guest token issued"
+pass "authenticated session issued"
 
 echo "[6/7] upload STEP through restored runtime"
 curl -sS -X POST "${API_BASE}/files/upload" "${AUTH[@]}" \

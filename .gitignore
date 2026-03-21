@@ -6,10 +6,16 @@ evidence_*.txt
 evidence/
 FINAL_EVIDENCE_REPORT.md
 backups/
+_reports/
+ops/orchestra/state/
+frontend/.npm/
+frontend/.cache/
+frontend/.turbo/
 
 frontend/.next/
 frontend/.next_broken_*/
 frontend/public/build_id.txt
+infrastructure/deploy/.env
 *.bak
 *.bak.*
 # local agents / plugins
@@ -38,3 +44,4 @@ stellcodex_v7/
 
 # Node
 frontend/node_modules/
+frontend/_legacy_src_20260316/

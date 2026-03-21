@@ -2,10 +2,12 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${ROOT_DIR}/scripts/lib/runtime_env.sh"
+
 EVIDENCE_DIR="${ROOT_DIR}/evidence"
 OUT_FILE="${EVIDENCE_DIR}/weekly_restore_gate_output.txt"
 BACKUP_DIR="${BACKUP_DIR:-${ROOT_DIR}/backups}"
-DB_CONTAINER="${DB_CONTAINER:-stellcodex-postgres}"
+DB_CONTAINER="${DB_CONTAINER:-$(runtime_resolve_db_container 2>/dev/null || true)}"
 DB_USER="${DB_USER:-stellcodex}"
 DB_NAME="${DB_NAME:-stellcodex}"
 RESTORE_DB_NAME="${RESTORE_DB_NAME:-stellcodex_restore_probe}"
@@ -29,7 +31,7 @@ pass() {
 }
 
 find_latest_dump() {
-  find "${BACKUP_DIR}" -maxdepth 1 -type f -name "db_${DB_NAME}_*.sql.gz" | sort | tail -n 1
+  find "${BACKUP_DIR}" -maxdepth 1 -type f \( -name "db_${DB_NAME}_*.sql.gz" -o -name "db_*.sql.gz" \) | sort | tail -n 1
 }
 
 cleanup_restore_db() {

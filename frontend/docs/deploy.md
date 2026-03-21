@@ -30,8 +30,11 @@
 4. Build Command = `npm run build`
 5. Output = `Next.js (auto)`
 3. Env vars:
-   - `NEXT_PUBLIC_API_URL=https://api.stellcodex.com`
-   - `NEXT_PUBLIC_API_BASE=https://api.stellcodex.com` (optional legacy alias)
+   - `NEXT_PUBLIC_API_URL=/api/v1`
+   - `NEXT_PUBLIC_API_BASE=/api/v1` (optional legacy alias)
+   - `BACKEND_API_ORIGIN=http://127.0.0.1:18000`
+   - `INTERNAL_FRONTEND_ORIGIN=http://127.0.0.1:3010`
+   - `AUTH_SESSION_COOKIE_NAME=stellcodex_session`
    - `STELLCODEX_ENABLE_MOCK_ADMIN=0`
    - `DATABASE_URL=postgresql://USER:PASSWORD@POOLED_HOST/neondb?sslmode=require&schema=stellcodex_prod&options=endpoint%3DNEON_ENDPOINT`
    - `DIRECT_URL=postgresql://USER:PASSWORD@DIRECT_HOST/neondb?sslmode=require&schema=stellcodex_prod&options=endpoint%3DNEON_ENDPOINT`
@@ -51,7 +54,7 @@ Schema examples (Neon):
 ## Notes
 - This patch completes Share/View/Mold/Home UI with mock Next API routes for deterministic UX.
 - Route hygiene is enforced by middleware allowlist. Legacy routes stay in repo but return `404` at runtime.
-- Existing backend client uses `NEXT_PUBLIC_API_URL` (and middleware also supports optional `NEXT_PUBLIC_API_BASE` alias).
+- Browser requests stay same-origin on `/api/v1`; internal server-side fetches use `BACKEND_API_ORIGIN`.
 - Build runs `node scripts/prisma-safe.cjs && next build` so Prisma generate is skipped only when packages/env are missing.
 
 ## Rollback (Vercel)

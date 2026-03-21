@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${ROOT_DIR}/scripts/lib/runtime_env.sh"
+
 # Uses MinIO client if available, otherwise falls back to rclone or aws s3 sync for local path targets.
 # Configure:
 #   SRC_ALIAS, DST_ALIAS or DST_PATH, BUCKET
@@ -11,7 +14,7 @@ DST_PATH="${DST_PATH:-./backups/object_mirror}"
 BUCKET="${BUCKET:-stellcodex}"
 SRC_ENDPOINT_URL="${SRC_ENDPOINT_URL:-}"
 AWS_REGION="${AWS_REGION:-us-east-1}"
-MINIO_CONTAINER="${MINIO_CONTAINER:-stellcodex-minio}"
+MINIO_CONTAINER="${MINIO_CONTAINER:-$(runtime_resolve_minio_container 2>/dev/null || true)}"
 
 MC_BIN=""
 if command -v mcli >/dev/null 2>&1; then

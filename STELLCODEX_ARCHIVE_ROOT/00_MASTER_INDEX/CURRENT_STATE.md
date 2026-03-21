@@ -6,7 +6,7 @@ canonical_status: "ACTIVE_STATUS"
 owner_layer: "SYSTEM"
 related_release: "V10_CONSTITUTION_ACTIVATION"
 hash_sha256: "PENDING"
-last_verified_at: "2026-03-16T12:19:07Z"
+last_verified_at: "2026-03-16T17:55:00Z"
 sync_reference: "ARCHIVE:00_MASTER_INDEX/CURRENT_STATE.md"
 ---
 
@@ -27,6 +27,11 @@ State summary:
 - Live runtime verification now passes again after fixing `rule_configs` loader drift, `orchestrator_sessions` schema drift, and smoke-gate port binding.
 - Current runtime evidence bundle and the latest historical passing release bundle are both mirrored into Drive.
 - Restore-from-backup runtime rebuild proof now passes through an isolated backend/worker probe.
+- The live frontend cutover completed on `2026-03-16` and `https://stellcodex.com` now serves the canonical STELLCODEX manufacturing workspace shell.
+- The current GitHub snapshot for the live cutover is commit `e0aa81f`, mirrored to branch `backup/20260316-live-frontend-cutover` because `main` remains protected by required checks.
+- A fresh Drive backup completed after the live cutover, including DB dump `db_20260316_203205.sql.gz`, state sync, config sync, and knowledge sync.
+- Cleanup policy was corrected after the live cutover so `ops/scripts/cleanup.sh` no longer deletes active production frontend runtime directories under `/var/www/stellcodex/frontend`.
+- Production frontend runtime health passes again after reinstall, rebuild, and PM2 restart following the cleanup-policy correction.
 
 Validation status:
 - Archive directories present: PASS
@@ -60,3 +65,7 @@ Validation status:
 - GitHub canonical context export mirrored to Drive: PASS
 - Runtime restore proof coverage: PASS
 - Activation evidence registration: PASS
+- Live frontend cutover on public domain: PASS
+- Post-cutover Drive backup: PASS
+- Post-cutover cleanup policy correction: PASS
+- Protected-branch backup snapshot in GitHub: PASS

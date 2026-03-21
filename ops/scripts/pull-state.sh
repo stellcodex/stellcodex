@@ -4,8 +4,12 @@
 # Kullanım: bash ops/scripts/pull-state.sh
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../../scripts/lib/runtime_env.sh"
+
 DRIVE_ROOT="gdrive:stellcodex-genois"
 LOG_PREFIX="[pull-state $(date '+%Y-%m-%d %H:%M:%S')]"
+RESTORE_DB_CONTAINER="${DB_CONTAINER:-$(runtime_resolve_db_container 2>/dev/null || true)}"
 
 echo "$LOG_PREFIX Drive'dan state çekiliyor..."
 
@@ -47,4 +51,4 @@ echo ""
 echo "$LOG_PREFIX Pull tamamlandı."
 echo "DB restore için:"
 echo "  rclone copy ${DRIVE_ROOT}/backups/db/<dosya>.sql.gz /tmp/"
-echo "  gunzip -c /tmp/<dosya>.sql.gz | docker exec -i deploy_postgres_1 psql -U stellcodex"
+echo "  gunzip -c /tmp/<dosya>.sql.gz | docker exec -i ${RESTORE_DB_CONTAINER:-deploy_postgres_1} psql -U stellcodex"

@@ -8,8 +8,11 @@ DATABASE_URL=postgresql://USER:PASS@POOLED_HOST/neondb?sslmode=require&schema=st
 DIRECT_URL=postgresql://USER:PASS@DIRECT_HOST/neondb?sslmode=require&schema=stellcodex_prod&options=endpoint%3D<endpoint>
 STELLCODEX_ENABLE_MOCK_ADMIN=1   # local demo
 STELLCODEX_ENABLE_MOCK_ADMIN=0   # production
-NEXT_PUBLIC_API_URL=https://api.stellcodex.com
-NEXT_PUBLIC_API_BASE=https://api.stellcodex.com   # optional legacy alias
+NEXT_PUBLIC_API_URL=/api/v1
+NEXT_PUBLIC_API_BASE=/api/v1   # optional legacy alias
+BACKEND_API_ORIGIN=http://127.0.0.1:18000
+INTERNAL_FRONTEND_ORIGIN=http://127.0.0.1:3010
+AUTH_SESSION_COOKIE_NAME=stellcodex_session
 ```
 
 ## PROD Schema MUST Be Fixed

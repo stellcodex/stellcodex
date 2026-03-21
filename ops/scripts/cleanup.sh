@@ -7,6 +7,7 @@ set -euo pipefail
 
 WORKSPACE="${WORKSPACE:-/root/workspace}"
 DRIVE_ROOT="${DRIVE_ROOT:-gdrive:stellcodex-genois}"
+PROD_FRONTEND_ROOT="${PROD_FRONTEND_ROOT:-/var/www/stellcodex/frontend}"
 KEEP_RUNS="${KEEP_RUNS:-2}"
 REPORT_RETENTION_DAYS="${REPORT_RETENTION_DAYS:-7}"
 BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
@@ -100,6 +101,7 @@ fi
 sync_dir_to_drive "${WORKSPACE}/_backups" "server-artifacts/_backups"
 sync_dir_to_drive "${WORKSPACE}/backups" "server-artifacts/backups"
 sync_dir_to_drive "${WORKSPACE}/_reports" "server-artifacts/_reports"
+sync_dir_to_drive "${WORKSPACE}/evidence" "server-artifacts/evidence"
 sync_dir_to_drive "${WORKSPACE}/ops/orchestra/state" "state"
 
 # 2. CPU-only or rebuildable local directories.
@@ -108,17 +110,18 @@ if [ -d "${WORKSPACE}/AI/.venv" ]; then
   rm -rf "${WORKSPACE}/AI/.venv"
 fi
 
-for dir in \
-  "${WORKSPACE}/frontend/node_modules" \
-  "${WORKSPACE}/frontend/.next" \
-  "/var/www/stellcodex/frontend/node_modules" \
-  "/var/www/stellcodex/frontend/.next"
-do
-  if [ -d "$dir" ]; then
-    log "Removing rebuildable directory: ${dir}"
-    rm -rf "$dir"
-  fi
-done
+find "${WORKSPACE}" -maxdepth 2 -type d \
+  \( -name "node_modules" -o -name ".next" -o -name ".next_pre_signin_fix" \) \
+  \( -not -path "${WORKSPACE}/.git/*" \) \
+  | while IFS= read -r dir; do
+      [ -d "${dir}" ] || continue
+      log "Removing rebuildable directory: ${dir}"
+      rm -rf "${dir}"
+    done
+
+if [ -d "${PROD_FRONTEND_ROOT}" ]; then
+  log "Skipping live frontend runtime caches under ${PROD_FRONTEND_ROOT}; production rebuilds are managed by deploy/restart flow."
+fi
 
 # 3. Keep only latest runtime runs.
 keep_latest_dirs "${WORKSPACE}/_runs" "${KEEP_RUNS}"

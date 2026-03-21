@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const isVercel = process.env.VERCEL === "1";
-const API_ORIGIN_FALLBACK = "http://127.0.0.1:8000";
+const API_ORIGIN_FALLBACK = "http://127.0.0.1:18000";
 
 function resolveApiOrigin() {
   const raw =

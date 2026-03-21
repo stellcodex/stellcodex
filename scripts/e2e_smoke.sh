@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-API_BASE="${API_BASE:-http://127.0.0.1:8000/api/v1}"
-FRONT_BASE="${FRONT_BASE:-http://127.0.0.1:3100}"
-REPORT_DIR="${REPORT_DIR:-/var/www/stellcodex/_reports/FINAL_SHIP}"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${ROOT_DIR}/scripts/lib/runtime_env.sh"
+
+BACKEND_BASE_URL="${BACKEND_BASE_URL:-$(runtime_resolve_backend_base_url)}"
+API_BASE="${API_BASE:-${BACKEND_BASE_URL%/}/api/v1}"
+FRONT_BASE="${FRONT_BASE:-$(runtime_resolve_front_base_url)}"
+REPORT_DIR="${REPORT_DIR:-${ROOT_DIR}/evidence}"
 TMP_DIR="$(mktemp -d)"
-OUT_FILE="${REPORT_DIR}/E2E_SMOKE_OUTPUT.txt"
+OUT_FILE="${REPORT_DIR}/e2e_smoke_output.txt"
 
 mkdir -p "${REPORT_DIR}"
 trap 'rm -rf "${TMP_DIR}"' EXIT
@@ -38,12 +42,11 @@ HEALTH_HTTP="$(curl -sS -o "${TMP_DIR}/health.json" -w "%{http_code}" "${API_BAS
 [[ "${HEALTH_HTTP}" == "200" ]] || fail "health endpoint http=${HEALTH_HTTP}"
 pass "health endpoint 200"
 
-echo "stage=guest_token"
-curl -sS -X POST "${API_BASE}/auth/guest" > "${TMP_DIR}/guest.json" || fail "guest token request failed"
-TOKEN="$(json_field "${TMP_DIR}/guest.json" "access_token")"
-[[ -n "${TOKEN}" ]] || fail "guest token missing"
+echo "stage=auth_session"
+TOKEN="$(runtime_request_auth_token "${API_BASE}" 2>/dev/null || true)"
+[[ -n "${TOKEN}" ]] || fail "auth token missing"
 AUTH=(-H "Authorization: Bearer ${TOKEN}")
-pass "guest token created"
+pass "auth session created"
 
 echo "stage=create_test_file"
 cat > "${TMP_DIR}/test.md" <<'MD'

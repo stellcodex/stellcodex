@@ -33,6 +33,23 @@ class Settings(BaseSettings):
     bootstrap_admin_email: str | None = Field(default=None, validation_alias="BOOTSTRAP_ADMIN_EMAIL")
     bootstrap_admin_token: str | None = Field(default=None, validation_alias="BOOTSTRAP_ADMIN_TOKEN")
 
+    # Auth/session
+    site_url: str | None = Field(default=None, validation_alias=AliasChoices("SITE_URL", "APP_URL"))
+    auth_session_cookie_name: str = Field(default="stellcodex_session", validation_alias="AUTH_SESSION_COOKIE_NAME")
+    auth_google_state_cookie_name: str = Field(default="stellcodex_google_state", validation_alias="AUTH_GOOGLE_STATE_COOKIE_NAME")
+    auth_session_ttl_minutes: int = Field(default=7 * 24 * 60, validation_alias="AUTH_SESSION_TTL_MINUTES")
+    auth_google_state_ttl_minutes: int = Field(default=15, validation_alias="AUTH_GOOGLE_STATE_TTL_MINUTES")
+    google_client_id: str | None = Field(default=None, validation_alias=AliasChoices("GOOGLE_CLIENT_ID", "AUTH_GOOGLE_CLIENT_ID"))
+    google_client_secret: str | None = Field(default=None, validation_alias=AliasChoices("GOOGLE_CLIENT_SECRET", "AUTH_GOOGLE_CLIENT_SECRET"))
+    google_redirect_uri: str | None = Field(default=None, validation_alias=AliasChoices("GOOGLE_REDIRECT_URI", "AUTH_GOOGLE_REDIRECT_URI"))
+    google_admin_whitelist_raw: str = Field(default="", validation_alias=AliasChoices("GOOGLE_ADMIN_WHITELIST", "AUTH_GOOGLE_ADMIN_WHITELIST"))
+    auth_seed_admin_email: str | None = Field(default=None, validation_alias="AUTH_SEED_ADMIN_EMAIL")
+    auth_seed_admin_password: str | None = Field(default=None, validation_alias="AUTH_SEED_ADMIN_PASSWORD")
+    auth_seed_admin_full_name: str | None = Field(default="STELLCODEX Admin", validation_alias="AUTH_SEED_ADMIN_FULL_NAME")
+    auth_seed_member_email: str | None = Field(default=None, validation_alias="AUTH_SEED_MEMBER_EMAIL")
+    auth_seed_member_password: str | None = Field(default=None, validation_alias="AUTH_SEED_MEMBER_PASSWORD")
+    auth_seed_member_full_name: str | None = Field(default="STELLCODEX Member", validation_alias="AUTH_SEED_MEMBER_FULL_NAME")
+
     # OPTIONAL infra
     redis_url: Optional[AnyUrl] = Field(default=None, validation_alias="REDIS_URL")
     rabbitmq_url: Optional[AnyUrl] = Field(default=None, validation_alias="RABBITMQ_URL")
@@ -59,6 +76,13 @@ class Settings(BaseSettings):
         if not raw:
             return []
         return [x.strip() for x in raw.split(",") if x.strip()]
+
+    @property
+    def google_admin_whitelist(self) -> List[str]:
+        raw = (self.google_admin_whitelist_raw or "").strip()
+        if not raw:
+            return []
+        return [x.strip().lower() for x in raw.split(",") if x.strip()]
 
     # S3 / MinIO (optional)
     s3_endpoint_url: Optional[str] = Field(

@@ -22,6 +22,9 @@ STELLCODEX is a deterministic manufacturing decision platform with upload, proce
 - the server is disposable runtime only
 - the V10 package under `docs/v10/` is the only active canonical doc set
 - restore proof coverage currently passes across DB, object storage, worker, and API
+- the live frontend cutover completed on `2026-03-16` against `https://stellcodex.com`
+- the current live snapshot commit is `e0aa81f`
+- the GitHub backup branch for the live cutover is `backup/20260316-live-frontend-cutover`
 
 ## Where Canonical Docs Are
 
@@ -35,6 +38,8 @@ STELLCODEX is a deterministic manufacturing decision platform with upload, proce
 - local backup artifacts: `backups/`
 - Drive mirrors and archive manifests: `STELLCODEX_ARCHIVE_ROOT/03_GDRIVE_ARCHIVE/`
 - continuity memory: `STELLCODEX_ARCHIVE_ROOT/00_MASTER_INDEX/`
+- deploy rollback backup: `/var/www/stellcodex/_deploy_backups/frontend_20260316T171853Z.tgz`
+- latest Drive DB dump after live cutover: `db_20260316_203205.sql.gz`
 
 ## What Must Not Be Rediscovered Again
 
@@ -46,7 +51,8 @@ STELLCODEX is a deterministic manufacturing decision platform with upload, proce
 
 ## Likely Next Execution Areas
 
-- legacy cleanup completion
+- merge the live cutover backup branch into `main` through the protected-branch workflow
+- update release automation so GitHub status checks close before protected-branch promotion
 - inline archive hash normalization
 - broader Drive inventory import
 - route and terminology drift cleanup

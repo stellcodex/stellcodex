@@ -4,7 +4,7 @@
 - Status: `Active Canonical`
 - Parent authority: `docs/v10/00_V10_MASTER_CONSTITUTION.md`, `docs/v10/01_V10_SOURCE_HIERARCHY.md`
 - Related documents: `docs/v10/04_V10_DATA_MODEL.md`, `docs/v10/08_V10_SHARE_AND_PUBLIC_ACCESS_CONTRACT.md`, `docs/v10/09_V10_ORCHESTRATOR_RULES_AND_DFM.md`
-- Last updated: `2026-03-16`
+- Last updated: `2026-03-21`
 - Language: `English`
 - Scope: `Public and operator-facing API contracts`
 - Replacement rule: `API contract changes must update this file, tests, and runtime evidence before they are considered active.`
@@ -19,7 +19,7 @@ This document is governed by `docs/v10/00_V10_MASTER_CONSTITUTION.md` and `docs/
 
 ## Minimum Endpoint Families
 
-- `auth`: guest auth, identity, session state
+- `auth`: member/admin session auth, Google sign-in, identity, session state
 - `files`: upload, detail, status, viewer metadata, archive access
 - `jobs`: processing status and job details
 - `orchestrator`: start, decision state, required inputs
