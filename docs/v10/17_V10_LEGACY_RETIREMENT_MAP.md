@@ -4,7 +4,7 @@
 - Status: `Active Canonical`
 - Parent authority: `docs/v10/00_V10_MASTER_CONSTITUTION.md`, `docs/v10/01_V10_SOURCE_HIERARCHY.md`
 - Related documents: `docs/manifests/LEGACY_RETIREMENT_MANIFEST.md`, `docs/indexes/LEGACY_INDEX.md`, `docs/archive/README.md`
-- Last updated: `2026-03-16`
+- Last updated: `2026-03-23`
 - Language: `English`
 - Scope: `How legacy authority is isolated without destroying historical value`
 - Replacement rule: `New legacy retirements must be recorded here and in the retirement manifest.`
@@ -25,6 +25,8 @@ The following materials are never active authority after V10:
 - `docs/archive/historical_protocols/`: retired execution protocols and plans
 - `docs/archive/old_prompts/`: prompts and operator context files with historical value only
 - `docs/archive/frozen_reports/`: dated evidence and historical reports
+- retired runtime artifacts: `docker/docker-compose.prod.yml`, `ops/deploy/docker-compose.ghcr.yml`, `frontend/vercel.json`, `frontend__DISABLED__20260320_193121/`
+- retired public contract: `/api/v1/auth/guest`
 
 ## Operator Rule
 

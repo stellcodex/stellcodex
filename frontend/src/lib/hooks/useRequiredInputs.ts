@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { getRequiredInputs } from "@/lib/api/orchestrator";
+import { getRequiredInputs, submitOrchestratorInput } from "@/lib/api/orchestrator";
 import { mapRequiredInputRecords } from "@/lib/mappers/orchestratorMappers";
 
 export function useRequiredInputs(sessionId: string | null) {
@@ -25,7 +25,8 @@ export function useRequiredInputs(sessionId: string | null) {
       setFields(mapped);
       setValues((current) =>
         mapped.reduce<Record<string, string>>((result, field) => {
-          result[field.key] = current[field.key] ?? "";
+          const submittedValue = response.submitted_inputs?.[field.key];
+          result[field.key] = current[field.key] ?? (typeof submittedValue === "string" ? submittedValue : "");
           return result;
         }, {}),
       );
@@ -49,13 +50,26 @@ export function useRequiredInputs(sessionId: string | null) {
   }
 
   async function submit() {
+    if (!sessionId) {
+      setError("Required inputs are not available for this session.");
+      return false;
+    }
     const missing = validate();
     if (missing.length > 0) {
       setError(`Required inputs missing: ${missing.join(", ")}.`);
       return false;
     }
-    setError("Input submission is not exposed by the current backend contract.");
-    return false;
+    setError(null);
+    try {
+      for (const field of fields) {
+        await submitOrchestratorInput(sessionId, field.key, values[field.key] ?? "");
+      }
+      await refresh();
+      return true;
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Required inputs could not be submitted.");
+      return false;
+    }
   }
 
   return { fields, values, loading, error, setValue, validate, submit, refresh };

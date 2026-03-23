@@ -4,7 +4,7 @@
 - Status: `Active Canonical`
 - Parent authority: `docs/v10/00_V10_MASTER_CONSTITUTION.md`, `docs/v10/01_V10_SOURCE_HIERARCHY.md`
 - Related documents: `docs/v10/03_V10_SYSTEM_ARCHITECTURE.md`, `docs/v10/10_V10_DEPLOY_BACKUP_RESTORE.md`, `docs/indexes/REPO_INDEX.md`
-- Last updated: `2026-03-16`
+- Last updated: `2026-03-23`
 - Language: `English`
 - Scope: `Beginner-safe explanation of where code, docs, infra, evidence, and runtime assets live`
 - Replacement rule: `Repository map changes must be updated here before new operators are expected to rely on them.`
@@ -13,14 +13,15 @@ This document is governed by `docs/v10/00_V10_MASTER_CONSTITUTION.md` and `docs/
 
 ## Where Code Lives
 
-- `backend/`: FastAPI app, workers, models, services, API routes, alembic migrations
-- `frontend/`: Next.js app, UI routes, viewer pages, frontend security and route guards
+- `backend/`: FastAPI API shell, persistence layer, workers, models, service clients, API routes, alembic migrations
+- `frontend/`: Next.js STELLCODEX product shell, viewer pages, admin shell, route guards
+- `services/stell_ai/`: standalone STELL.AI runtime owned by the repo
+- `services/orchestra/`: standalone Orchestra runtime owned by the repo
 - `db/`: SQL migration floor and migration references
 
 ## Where Infrastructure Lives
 
-- `docker/`: production compose and nginx assets
-- `infrastructure/`: deploy stack, runtime compose, nginx, compliance helpers
+- `infrastructure/`: canonical compose, nginx, and compliance helpers
 - `ops/`: cleanup, backup-state, cron, logrotate, runtime hygiene
 
 ## Where Active Docs Live
@@ -47,3 +48,4 @@ This document is governed by `docs/v10/00_V10_MASTER_CONSTITUTION.md` and `docs/
 - container writable layers
 - untracked operator notes
 - prompt text that is not absorbed into `docs/v10/`
+- alternate deploy definitions outside `infrastructure/deploy/docker-compose.yml`

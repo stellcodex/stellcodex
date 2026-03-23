@@ -93,6 +93,14 @@ export function ViewerWorkspace({ fileId }: ViewerWorkspaceProps) {
     await refreshDecision();
   }
 
+  async function handleSubmitInputs() {
+    const accepted = await submit();
+    if (accepted) {
+      await Promise.all([refresh(), refreshDecision(), refreshDfm()]);
+    }
+    return accepted;
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[12px] border border-[#eeeeee] bg-white" ref={containerRef}>
       <ViewerToolbar
@@ -181,7 +189,7 @@ export function ViewerWorkspace({ fileId }: ViewerWorkspaceProps) {
               onApprove={(reason) => handleApproval("approve", reason)}
               onChange={setValue}
               onReject={(reason) => handleApproval("reject", reason)}
-              onSubmit={submit}
+              onSubmit={handleSubmitInputs}
               rerunSupported={rerunSupported}
               shareCount={activeShareCount}
               values={values}

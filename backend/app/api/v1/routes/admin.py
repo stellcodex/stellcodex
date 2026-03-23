@@ -6,11 +6,13 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from rq import Worker
 from rq.registry import FailedJobRegistry, StartedJobRegistry
 from sqlalchemy import desc, text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.ids import normalize_scx_id
 from app.core.storage import get_s3_client
 from app.db.session import get_db
 from app.models.audit import AuditEvent
@@ -23,7 +25,7 @@ from app.queue import get_queue, redis_conn
 from app.security.deps import require_role, Principal
 from app.security.jwt import create_user_token
 from app.services.audit import log_event
-from app.services.orchestrator_sessions import apply_session_state, approval_required, normalize_state_code, state_label
+from app.services.orchestra_client import proxy_orchestra
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_role("admin"))])
 
@@ -47,17 +49,49 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _failure_code(stage: str | None, error_class: str | None) -> str | None:
+    parts = [str(stage or "").strip(), str(error_class or "").strip()]
+    token = "_".join(part for part in parts if part).upper()
+    return token or None
+
+
+def _safe_meta_preview(data: dict | None) -> dict | None:
+    if not isinstance(data, dict):
+        return None
+    blocked_tokens = {"storage_key", "object_key", "bucket", "path", "provider", "secret", "token"}
+    preview: dict[str, object] = {}
+    for key, value in data.items():
+        lowered = str(key).lower()
+        if any(token in lowered for token in blocked_tokens):
+            continue
+        if isinstance(value, str) and len(value) > 240:
+            preview[str(key)] = f"{value[:237]}..."
+            continue
+        preview[str(key)] = value
+    return preview or None
+
+
+def _public_file_id(value: str | None) -> str | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    try:
+        return normalize_scx_id(raw)
+    except ValueError:
+        return raw
+
+
 def _approval_payload(session: OrchestratorSession, file_row: UploadFile | None) -> dict:
     decision_json = session.decision_json if isinstance(session.decision_json, dict) else {}
-    flags = decision_json.get("conflict_flags")
+    flags = session.risk_flags if isinstance(session.risk_flags, list) else decision_json.get("conflict_flags")
     return {
         "id": str(session.id),
-        "file_id": session.file_id,
+        "file_id": _public_file_id(session.file_id),
         "filename": file_row.original_filename if file_row is not None else None,
         "file_status": file_row.status if file_row is not None else None,
         "state": session.state,
-        "state_label": state_label(session.state),
-        "approval_required": approval_required(decision_json),
+        "state_label": session.state_label or session.state,
+        "approval_required": bool(session.approval_required),
         "risk_flags": [str(item) for item in flags] if isinstance(flags, list) else [],
         "decision_json": decision_json,
         "created_at": session.created_at,
@@ -101,11 +135,24 @@ def admin_health(db: Session = Depends(get_db)):
         except Exception:
             storage_ok = False
 
+    queue_depth = 0
+    worker_ok = False
+    if redis_ok:
+        try:
+            queue_depth = sum(get_queue(name).count for name in QUEUE_NAMES)
+            worker_ok = bool(Worker.all(connection=redis_conn))
+        except Exception:
+            worker_ok = False
+
     payload = {
         "api": "ok",
         "db": "ok" if db_ok else "fail",
         "redis": "ok" if redis_ok else "fail",
         "rq": "ok" if redis_ok else "fail",
+        "worker": "ok" if worker_ok else "fail",
+        "queue_depth": queue_depth,
+        "failed_jobs": int(db.query(JobFailure).count()),
+        "checked_at": _now(),
     }
     if storage_ok is not None:
         payload["storage"] = "ok" if storage_ok else "fail"
@@ -130,7 +177,7 @@ def admin_queues():
                 "failed_count": failed.count,
             }
         )
-    return {"queues": queues}
+    return {"queues": queues, "queue_depth": sum(item["queued_count"] for item in queues), "checked_at": _now()}
 
 
 @router.get("/queues/failed")
@@ -147,11 +194,16 @@ def admin_failed_jobs(limit: int = 50, db: Session = Depends(get_db)):
             {
                 "id": str(r.id),
                 "job_id": r.job_id,
-                "file_id": r.file_id,
+                "file_id": _public_file_id(r.file_id),
+                "type": r.stage,
+                "status": "failed",
                 "stage": r.stage,
+                "failure_code": _failure_code(r.stage, r.error_class),
                 "error_class": r.error_class,
                 "message": (r.message or "")[:300],
+                "safe_message": (r.message or "")[:300],
                 "created_at": r.created_at,
+                "updated_at": r.created_at,
             }
             for r in rows
         ]
@@ -268,7 +320,7 @@ def admin_files(
     return {
         "items": [
             {
-                "file_id": r.file_id,
+                "file_id": _public_file_id(r.file_id),
                 "original_filename": r.original_filename,
                 "status": r.status,
                 "visibility": r.visibility,
@@ -356,7 +408,7 @@ def admin_shares(db: Session = Depends(get_db)):
         "items": [
             {
                 "id": str(s.id),
-                "file_id": s.file_id,
+                "file_id": _public_file_id(s.file_id),
                 "permission": s.permission,
                 "expires_at": s.expires_at,
                 "revoked_at": s.revoked_at,
@@ -372,7 +424,7 @@ def admin_approvals(state: Optional[str] = None, limit: int = 200, db: Session =
     limit = max(1, min(limit, 200))
     q = db.query(OrchestratorSession)
     if state:
-        q = q.filter(OrchestratorSession.state == normalize_state_code(state))
+        q = q.filter(OrchestratorSession.state == str(state).strip().upper())
     else:
         q = q.filter(OrchestratorSession.state == "S5")
     rows = q.order_by(desc(OrchestratorSession.updated_at)).limit(limit).all()
@@ -403,12 +455,11 @@ def admin_approve_approval(
     principal: Principal = Depends(require_role("admin")),
 ):
     session = _approval_session_or_404(db, approval_id)
-    apply_session_state(
-        session,
-        state="S6 Approved",
-        decision_json=session.decision_json if isinstance(session.decision_json, dict) else {},
+    payload = proxy_orchestra(
+        path="/sessions/approve",
+        method="POST",
+        payload={"session_id": approval_id, "reason": data.reason},
     )
-    db.add(session)
     log_event(
         db,
         "admin.approval.approve",
@@ -417,9 +468,7 @@ def admin_approve_approval(
         data={"approval_id": approval_id, "reason": data.reason},
     )
     db.commit()
-    db.refresh(session)
-    file_row = db.query(UploadFile).filter(UploadFile.file_id == session.file_id).first()
-    return _approval_payload(session, file_row)
+    return payload
 
 
 @router.post("/approvals/{approval_id}:reject")
@@ -430,12 +479,11 @@ def admin_reject_approval(
     principal: Principal = Depends(require_role("admin")),
 ):
     session = _approval_session_or_404(db, approval_id)
-    apply_session_state(
-        session,
-        state="S4 DFMReady",
-        decision_json=session.decision_json if isinstance(session.decision_json, dict) else {},
+    payload = proxy_orchestra(
+        path="/sessions/reject",
+        method="POST",
+        payload={"session_id": approval_id, "reason": data.reason},
     )
-    db.add(session)
     log_event(
         db,
         "admin.approval.reject",
@@ -444,9 +492,7 @@ def admin_reject_approval(
         data={"approval_id": approval_id, "reason": data.reason},
     )
     db.commit()
-    db.refresh(session)
-    file_row = db.query(UploadFile).filter(UploadFile.file_id == session.file_id).first()
-    return _approval_payload(session, file_row)
+    return payload
 
 
 @router.post("/shares/{share_id}/revoke")
@@ -474,11 +520,16 @@ def admin_audit(db: Session = Depends(get_db)):
         "items": [
             {
                 "id": str(a.id),
+                "action": a.event_type,
                 "event_type": a.event_type,
                 "actor_user_id": str(a.actor_user_id) if a.actor_user_id else None,
                 "actor_anon_sub": a.actor_anon_sub,
-                "file_id": a.file_id,
-                "data": a.data,
+                "file_id": _public_file_id(a.file_id),
+                "target_type": "file" if a.file_id else "system",
+                "target_id": _public_file_id(a.file_id),
+                "data": _safe_meta_preview(a.data),
+                "meta_preview": _safe_meta_preview(a.data),
+                "timestamp": a.created_at,
                 "created_at": a.created_at,
             }
             for a in rows

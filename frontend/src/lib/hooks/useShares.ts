@@ -24,7 +24,7 @@ export function useShares(fileId?: string) {
       } else {
         const files = (await listFiles()).map(mapFileRecord);
         const grouped = await Promise.all(
-          files.slice(0, 50).map(async (file) => {
+          files.map(async (file) => {
             const response = await listFileShares(file.fileId).catch(() => ({ items: [] }));
             return response.items.map((item) => mapShareRecord(item, origin, file.fileId, revokedIds.includes(item.id)));
           }),

@@ -46,7 +46,7 @@ export function ShareDialog({ onClose, onCreate, open }: ShareDialogProps) {
           onChange={setPermission}
           options={[
             { label: "View", value: "view", description: "Allow public viewing only." },
-            { label: "Comment", value: "comment", description: "Preserve future comment scope if enabled later." },
+            { label: "Comment", value: "comment", description: "Create the share with comment permission." },
             { label: "Download", value: "download", description: "Allow download when the share contract permits it." },
           ]}
           value={permission}

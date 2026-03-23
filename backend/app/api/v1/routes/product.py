@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.core.config import settings
-from app.core.ids import normalize_scx_id
+from app.core.ids import format_scx_file_id, normalize_scx_file_id, normalize_scx_id
 from app.core.render_presets import get_render_preset
 from app.core.storage import get_s3_client, get_s3_presign_client
 from app.api.v1.routes.files import FileOut, direct_upload
@@ -51,11 +51,6 @@ def _upload_owner(request: Request) -> tuple[str, str | None, str | None, bool]:
         raise HTTPException(status_code=401, detail="Invalid Authorization header")
     payload = decode_token(token)
     typ = payload.get("typ")
-    if typ == "guest":
-        owner_sub = str(payload.get("owner_sub") or "").strip()
-        if not owner_sub:
-            raise HTTPException(status_code=401, detail="Invalid guest token")
-        return owner_sub, None, owner_sub, bool(payload.get("anon", True))
     if typ == "user":
         user_id = str(payload.get("sub") or "").strip()
         if not user_id:
@@ -75,6 +70,63 @@ def _revision_uuid_from_identifier(value: str) -> UUID:
         return UUID(normalized.split("_", 1)[1])
     except (ValueError, IndexError):
         raise HTTPException(status_code=404, detail="revision not found")
+
+
+def _get_upload_file_by_identifier(db: Session, value: str) -> UploadFileModel | None:
+    try:
+        uid = normalize_scx_file_id(value)
+    except ValueError:
+        return None
+    canonical = format_scx_file_id(uid)
+    legacy = str(uid)
+    return db.query(UploadFileModel).filter(UploadFileModel.file_id.in_((canonical, legacy))).first()
+
+
+def _file_backed_status(file_row: UploadFileModel) -> StatusResponse:
+    public_id = normalize_scx_id(file_row.file_id)
+    ready = str(file_row.status or "").strip().lower() == "ready"
+    artifacts: list[dict] = []
+    if file_row.gltf_key:
+        artifacts.append(
+            {
+                "id": uuid4(),
+                "type": "lod0_glb",
+                "ready": ready,
+                "content_type": "model/gltf-binary",
+                "size": None,
+                "created_at": file_row.updated_at or file_row.created_at,
+                "url": f"/api/v1/files/{public_id}/gltf",
+                "glb_url": f"/api/v1/files/{public_id}/gltf",
+            }
+        )
+    if file_row.thumbnail_key:
+        artifacts.append(
+            {
+                "id": uuid4(),
+                "type": "thumb_webp",
+                "ready": ready,
+                "content_type": "image/png",
+                "size": None,
+                "created_at": file_row.updated_at or file_row.created_at,
+                "url": f"/api/v1/files/{public_id}/thumbnail",
+                "glb_url": None,
+            }
+        )
+    meta = file_row.meta if isinstance(file_row.meta, dict) else {}
+    if isinstance(meta.get("pdf_key"), str):
+        artifacts.append(
+            {
+                "id": uuid4(),
+                "type": "drawing_pdf",
+                "ready": ready,
+                "content_type": "application/pdf",
+                "size": None,
+                "created_at": file_row.updated_at or file_row.created_at,
+                "url": f"/api/v1/files/{public_id}/pdf",
+                "glb_url": None,
+            }
+        )
+    return StatusResponse(file_id=public_id, jobs=[], artifacts=artifacts)
 
 
 @router.post(
@@ -113,60 +165,17 @@ async def upload(
 
 @router.get("/status/{revision_id}", response_model=StatusResponse)
 def status(revision_id: str, db: Session = Depends(get_db)):
+    upload_file = _get_upload_file_by_identifier(db, revision_id)
+    if upload_file is not None:
+        return _file_backed_status(upload_file)
+
     revision_uuid = _revision_uuid_from_identifier(revision_id)
     revision = db.get(Revision, revision_uuid)
     if revision is None:
         raise HTTPException(status_code=404, detail="revision not found")
-
-    s3 = get_s3_presign_client(settings) if settings.s3_enabled else None
-
-    jobs = revision.jobs
-    artifacts = revision.artifacts
-
-    return StatusResponse(
-        file_id=normalize_scx_id(str(revision.id)),
-        jobs=[
-            {
-                "id": j.id,
-                "type": j.type.value,
-                "status": j.status.value,
-                "queue": j.queue,
-                "error": j.error,
-                "created_at": j.created_at,
-                "started_at": j.started_at,
-                "finished_at": j.finished_at,
-            }
-            for j in jobs
-        ],
-        artifacts=[
-            {
-                "id": a.id,
-                "type": a.type.value,
-                "ready": a.ready,
-                "content_type": a.content_type,
-                "size": a.size,
-                "created_at": a.created_at,
-                "url": (
-                    s3.generate_presigned_url(
-                        "get_object",
-                        Params={"Bucket": settings.s3_bucket, "Key": a.storage_key},
-                        ExpiresIn=900,
-                    )
-                    if s3
-                    else None
-                ),
-                "glb_url": (
-                    s3.generate_presigned_url(
-                        "head_object",
-                        Params={"Bucket": settings.s3_bucket, "Key": a.storage_key},
-                        ExpiresIn=900,
-                    )
-                    if (s3 and a.type.value == "lod0_glb")
-                    else None
-                ),
-            }
-            for a in artifacts
-        ],
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy revision status is disabled. Use /api/v1/files/{file_id}/status.",
     )
 
 @router.post("/render", response_model=RenderResponse)

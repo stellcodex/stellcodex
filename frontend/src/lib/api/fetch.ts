@@ -13,7 +13,7 @@ export class ApiError extends Error {
 export const AUTH_EXPIRED_EVENT = "stellcodex:auth-expired";
 
 const API_BASE = resolveApiBase(
-  process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_API_BASE_URL,
+  process.env.NEXT_PUBLIC_API_BASE_URL,
   { allowAbsoluteOrigin: typeof window === "undefined" },
 );
 

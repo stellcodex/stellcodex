@@ -99,7 +99,7 @@ runtime_resolve_backend_base_url() {
   fi
 
   local candidate path code
-  for candidate in "http://127.0.0.1:18000" "http://127.0.0.1:8000"; do
+  for candidate in "http://127.0.0.1:8000"; do
     for path in "/api/v1/health" "/api/v1/admin/health" "/health" "/healthz" "/readyz" "/_health"; do
       code="$(runtime_check_http_code "${candidate}${path}")"
       if [ "${code}" = "200" ]; then
@@ -109,7 +109,7 @@ runtime_resolve_backend_base_url() {
     done
   done
 
-  printf '%s\n' "http://127.0.0.1:18000"
+  printf '%s\n' "http://127.0.0.1:8000"
 }
 
 runtime_resolve_front_base_url() {
@@ -241,20 +241,7 @@ runtime_request_auth_token() {
     return 0
   fi
 
-  local tmp status token email password
-  tmp="$(mktemp)"
-  status="$(curl -sS -o "${tmp}" -w "%{http_code}" -X POST "${api_base}/auth/guest" || true)"
-  if [ "${status}" = "200" ]; then
-    token="$(runtime_json_field "${tmp}" "access_token")"
-    rm -f "${tmp}"
-    if [ -n "${token}" ]; then
-      printf '%s\n' "${token}"
-      return 0
-    fi
-  else
-    rm -f "${tmp}"
-  fi
-
+  local tmp token email password
   email="$(runtime_auth_email 2>/dev/null || true)"
   password="$(runtime_auth_password 2>/dev/null || true)"
   if [ -z "${email}" ] || [ -z "${password}" ]; then

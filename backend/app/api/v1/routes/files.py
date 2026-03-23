@@ -33,8 +33,10 @@ from app.models.file import UploadFile as UploadFileModel
 from app.security.deps import get_current_principal, Principal
 from app.services.dxf import load_doc, manifest_from_doc, render_svg
 from app.services.audit import log_event
-from app.services.orchestrator_sessions import build_decision_json, upsert_orchestrator_session
-from app.services.rule_configs import load_hybrid_v1_config
+from app.services.file_versions import create_new_file_version, list_file_versions as list_version_rows, sync_current_file_version
+from app.services.orchestra_client import sync_orchestrator_file
+from app.services.rule_configs import RuleConfigMissingError, load_hybrid_v1_config
+from app.services.stell_ai_client import decide_with_stell_ai
 from app.services.tenants import ensure_owner_tenant_id
 
 router = APIRouter(tags=["files"])
@@ -513,6 +515,20 @@ class FileDetailOut(FileOut):
     view_mode_default: str = "shaded_edge"
 
 
+class FileVersionOut(BaseModel):
+    id: str
+    file_id: str
+    version_number: int
+    created_at: datetime
+    created_by: str | None = None
+    status: str
+    original_name: str
+    content_type: str
+    size_bytes: int
+    is_current: bool
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class PageOut(BaseModel):
     items: list[FileOut]
     page: int
@@ -664,6 +680,43 @@ def _effective_status(f: UploadFileModel) -> str:
     return f.status
 
 
+def _base_file_meta(
+    *,
+    project_id: str,
+    kind: str,
+    mode: str,
+    rule_version: str,
+    sniffed_content_type: str | None = None,
+    carried_meta: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    existing = carried_meta if isinstance(carried_meta, dict) else {}
+    decision_json = decide_with_stell_ai(
+        project_id=project_id,
+        mode=mode,
+        rule_version=rule_version,
+        geometry_meta=existing.get("geometry_meta_json") if isinstance(existing.get("geometry_meta_json"), dict) else None,
+        dfm_findings=existing.get("dfm_findings") if isinstance(existing.get("dfm_findings"), dict) else None,
+    )
+    meta: dict[str, Any] = {
+        "kind": kind,
+        "mode": mode,
+        "project_id": project_id,
+        "virus_scan_status": "queued",
+        "decision_json": decision_json,
+        "rule_version": rule_version,
+    }
+    if sniffed_content_type:
+        meta["sniffed_content_type"] = sniffed_content_type
+    return meta
+
+
+def _load_rule_context(db: Session, project_id: str) -> tuple[dict[str, Any], str]:
+    try:
+        return load_hybrid_v1_config(db, project_id=project_id)
+    except RuleConfigMissingError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
 def _serialize_file_out(f: UploadFileModel) -> FileOut:
     preview_url, gltf_url, original_url = _build_file_urls(f)
     previews = _preview_urls(f)
@@ -692,6 +745,22 @@ def _serialize_file_out(f: UploadFileModel) -> FileOut:
     )
 
 
+def _serialize_version_out(row) -> FileVersionOut:
+    return FileVersionOut(
+        id=str(row.id),
+        file_id=_public_file_id(row.file_id),
+        version_number=int(row.version_number),
+        created_at=row.created_at,
+        created_by=str(row.created_by_user_id) if row.created_by_user_id else None,
+        status=row.status,
+        original_name=row.original_filename,
+        content_type=row.content_type,
+        size_bytes=int(row.size_bytes),
+        is_current=bool(row.is_current),
+        metadata=row.meta if isinstance(row.meta, dict) else {},
+    )
+
+
 @router.post("/initiate", response_model=InitiateOut)
 def initiate_upload(
     data: InitiateIn,
@@ -712,15 +781,8 @@ def initiate_upload(
     key = _safe_object_key(owner_sub)
     kind, mode = _derive_kind_mode(data.filename)
     _cfg, rule_version = load_hybrid_v1_config(db, project_id="default")
-    decision_json = build_decision_json(mode=mode, rule_version=rule_version)
-    file_meta = {
-        "kind": kind,
-        "mode": mode,
-        "project_id": "default",
-        "virus_scan_status": "queued",
-        "decision_json": decision_json,
-        "rule_version": rule_version,
-    }
+    file_meta = _base_file_meta(project_id="default", kind=kind, mode=mode, rule_version=rule_version)
+    decision_json = file_meta["decision_json"]
 
     f = UploadFileModel(
         owner_sub=owner_sub,
@@ -746,6 +808,8 @@ def initiate_upload(
     db.add(f)
     db.commit()
     db.refresh(f)
+    sync_current_file_version(db, f, created_by_user_id=principal.user_id)
+    db.commit()
     print(
         f"upload_initiated file_id={f.file_id} object_key={f.object_key} "
         f"size_bytes={int(f.size_bytes)} content_type={f.content_type} "
@@ -795,16 +859,14 @@ async def direct_upload(
     key = _safe_object_key(owner_sub)
     kind, mode = _derive_kind_mode(upload.filename)
     effective_project_id = (project_id or projectId or "default").strip() or "default"
-    file_meta = {
-        "kind": kind,
-        "mode": mode,
-        "project_id": effective_project_id,
-        "sniffed_content_type": sniffed,
-        "virus_scan_status": "queued",
-    }
-    _cfg, rule_version = load_hybrid_v1_config(db, project_id=effective_project_id)
-    file_meta["decision_json"] = build_decision_json(mode=mode, rule_version=rule_version)
-    file_meta["rule_version"] = rule_version
+    _cfg, rule_version = _load_rule_context(db, effective_project_id)
+    file_meta = _base_file_meta(
+        project_id=effective_project_id,
+        kind=kind,
+        mode=mode,
+        rule_version=rule_version,
+        sniffed_content_type=sniffed,
+    )
 
     f = UploadFileModel(
         owner_sub=owner_sub,
@@ -829,6 +891,8 @@ async def direct_upload(
     db.add(f)
     db.commit()
     db.refresh(f)
+    sync_current_file_version(db, f, created_by_user_id=principal.user_id)
+    db.commit()
 
     s3 = s3_client()
     s3.upload_fileobj(
@@ -838,14 +902,7 @@ async def direct_upload(
         ExtraArgs={"ContentType": content_type},
     )
 
-    upsert_orchestrator_session(
-        db,
-        file_id=f.file_id,
-        state="S0 Uploaded",
-        decision_json=file_meta["decision_json"],
-        rule_version=rule_version,
-        mode=mode,
-    )
+    sync_orchestrator_file(f.file_id)
 
     try:
         from app.workers.tasks import enqueue_convert_file
@@ -853,6 +910,7 @@ async def direct_upload(
         if job_id:
             f.meta = {**(f.meta or {}), "job_id": job_id, "project_id": effective_project_id}
             db.add(f)
+            sync_current_file_version(db, f, created_by_user_id=principal.user_id)
             db.commit()
         print(
             f"enqueue_success file_id={f.file_id} queue=cad job_id={job_id} "
@@ -912,30 +970,28 @@ def complete_upload(
 
     meta = f.meta if isinstance(f.meta, dict) else {}
     kind, mode = _derive_kind_mode(f.original_filename, meta)
-    _cfg, rule_version = load_hybrid_v1_config(db, project_id=str(meta.get("project_id") or "default"))
+    effective_project_id = str(meta.get("project_id") or "default")
+    _cfg, rule_version = _load_rule_context(db, effective_project_id)
     f.status = "queued"
     f.folder_key = f.folder_key or _derive_folder_key(f.original_filename, meta)
     f.meta = {
-        **meta,
-        "kind": kind,
-        "mode": mode,
-        "project_id": str(meta.get("project_id") or "default"),
+        **_base_file_meta(
+            project_id=effective_project_id,
+            kind=kind,
+            mode=mode,
+            rule_version=rule_version,
+            carried_meta=meta,
+        ),
         "virus_scan_status": str(meta.get("virus_scan_status") or "queued"),
-        "decision_json": build_decision_json(mode=mode, rule_version=rule_version),
-        "rule_version": rule_version,
     }
+    f.decision_json = f.meta["decision_json"]
     f.updated_at = _now()
     db.add(f)
-    upsert_orchestrator_session(
-        db,
-        file_id=f.file_id,
-        state="S0 Uploaded",
-        decision_json=f.meta["decision_json"],
-        rule_version=rule_version,
-        mode=mode,
-    )
     db.commit()
     db.refresh(f)
+    sync_current_file_version(db, f, created_by_user_id=principal.user_id)
+    db.commit()
+    sync_orchestrator_file(f.file_id)
     print(
         f"upload_completed file_id={f.file_id} object_key={f.object_key} "
         f"size_bytes={int(f.size_bytes)} content_type={f.content_type} "
@@ -948,6 +1004,7 @@ def complete_upload(
         if job_id:
             f.meta = {**(f.meta or {}), "job_id": job_id}
             db.add(f)
+            sync_current_file_version(db, f, created_by_user_id=principal.user_id)
             db.commit()
         print(
             f"enqueue_success file_id={f.file_id} queue=cad job_id={job_id} "
@@ -1037,6 +1094,135 @@ def get_file(
         quality_default=str(defaults.get("quality") or "Medium"),
         view_mode_default=str(defaults.get("view_mode") or "shaded_edge"),
     )
+
+
+@router.get("/{file_id}/versions", response_model=list[FileVersionOut])
+def get_file_versions(
+    file_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(_require_principal),
+):
+    _feature_on()
+    f = _get_file_by_identifier(db, file_id)
+    if not f:
+        raise HTTPException(status_code=404, detail="File not found")
+    _assert_file_access(f, principal)
+
+    sync_current_file_version(db, f, created_by_user_id=principal.user_id)
+    db.commit()
+    rows = list_version_rows(db, f.file_id)
+    return [_serialize_version_out(row) for row in rows]
+
+
+@router.post("/{file_id}/new-version", response_model=FileOut)
+async def upload_new_version(
+    file_id: str,
+    upload: UploadFile = FastAPIFile(...),
+    project_id: str | None = Form(default=None),
+    projectId: str | None = Form(default=None),
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(_require_principal),
+):
+    _feature_on()
+    if not upload.filename:
+        raise HTTPException(status_code=400, detail="filename required")
+
+    f = _get_file_by_identifier(db, file_id)
+    if not f:
+        raise HTTPException(status_code=404, detail="File not found")
+    _assert_file_access(f, principal)
+
+    upload.file.seek(0, 2)
+    size_bytes = upload.file.tell()
+    upload.file.seek(0)
+
+    content_type = (upload.content_type or "application/octet-stream").strip()
+    head = upload.file.read(8192)
+    upload.file.seek(0)
+    sniffed = infer_mime_from_bytes(head, upload.filename)
+    _validate_upload(content_type, size_bytes, upload.filename, sniffed_content_type=sniffed)
+
+    owner_sub = f.owner_sub or principal.owner_sub or principal.user_id or ""
+    if not owner_sub:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    existing_meta = f.meta if isinstance(f.meta, dict) else {}
+    effective_project_id = (project_id or projectId or str(existing_meta.get("project_id") or "default")).strip() or "default"
+    kind, mode = _derive_kind_mode(upload.filename, existing_meta)
+    _cfg, rule_version = _load_rule_context(db, effective_project_id)
+    new_key = _safe_object_key(owner_sub)
+    new_meta = _base_file_meta(
+        project_id=effective_project_id,
+        kind=kind,
+        mode=mode,
+        rule_version=rule_version,
+        sniffed_content_type=sniffed,
+    )
+
+    sync_current_file_version(db, f, created_by_user_id=principal.user_id)
+    db.commit()
+
+    s3 = s3_client()
+    s3.upload_fileobj(
+        upload.file,
+        f.bucket,
+        new_key,
+        ExtraArgs={"ContentType": content_type},
+    )
+
+    create_new_file_version(
+        db,
+        file_row=f,
+        created_by_user_id=principal.user_id,
+        original_filename=upload.filename,
+        content_type=content_type,
+        size_bytes=size_bytes,
+        sha256=None,
+        bucket=f.bucket,
+        object_key=new_key,
+        status="queued",
+        meta=new_meta,
+    )
+
+    f.object_key = new_key
+    f.original_filename = upload.filename
+    f.content_type = content_type
+    f.size_bytes = size_bytes
+    f.sha256 = None
+    f.status = "queued"
+    f.gltf_key = None
+    f.thumbnail_key = None
+    f.folder_key = _derive_folder_key(upload.filename, new_meta)
+    f.meta = new_meta
+    f.decision_json = new_meta["decision_json"]
+    f.updated_at = _now()
+    db.add(f)
+    db.commit()
+    db.refresh(f)
+    sync_orchestrator_file(f.file_id)
+
+    try:
+        from app.workers.tasks import enqueue_convert_file
+
+        job_id = enqueue_convert_file(f.file_id)
+        if job_id:
+            f.meta = {**(f.meta or {}), "job_id": job_id}
+            db.add(f)
+            sync_current_file_version(db, f, created_by_user_id=principal.user_id)
+            db.commit()
+    except Exception:
+        job_id = None
+
+    log_event(
+        db,
+        "file.version.created",
+        actor_user_id=principal.user_id,
+        actor_anon_sub=principal.owner_sub,
+        file_id=f.file_id,
+        data={"project_id": effective_project_id, "job_id": job_id},
+    )
+    db.commit()
+    return _serialize_file_out(f)
 
 
 @router.get("/{file_id}/manifest")

@@ -75,7 +75,7 @@ def send_invite(to: str, temp_password: str) -> bool:
         <div><strong>Email:</strong> {to}</div>
         <div><strong>Geçici şifre:</strong> {temp_password}</div>
       </div>
-      <a href="{SITE_URL}/login"
+      <a href="{SITE_URL}/sign-in"
          style="display:inline-block;background:#0c2a2a;color:#fff;padding:10px 24px;
                 border-radius:8px;text-decoration:none">
         Giriş Yap

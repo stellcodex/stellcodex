@@ -1,14 +1,10 @@
 # STELLCODEX Release Gate (Frontend)
 
-## Before Deploy (Vercel Env Checklist)
-- `NEXT_PUBLIC_API_URL=https://api.stellcodex.com`
-- `NEXT_PUBLIC_API_BASE=https://api.stellcodex.com` (optional legacy alias)
-- `STELLCODEX_ENABLE_MOCK_ADMIN=0`
-- `DATABASE_URL=<Neon pooled runtime URL>`
-- `DIRECT_URL=<Neon direct migrate URL>`
-- PROD schema MUST be fixed:
-  - `schema=stellcodex_prod` (query param) OR
-  - `search_path=stellcodex_prod` via `options`
+## Before Deploy
+- `NEXT_PUBLIC_API_BASE_URL=/api/v1`
+- nginx points `/` to `127.0.0.1:3010`
+- nginx points `/api/` to `127.0.0.1:8000`
+- no Vercel deployment path is active
 
 ## Local Release Gate Script
 ```bash
@@ -30,9 +26,7 @@ What it checks:
 - `GET /admin` -> `302/401/200` (not `404`)
 - `GET /robots.txt` -> `200`
 
-## Rollback (Vercel)
-1. Vercel Dashboard -> Project -> `Deployments`
-2. Open previous known-good deployment
-3. Click `Promote to Production` (or equivalent redeploy/promote action)
-4. DNS stays the same, rollback is immediate once promotion completes
-
+## Rollback
+1. Rebuild the previous GitHub commit with `docker compose -f infrastructure/deploy/docker-compose.yml build frontend`
+2. Recreate the frontend container
+3. Verify nginx still routes `/_next/` and `/` to `127.0.0.1:3010`

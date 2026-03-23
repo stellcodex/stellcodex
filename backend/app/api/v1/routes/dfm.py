@@ -7,12 +7,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.core.format_registry import get_rule_for_filename
 from app.core.ids import format_scx_file_id, normalize_scx_file_id, normalize_scx_id
 from app.db.session import get_db
 from app.models.file import UploadFile as UploadFileModel
 from app.security.deps import Principal, get_current_principal
-from app.services.orchestrator_sessions import build_decision_json
+from app.services.stell_ai_client import decide_with_stell_ai
 
 router = APIRouter(prefix="/dfm", tags=["dfm"])
 
@@ -48,11 +47,6 @@ def _get_file_by_identifier(db: Session, value: str) -> UploadFileModel | None:
 
 
 def _assert_file_access(f: UploadFileModel, principal: Principal) -> None:
-    if principal.typ == "guest":
-        owner_sub = principal.owner_sub or ""
-        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
-            raise HTTPException(status_code=403, detail="Forbidden")
-        return
     if str(f.owner_user_id or "") != str(principal.user_id or ""):
         raise HTTPException(status_code=403, detail="Forbidden")
 
@@ -71,12 +65,17 @@ def get_dfm_report(
     meta = file_row.meta if isinstance(file_row.meta, dict) else {}
     dfm_findings = meta.get("dfm_findings") if isinstance(meta.get("dfm_findings"), dict) else {}
     geometry_report = meta.get("geometry_report") if isinstance(meta.get("geometry_report"), dict) else {}
-    decision_json = meta.get("decision_json") if isinstance(meta.get("decision_json"), dict) else None
-    if decision_json is None:
-        rule = get_rule_for_filename(file_row.original_filename or "")
-        decision_json = build_decision_json(
-            mode=(rule.mode if rule else "visual_only"),
-            rule_version=str(meta.get("rule_version") or "v0.0"),
+    decision_json = (
+        meta.get("decision_json")
+        if isinstance(meta.get("decision_json"), dict)
+        else file_row.decision_json if isinstance(file_row.decision_json, dict) else None
+    )
+    if not isinstance(decision_json, dict):
+        decision_json = decide_with_stell_ai(
+            file_id=file_row.file_id,
+            project_id=str(meta.get("project_id") or "default"),
+            mode=str(meta.get("mode") or "visual_only"),
+            rule_version=str(meta.get("rule_version") or ""),
             geometry_meta=meta.get("geometry_meta_json") if isinstance(meta.get("geometry_meta_json"), dict) else None,
             dfm_findings=dfm_findings,
         )

@@ -4,7 +4,7 @@
 - Status: `Active Canonical`
 - Parent authority: `docs/v10/00_V10_MASTER_CONSTITUTION.md`, `docs/v10/01_V10_SOURCE_HIERARCHY.md`
 - Related documents: `docs/v10/03_V10_SYSTEM_ARCHITECTURE.md`, `docs/v10/11_V10_RELEASE_GATES_AND_SMOKE.md`, `docs/v10/14_V10_DRIVE_ARCHIVE_HIERARCHY.md`
-- Last updated: `2026-03-16`
+- Last updated: `2026-03-23`
 - Language: `English`
 - Scope: `Deploy discipline, backup sources, restore proof, and disposability rules`
 - Replacement rule: `Deploy or restore process changes must update this file and the evidence standard before use.`
@@ -19,10 +19,13 @@ This document is governed by `docs/v10/00_V10_MASTER_CONSTITUTION.md` and `docs/
 
 ## Canonical Automation
 
-- deploy topology: `infrastructure/deploy/docker-compose.yml`, `docker/docker-compose.prod.yml`
+- deploy topology: `infrastructure/deploy/docker-compose.yml`
+- edge topology: `infrastructure/nginx/stellcodex.conf`, `infrastructure/nginx/cloudflare-real-ip.conf`
 - backup scripts: `scripts/backup_db.sh`, `scripts/backup_object_mirror.sh`, `ops/scripts/backup-state.sh`
 - restore proof scripts: `scripts/weekly_restore_gate.sh`, `scripts/object_restore_drill.sh`, `scripts/runtime_restore_probe.sh`
 - cleanup automation: `ops/scripts/cleanup.sh`, `ops/scripts/install_cleanup_cron.sh`
+
+Alternative compose files and side-port deploy paths are retired.
 
 ## Restore Guarantee
 

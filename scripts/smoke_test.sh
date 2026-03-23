@@ -40,7 +40,6 @@ add_base_url_candidate() {
 add_base_url_candidate "$BASE_URL"
 add_base_url_candidate "$BACKEND_BASE_URL"
 add_base_url_candidate "$(runtime_resolve_backend_base_url 2>/dev/null || true)"
-add_base_url_candidate "http://127.0.0.1:18000"
 add_base_url_candidate "http://127.0.0.1:8000"
 
 echo "Smoke: health endpoint discovery"

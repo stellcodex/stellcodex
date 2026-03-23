@@ -39,7 +39,7 @@ export function ShareTable({ onCopy, onOpen, onRevoke, shares }: ShareTableProps
             <td className="px-4 py-3">
               <ShareStatusBadge status={share.status} />
             </td>
-            <td className="px-4 py-3 text-sm text-[var(--foreground-muted)]">{share.fileId || "Derived"}</td>
+            <td className="px-4 py-3 text-sm text-[var(--foreground-muted)]">{share.fileId || "Unavailable"}</td>
             <td className="px-4 py-3">
               <div className="flex justify-end gap-2">
                 <Button onClick={() => void onCopy(share)} size="sm">

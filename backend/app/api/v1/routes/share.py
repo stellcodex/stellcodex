@@ -18,7 +18,7 @@ from app.models.share import Share
 from app.queue import redis_conn
 from app.security.deps import Principal, get_current_principal
 from app.services.audit import log_event
-from app.services.orchestrator_sessions import build_decision_json, upsert_orchestrator_session
+from app.services.orchestra_client import sync_orchestrator_file
 
 router = APIRouter()
 
@@ -195,22 +195,7 @@ def _create_share_for_file(
     )
     db.commit()
     db.refresh(share)
-    meta = f.meta if isinstance(f.meta, dict) else {}
-    decision_json = meta.get("decision_json") if isinstance(meta.get("decision_json"), dict) else build_decision_json(
-        mode=str(meta.get("mode") or "visual_only"),
-        rule_version=str(meta.get("rule_version") or "v0.0"),
-        geometry_meta=meta.get("geometry_meta_json") if isinstance(meta.get("geometry_meta_json"), dict) else None,
-        dfm_findings=meta.get("dfm_findings") if isinstance(meta.get("dfm_findings"), dict) else None,
-    )
-    upsert_orchestrator_session(
-        db,
-        file_id=f.file_id,
-        state="S7 ShareReady",
-        decision_json=decision_json,
-        rule_version=str(decision_json.get("rule_version") or meta.get("rule_version") or "v0.0"),
-        mode=str(meta.get("mode") or "visual_only"),
-    )
-    db.commit()
+    sync_orchestrator_file(f.file_id)
     return ShareCreateOut(id=str(share.id), token=share.token, expires_at=share.expires_at, permission=share.permission)
 
 

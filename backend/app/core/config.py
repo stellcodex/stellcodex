@@ -110,6 +110,10 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("PUBLIC_S3_BASE_URL", "STORAGE_PUBLIC_BASE_URL"),
     )
 
+    # Internal service authorities
+    stell_ai_base_url: str = Field(default="http://stellai:7020", validation_alias="STELL_AI_BASE_URL")
+    orchestra_base_url: str = Field(default="http://orchestra:7010", validation_alias="ORCHESTRA_BASE_URL")
+
     @property
     def s3_enabled(self) -> bool:
         return all([self.s3_endpoint_url, self.s3_bucket, self.s3_access_key_id, self.s3_secret_access_key])

@@ -11,6 +11,7 @@ from app.api.v1.routes.files import download_content, get_file as get_file_detai
 from app.api.v1.routes.me import me as get_me
 from app.api.v1.routes.share import ShareCreateIn, create_share
 from app.core.config import settings
+from app.core.ids import normalize_scx_id
 from app.db.session import get_db
 from app.models.core import Privacy, Project
 from app.models.file import UploadFile as UploadFileModel
@@ -126,8 +127,12 @@ def _scoped_uploads(db: Session, principal: Principal) -> list[UploadFileModel]:
 
 def _serialize_project_file(row: UploadFileModel) -> ProjectFileOut:
     meta = row.meta if isinstance(row.meta, dict) else {}
+    try:
+        public_file_id = normalize_scx_id(row.file_id)
+    except ValueError:
+        public_file_id = row.file_id
     return ProjectFileOut(
-        file_id=row.file_id,
+        file_id=public_file_id,
         original_filename=row.original_filename,
         status=row.status,
         kind=str(meta.get("kind")) if meta.get("kind") is not None else None,
