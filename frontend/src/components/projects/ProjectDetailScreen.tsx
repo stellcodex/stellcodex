@@ -9,7 +9,6 @@ import { PageHeader } from "@/components/shell/PageHeader";
 import { ShareDialog } from "@/components/shares/ShareDialog";
 import { RouteErrorState } from "@/components/states/RouteErrorState";
 import { RouteLoadingState } from "@/components/states/RouteLoadingState";
-import { startOrchestrator } from "@/lib/api/orchestrator";
 import { useProjectDetail } from "@/lib/hooks/useProjectDetail";
 import { useShares } from "@/lib/hooks/useShares";
 import { useUpload } from "@/lib/hooks/useUpload";
@@ -29,29 +28,14 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
   const { create } = useShares();
   const [shareDialogOpen, setShareDialogOpen] = React.useState(false);
   const [activeShareFileId, setActiveShareFileId] = React.useState<string | null>(null);
-  const [startingFileId, setStartingFileId] = React.useState<string | null>(null);
-  const [workflowError, setWorkflowError] = React.useState<string | null>(null);
 
   if (loading) return <RouteLoadingState title="Loading project detail" />;
   if (error || !project) return <RouteErrorState actionLabel="Retry" description={error || "Project not found."} onAction={() => void refresh()} title="Project unavailable" />;
 
-  async function handleStartWorkflow(fileId: string) {
-    setStartingFileId(fileId);
-    setWorkflowError(null);
-    try {
-      await startOrchestrator(fileId);
-      router.push(`/files/${encodeURIComponent(fileId)}`);
-    } catch (caughtError) {
-      setWorkflowError(caughtError instanceof Error ? caughtError.message : "Workflow start failed.");
-    } finally {
-      setStartingFileId(null);
-    }
-  }
-
   return (
     <div className="space-y-6">
       <PageHeader
-        subtitle="Inspect files, open the viewer, start workflow sessions, create shares, and upload additional files into the same project scope."
+        subtitle="Inspect files, open the viewer, create shares, and upload additional files while the backend continues the workflow automatically."
         title={project.name}
       />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -68,11 +52,6 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
               <div className="text-sm text-[var(--foreground-muted)]">{uploadError}</div>
             </Card>
           ) : null}
-          {workflowError ? (
-            <Card title="Workflow start unavailable">
-              <div className="text-sm text-[var(--foreground-muted)]">{workflowError}</div>
-            </Card>
-          ) : null}
           <Card description="Project-bound files resolved from the live projects contract." title="Files">
             <ProjectFilesTable
               files={project.files}
@@ -80,8 +59,6 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
                 setActiveShareFileId(selectedFileId);
                 setShareDialogOpen(true);
               }}
-              onStartWorkflow={handleStartWorkflow}
-              startingFileId={startingFileId}
             />
           </Card>
         </div>

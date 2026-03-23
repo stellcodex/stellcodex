@@ -2,7 +2,7 @@
 
 - External context gate (6/6)
   - `cd /var/www/stellcodex && ./scripts/external_context_checks.sh`
-  - Canonical upload flow: `POST /api/v1/auth/guest` -> `POST /api/v1/files/upload` (`upload=@file`) -> `GET /api/v1/files/{file_id}/status`
+  - Canonical upload flow: authenticated session -> `POST /api/v1/files/upload` (`upload=@file`) -> `GET /api/v1/files/{file_id}/status`
   - Legacy alias: `POST /api/v1/upload` is deprecated and kept for backward compatibility (`file` or `upload` form field; same auth requirement as canonical)
 - Frontend build
   - `cd frontend && npm run build`

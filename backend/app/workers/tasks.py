@@ -14,6 +14,7 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 from rq import Retry
+from rq.job import Job
 
 from app.core.config import settings
 from app.core.format_registry import get_rule_for_filename
@@ -25,8 +26,10 @@ from app.models.job_failure import JobFailure
 from app.models.orchestrator import OrchestratorSession
 from app.queue import get_queue
 from app.services.audit import log_event
-from app.services.orchestrator_sessions import build_decision_json, upsert_orchestrator_session
+from app.services.file_versions import sync_current_file_version
+from app.services.orchestra_client import sync_orchestrator_file
 from app.services.rule_configs import load_hybrid_v1_config
+from app.services.stell_ai_client import decide_with_stell_ai
 from app.services.tenants import ensure_owner_tenant_id
 
 DEFAULT_RESULT_TTL_SECONDS = 3600
@@ -307,6 +310,7 @@ def _mark_failed(db, f: UploadFile, detail: str, stage: str = "convert") -> str:
         "progress": "failed",
     }
     db.add(f)
+    sync_current_file_version(db, f, created_by_user_id=str(f.owner_user_id) if f.owner_user_id else None)
     db.add(
         JobFailure(
             job_id=(f.meta or {}).get("job_id"),
@@ -332,6 +336,7 @@ def _set_progress(db, f: UploadFile, *, stage: str, percent: int, hint: str, sta
     if status:
         f.status = status
     db.add(f)
+    sync_current_file_version(db, f, created_by_user_id=str(f.owner_user_id) if f.owner_user_id else None)
     db.commit()
     db.refresh(f)
 
@@ -685,7 +690,9 @@ def convert_file(file_id: str):
         )
         decision_json = result_payload.get("decision_json") if isinstance(result_payload.get("decision_json"), dict) else None
         if decision_json is None:
-            decision_json = build_decision_json(
+            decision_json = decide_with_stell_ai(
+                file_id=f.file_id,
+                project_id=effective_project_id,
                 mode=mode,
                 rule_version=hybrid_rule_version,
                 geometry_meta=effective_geometry,
@@ -724,16 +731,10 @@ def convert_file(file_id: str):
             f.status = "ready"
             f.meta = {**(f.meta or {}), "stage": "ready", "progress_percent": 100, "progress": "ready"}
             db.add(f)
-            upsert_orchestrator_session(
-                db,
-                file_id=f.file_id,
-                state="S2 AssemblyReady" if kind == "3d" else "S1 Converted",
-                decision_json=decision_json,
-                rule_version=hybrid_rule_version,
-                mode=mode,
-            )
+            sync_current_file_version(db, f, created_by_user_id=str(f.owner_user_id) if f.owner_user_id else None)
             log_event(db, "job.succeeded", file_id=f.file_id, data={"kind": kind, "mode": mode})
             db.commit()
+            sync_orchestrator_file(f.file_id)
             return {"status": "ready", "kind": kind, "mode": mode}
 
         _mark_failed(db, f, "Required artifacts missing for ready contract", stage="finalize")
@@ -875,7 +876,8 @@ def mesh2d3d_export(source_file_id: str):
             visibility="private",
             folder_key=f"project/{project_id}/3d/mesh_approx",
             thumbnail_key=thumb_key,
-            decision_json=build_decision_json(
+            decision_json=decide_with_stell_ai(
+                project_id=project_id,
                 mode="mesh_approx",
                 rule_version=str((meta.get("rule_version") or "v0.0")),
             ),
@@ -895,6 +897,9 @@ def mesh2d3d_export(source_file_id: str):
         db.add(generated)
         db.commit()
         db.refresh(generated)
+        sync_current_file_version(db, generated, created_by_user_id=str(generated.owner_user_id) if generated.owner_user_id else None)
+        db.commit()
+        sync_orchestrator_file(generated.file_id)
         convert_file(generated.file_id)
         log_event(db, "mesh2d3d.completed", file_id=generated.file_id, data={"source_file_id": source_file_id})
         db.commit()
@@ -962,7 +967,11 @@ def moldcodes_export_job(
             visibility="private",
             folder_key=f"project/{safe_project_id}/3d/brep",
             thumbnail_key=thumb_key,
-            decision_json=build_decision_json(mode="brep", rule_version=rule_version),
+            decision_json=decide_with_stell_ai(
+                project_id=safe_project_id,
+                mode="brep",
+                rule_version=rule_version,
+            ),
             meta={
                 "kind": "3d",
                 "mode": "brep",
@@ -981,6 +990,7 @@ def moldcodes_export_job(
         )
         db.add(generated)
         db.flush()
+        sync_current_file_version(db, generated, created_by_user_id=str(generated.owner_user_id) if generated.owner_user_id else None)
         log_event(
             db,
             "moldcodes.export.completed",
@@ -991,6 +1001,7 @@ def moldcodes_export_job(
         )
         db.commit()
         db.refresh(generated)
+        sync_orchestrator_file(generated.file_id)
         return {"status": "ok", "file_id": generated.file_id}
     finally:
         db.close()
@@ -1041,7 +1052,46 @@ def ping_job():
     return {"status": "ok"}
 
 
+def _active_job_from_meta(file_id: str, meta_key: str, queue_name: str) -> str | None:
+    db = SessionLocal()
+    try:
+        row = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
+        if row is None:
+            return None
+        meta = row.meta if isinstance(row.meta, dict) else {}
+        job_id = meta.get(meta_key)
+        if not isinstance(job_id, str) or not job_id:
+            return None
+        queue = get_queue(queue_name)
+        job = Job.fetch(job_id, connection=queue.connection)
+        if job.get_status() in {"queued", "started", "scheduled", "deferred"}:
+            return job_id
+        return None
+    except Exception:
+        return None
+    finally:
+        db.close()
+
+
+def _set_job_meta(file_id: str, meta_key: str, job_id: str) -> None:
+    db = SessionLocal()
+    try:
+        row = db.query(UploadFile).filter(UploadFile.file_id == file_id).first()
+        if row is None:
+            return
+        meta = row.meta if isinstance(row.meta, dict) else {}
+        row.meta = {**meta, meta_key: job_id}
+        db.add(row)
+        sync_current_file_version(db, row, created_by_user_id=str(row.owner_user_id) if row.owner_user_id else None)
+        db.commit()
+    finally:
+        db.close()
+
+
 def enqueue_convert_file(file_id: str) -> str:
+    existing_job_id = _active_job_from_meta(file_id, "job_id", "cad")
+    if existing_job_id:
+        return existing_job_id
     q = get_queue("cad")
     job = q.enqueue(
         convert_file,
@@ -1051,6 +1101,7 @@ def enqueue_convert_file(file_id: str) -> str:
         ttl=DEFAULT_JOB_TTL_SECONDS,
         retry=Retry(max=3),
     )
+    _set_job_meta(file_id, "job_id", job.get_id())
     return job.get_id()
 
 
@@ -1121,6 +1172,9 @@ def enqueue_extract_metadata(file_id: str) -> str:
 
 
 def enqueue_render_preset(file_id: str, preset_name: str) -> str:
+    existing_job_id = _active_job_from_meta(file_id, "render_job_id", "render")
+    if existing_job_id:
+        return existing_job_id
     q = get_queue("render")
     job = q.enqueue(
         render_preset,
@@ -1131,6 +1185,7 @@ def enqueue_render_preset(file_id: str, preset_name: str) -> str:
         ttl=DEFAULT_JOB_TTL_SECONDS,
         retry=Retry(max=3),
     )
+    _set_job_meta(file_id, "render_job_id", job.get_id())
     return job.get_id()
 
 

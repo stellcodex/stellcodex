@@ -1,5 +1,0 @@
-ExecStart={ path=/var/www/stellcodex/frontend/node_modules/.bin/next ; argv[]=/var/www/stellcodex/frontend/node_modules/.bin/next start -H 127.0.0.1 -p 3000 ; ignore_errors=no ; start_time=[Wed 2026-02-04 23:28:20 +03] ; stop_time=[n/a] ; pid=584741 ; code=(null) ; status=0/0 }
-User=root
-Group=
-FragmentPath=/etc/systemd/system/stellcodex-frontend.service
-DropInPaths=

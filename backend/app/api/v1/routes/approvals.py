@@ -13,7 +13,7 @@ from app.models.file import UploadFile as UploadFileModel
 from app.models.orchestrator import OrchestratorSession
 from app.security.deps import Principal, get_current_principal
 from app.services.audit import log_event
-from app.services.orchestrator_sessions import apply_session_state, approval_required, state_label
+from app.services.orchestra_client import proxy_orchestra
 
 router = APIRouter(prefix="/approvals", tags=["approvals"])
 
@@ -63,26 +63,18 @@ def _get_session_by_id(db: Session, session_id: str) -> OrchestratorSession:
     return session
 
 
-def _assert_file_access(f: UploadFileModel, principal: Principal) -> None:
-    if principal.typ == "guest":
-        owner_sub = principal.owner_sub or ""
-        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
-            raise HTTPException(status_code=403, detail="Forbidden")
-        return
-    if str(f.owner_user_id or "") != str(principal.user_id or ""):
+def _assert_file_access(file_row: UploadFileModel, principal: Principal) -> None:
+    if str(file_row.owner_user_id or "") != str(principal.user_id or ""):
         raise HTTPException(status_code=403, detail="Forbidden")
 
 
-def _serialize(session: OrchestratorSession, file_row: UploadFileModel) -> ApprovalOut:
-    decision_json = session.decision_json if isinstance(session.decision_json, dict) else {}
-    return ApprovalOut(
-        session_id=str(session.id),
-        file_id=_public_file_id(file_row.file_id),
-        state=session.state,
-        state_label=state_label(session.state),
-        approval_required=approval_required(decision_json),
-        decision_json=decision_json,
-    )
+def _file_for_session(db: Session, session_id: str, principal: Principal) -> UploadFileModel:
+    session = _get_session_by_id(db, session_id)
+    file_row = _get_file_by_identifier(db, session.file_id)
+    if file_row is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    _assert_file_access(file_row, principal)
+    return file_row
 
 
 @router.post("/{session_id}/approve", response_model=ApprovalOut)
@@ -92,29 +84,22 @@ def approve_session(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_current_principal),
 ):
-    session = _get_session_by_id(db, session_id)
-    file_row = _get_file_by_identifier(db, session.file_id)
-    if file_row is None:
-        raise HTTPException(status_code=404, detail="File not found")
-    _assert_file_access(file_row, principal)
-
-    apply_session_state(
-        session,
-        state="S6 Approved",
-        decision_json=session.decision_json if isinstance(session.decision_json, dict) else {},
+    file_row = _file_for_session(db, session_id, principal)
+    payload = proxy_orchestra(
+        path="/sessions/approve",
+        method="POST",
+        payload={"session_id": session_id, "reason": data.reason},
     )
-    db.add(session)
     log_event(
         db,
         "approval.approved",
         actor_user_id=principal.user_id,
         actor_anon_sub=principal.owner_sub,
         file_id=file_row.file_id,
-        data={"session_id": str(session.id), "reason": data.reason},
+        data={"session_id": session_id, "reason": data.reason},
     )
     db.commit()
-    db.refresh(session)
-    return _serialize(session, file_row)
+    return payload
 
 
 @router.post("/{session_id}/reject", response_model=ApprovalOut)
@@ -124,26 +109,19 @@ def reject_session(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_current_principal),
 ):
-    session = _get_session_by_id(db, session_id)
-    file_row = _get_file_by_identifier(db, session.file_id)
-    if file_row is None:
-        raise HTTPException(status_code=404, detail="File not found")
-    _assert_file_access(file_row, principal)
-
-    apply_session_state(
-        session,
-        state="S4 DFMReady",
-        decision_json=session.decision_json if isinstance(session.decision_json, dict) else {},
+    file_row = _file_for_session(db, session_id, principal)
+    payload = proxy_orchestra(
+        path="/sessions/reject",
+        method="POST",
+        payload={"session_id": session_id, "reason": data.reason},
     )
-    db.add(session)
     log_event(
         db,
         "approval.rejected",
         actor_user_id=principal.user_id,
         actor_anon_sub=principal.owner_sub,
         file_id=file_row.file_id,
-        data={"session_id": str(session.id), "reason": data.reason},
+        data={"session_id": session_id, "reason": data.reason},
     )
     db.commit()
-    db.refresh(session)
-    return _serialize(session, file_row)
+    return payload

@@ -57,9 +57,9 @@ jobs:
           DATABASE_URL: postgresql://test:test@localhost/test
           JWT_SECRET: ci-test-secret-not-real-xxxxxxxxxxxxxxxx
         run: |
+          # This protected PR gate must stay DB-free. DB-backed closure tests run separately.
           pytest -q \
             backend/tests/test_format_registry_contract.py \
-            backend/tests/test_guest_token_identity.py \
             backend/tests/test_hybrid_v1_geometry_merge_policy.py
 
   frontend-release-gate:

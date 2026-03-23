@@ -10,14 +10,12 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.file import UploadFile
 from app.security.deps import Principal, get_current_principal
-from app.security.jwt import decode_token
 from app.services.audit import log_event
 
 router = APIRouter()
 
 
 class OwnershipClaimIn(BaseModel):
-    guest_token: str | None = None
     owner_sub: str | None = None
     file_ids: List[str] | None = None
 
@@ -32,12 +30,6 @@ def claim_ownership(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User token required")
 
     owner_sub = data.owner_sub
-    if data.guest_token and not owner_sub:
-        payload = decode_token(data.guest_token)
-        if payload.get("typ") != "guest" or not payload.get("owner_sub"):
-            raise HTTPException(status_code=400, detail="Invalid guest token")
-        owner_sub = str(payload.get("owner_sub"))
-
     if not owner_sub:
         raise HTTPException(status_code=400, detail="owner_sub required")
 

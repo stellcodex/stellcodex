@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${ROOT_DIR}/scripts/lib/runtime_env.sh"
 EVIDENCE_DIR="${ROOT_DIR}/evidence/external_context_fix"
 EVIDENCE_FILE="${EVIDENCE_DIR}/02_external_context_checks_run.txt"
 
@@ -163,22 +164,14 @@ check_d_dns_hosts() {
 
 canonical_upload_flow() {
   local sample_file="$1"
-  local guest_json="${TMP_DIR}/e_guest.json"
   local upload_json="${TMP_DIR}/e_upload.json"
   local status_json="${TMP_DIR}/e_status.json"
 
-  local guest_code
-  guest_code="$(curl -sS -o "${guest_json}" -w "%{http_code}" -X POST https://stellcodex.com/api/v1/auth/guest || true)"
-  if [[ "${guest_code}" != "200" ]]; then
-    CHECK_DETAIL="auth_guest_http=${guest_code}"
-    return 1
-  fi
-
   local token
-  token="$(extract_json_field "${guest_json}" "access_token")"
-  echo "E.guest_token_len=${#token}"
+  token="$(runtime_request_auth_token "https://stellcodex.com/api/v1" || true)"
+  echo "E.auth_token_len=${#token}"
   if [[ -z "${token}" ]]; then
-    CHECK_DETAIL="guest_token_missing"
+    CHECK_DETAIL="auth_token_missing"
     return 1
   fi
 
@@ -227,22 +220,14 @@ canonical_upload_flow() {
 
 legacy_upload_flow() {
   local sample_file="$1"
-  local guest_json="${TMP_DIR}/f_guest.json"
   local upload_json="${TMP_DIR}/f_upload.json"
   local status_json="${TMP_DIR}/f_status.json"
 
-  local guest_code
-  guest_code="$(curl -sS -o "${guest_json}" -w "%{http_code}" -X POST https://stellcodex.com/api/v1/auth/guest || true)"
-  if [[ "${guest_code}" != "200" ]]; then
-    CHECK_DETAIL="auth_guest_http=${guest_code}"
-    return 1
-  fi
-
   local token
-  token="$(extract_json_field "${guest_json}" "access_token")"
-  echo "F.guest_token_len=${#token}"
+  token="$(runtime_request_auth_token "https://stellcodex.com/api/v1" || true)"
+  echo "F.auth_token_len=${#token}"
   if [[ -z "${token}" ]]; then
-    CHECK_DETAIL="guest_token_missing"
+    CHECK_DETAIL="auth_token_missing"
     return 1
   fi
 

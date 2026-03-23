@@ -91,6 +91,14 @@ export function ViewerScreen({ fileId }: ViewerScreenProps) {
     await refreshDecision();
   }
 
+  async function handleSubmitInputs() {
+    const accepted = await submit();
+    if (accepted) {
+      await Promise.all([refresh(), refreshDecision(), refreshDfm()]);
+    }
+    return accepted;
+  }
+
   return (
     <div className="space-y-0 overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border-default)] bg-[var(--background-shell)]" ref={containerRef}>
       <ViewerToolbar
@@ -154,7 +162,7 @@ export function ViewerScreen({ fileId }: ViewerScreenProps) {
                 {
                   id: "inputs",
                   label: "Required Inputs",
-                  content: <RequiredInputsPanel error={inputsError} fields={fields} onChange={setValue} onSubmit={submit} values={values} />,
+                  content: <RequiredInputsPanel error={inputsError} fields={fields} onChange={setValue} onSubmit={handleSubmitInputs} values={values} />,
                 },
                 { id: "decision", label: "Decision", content: <DecisionPanel decision={decision} /> },
                 { id: "risks", label: "Risks", content: <RisksPanel decision={decision} dfm={report} /> },

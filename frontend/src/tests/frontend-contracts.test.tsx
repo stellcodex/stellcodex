@@ -379,13 +379,10 @@ const checks: Array<[string, () => void | Promise<void>]> = [
         },
       ]}
       onShare={() => undefined}
-      onStartWorkflow={() => undefined}
-      startingFileId={null}
     />,
   );
 
   assert.match(html, /Viewer/);
-  assert.match(html, /Start workflow/);
   assert.match(html, /Share/);
   }],
 
@@ -483,6 +480,19 @@ const checks: Array<[string, () => void | Promise<void>]> = [
   ["settings-provider-hidden", () => {
   const settingsSource = fs.readFileSync(path.join(frontendRoot, "components", "settings", "SettingsScreen.tsx"), "utf8");
   assert.equal(settingsSource.includes("Auth provider"), false);
+  }],
+
+  ["share-surface-no-fake-fallbacks", () => {
+  const shareTableSource = fs.readFileSync(path.join(frontendRoot, "components", "shares", "ShareTable.tsx"), "utf8");
+  const shareDialogSource = fs.readFileSync(path.join(frontendRoot, "components", "shares", "ShareDialog.tsx"), "utf8");
+  assert.equal(shareTableSource.includes('"Derived"'), false);
+  assert.equal(shareDialogSource.includes("enabled later"), false);
+  assert.equal(shareDialogSource.includes("future comment scope"), false);
+  }],
+
+  ["share-inventory-no-arbitrary-cap", () => {
+  const useSharesSource = fs.readFileSync(path.join(frontendRoot, "lib", "hooks", "useShares.ts"), "utf8");
+  assert.equal(useSharesSource.includes("slice(0, 50)"), false);
   }],
 ];
 

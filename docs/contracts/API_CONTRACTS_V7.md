@@ -3,7 +3,7 @@
 Required endpoints (minimum):
 
 Auth
-- POST /api/v1/auth/guest (or equivalent)
+- `/api/v1/auth/guest` retired in V10 consolidation
 - GET  /api/v1/auth/me
 
 Files / Upload

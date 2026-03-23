@@ -86,15 +86,49 @@ def _ensure_users_schema() -> None:
         session.close()
 
 
+def _ensure_stell_ai_memory_schema() -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS experience_ledger (
+                  id UUID PRIMARY KEY,
+                  task_query TEXT NOT NULL,
+                  successful_plan JSONB NOT NULL DEFAULT '{}'::jsonb,
+                  lessons_learned TEXT NULL,
+                  feedback_from_owner TEXT NULL,
+                  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS decision_logs (
+                  decision_id UUID PRIMARY KEY,
+                  prompt TEXT NOT NULL,
+                  lane VARCHAR(64) NOT NULL,
+                  executor VARCHAR(128) NOT NULL,
+                  decision_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+                  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+        )
+
+
 def register_startup(app: FastAPI) -> None:
     @app.on_event("startup")
     def _create_all() -> None:
         # Ensure models are imported before metadata create_all.
         from app.models import core as _core  # noqa: F401
         from app.models import file as _file  # noqa: F401
+        from app.models import file_version as _file_version  # noqa: F401
         from app.models import library_item as _library_item  # noqa: F401
         from app.models import orchestrator as _orchestrator  # noqa: F401
         from app.models import rule_config as _rule_config  # noqa: F401
         Base.metadata.create_all(bind=engine)
         _ensure_users_schema()
         _ensure_uploaded_files_schema()
+        _ensure_stell_ai_memory_schema()

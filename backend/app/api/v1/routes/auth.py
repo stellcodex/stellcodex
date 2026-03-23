@@ -81,15 +81,6 @@ def _clear_google_state_cookie(response: RedirectResponse, *, secure: bool) -> N
         secure=secure,
     )
 
-
-@router.post("/auth/guest")
-def guest_disabled():
-    raise HTTPException(
-        status_code=status.HTTP_410_GONE,
-        detail="Guest workspace access is disabled. Use /api/v1/auth/login or Google sign-in.",
-    )
-
-
 @router.get("/auth/google/start")
 def google_start(request: Request, next: str | None = Query(default="/dashboard")):
     if not settings.google_client_id or not settings.google_client_secret:

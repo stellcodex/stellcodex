@@ -10,11 +10,9 @@ import { FileStatusBadge } from "../files/FileStatusBadge";
 export interface ProjectFilesTableProps {
   files: ProjectFileRecord[];
   onShare?: (fileId: string) => void;
-  onStartWorkflow?: (fileId: string) => void | Promise<void>;
-  startingFileId?: string | null;
 }
 
-export function ProjectFilesTable({ files, onShare, onStartWorkflow, startingFileId }: ProjectFilesTableProps) {
+export function ProjectFilesTable({ files, onShare }: ProjectFilesTableProps) {
   if (files.length === 0) {
     return <EmptyState description="Upload a file into this project to start the decision flow." title="No files in project" />;
   }
@@ -48,16 +46,6 @@ export function ProjectFilesTable({ files, onShare, onStartWorkflow, startingFil
                 <Link className="font-medium" href={`/files/${encodeURIComponent(file.fileId)}/viewer`}>
                   Viewer
                 </Link>
-                {onStartWorkflow ? (
-                  <button
-                    className="font-medium disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={startingFileId === file.fileId}
-                    onClick={() => void onStartWorkflow(file.fileId)}
-                    type="button"
-                  >
-                    {startingFileId === file.fileId ? "Starting..." : "Start workflow"}
-                  </button>
-                ) : null}
                 {onShare ? (
                   <button className="font-medium" onClick={() => onShare(file.fileId)} type="button">
                     Share

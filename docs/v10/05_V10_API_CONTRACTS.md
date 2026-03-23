@@ -4,7 +4,7 @@
 - Status: `Active Canonical`
 - Parent authority: `docs/v10/00_V10_MASTER_CONSTITUTION.md`, `docs/v10/01_V10_SOURCE_HIERARCHY.md`
 - Related documents: `docs/v10/04_V10_DATA_MODEL.md`, `docs/v10/08_V10_SHARE_AND_PUBLIC_ACCESS_CONTRACT.md`, `docs/v10/09_V10_ORCHESTRATOR_RULES_AND_DFM.md`
-- Last updated: `2026-03-21`
+- Last updated: `2026-03-23`
 - Language: `English`
 - Scope: `Public and operator-facing API contracts`
 - Replacement rule: `API contract changes must update this file, tests, and runtime evidence before they are considered active.`
@@ -25,6 +25,7 @@ This document is governed by `docs/v10/00_V10_MASTER_CONSTITUTION.md` and `docs/
 - `orchestrator`: start, decision state, required inputs
 - `approvals`: approve and reject protected decisions
 - `dfm`: DFM report surfaces
+- `stell-ai`: proxy surface for plan, analyze, decide, and memory endpoints backed by the internal STELL.AI service
 - `shares`: create, resolve, revoke
 - `admin`: health, files, shares, users, approvals, queues, RBAC, audit, system state
 
@@ -35,6 +36,8 @@ This document is governed by `docs/v10/00_V10_MASTER_CONSTITUTION.md` and `docs/
 - unauthenticated access must return `401`
 - forbidden access must return `403`
 - no endpoint may leak storage internals or client-supplied permissions
+- `/api/v1/auth/guest` is retired and must not be reintroduced
+- backend route handlers may proxy to STELL.AI and Orchestra, but they may not own intelligence or workflow transition rules
 
 ## Repo Anchors
 

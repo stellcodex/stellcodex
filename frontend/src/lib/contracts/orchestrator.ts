@@ -36,6 +36,21 @@ export interface RawRequiredInputs {
   session_id: string;
   file_id: string;
   required_inputs: RawRequiredInput[];
+  submitted_inputs: Record<string, unknown>;
+  blocked_reasons: Array<{
+    code: string;
+    message: string;
+  }>;
+}
+
+export interface RawOrchestratorInputResponse {
+  session_id: string;
+  file_id: string;
+  state: string;
+  state_label: string;
+  accepted: boolean;
+  submitted_inputs: Record<string, unknown>;
+  required_inputs: RawRequiredInput[];
 }
 
 export interface RawApprovalResponse {

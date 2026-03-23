@@ -19,8 +19,10 @@ export function useFileDetail(fileId: string) {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
-  const refresh = React.useCallback(async () => {
-    setLoading(true);
+  const refresh = React.useCallback(async (background = false) => {
+    if (!background) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const [fileResponse, decisionResponse, projectResponses, shareResponse] = await Promise.all([
@@ -42,13 +44,27 @@ export function useFileDetail(fileId: string) {
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "The file could not be loaded.");
     } finally {
-      setLoading(false);
+      if (!background) {
+        setLoading(false);
+      }
     }
   }, [fileId]);
 
   React.useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const shouldPoll =
+    Boolean(file && ["queued", "running", "processing"].includes(file.status.toLowerCase())) ||
+    Boolean(decision && ["S0", "S1", "S2", "S3", "S4", "S5"].includes(decision.stateCode));
+
+  React.useEffect(() => {
+    if (!shouldPoll) return;
+    const interval = window.setInterval(() => {
+      void refresh(true);
+    }, 5000);
+    return () => window.clearInterval(interval);
+  }, [refresh, shouldPoll]);
 
   return {
     file,

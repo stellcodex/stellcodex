@@ -13,12 +13,7 @@ export function normalizeOrigin(origin: string) {
 }
 
 export function resolveApiBase(origin: string) {
-  const raw =
-    process.env.BACKEND_API_ORIGIN ||
-    process.env.NEXT_PUBLIC_API_BASE_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    process.env.NEXT_PUBLIC_API_BASE ||
-    `${origin}/api/v1`;
+  const raw = process.env.NEXT_PUBLIC_API_BASE_URL || `${origin}/api/v1`;
   const normalized = trimTrailingSlashes(String(raw || "").trim());
 
   if (!normalized) return `${origin}/api/v1`;

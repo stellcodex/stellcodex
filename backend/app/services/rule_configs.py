@@ -9,6 +9,11 @@ from app.core.hybrid_v1_config import hybrid_v1_config_dict
 from app.models.rule_config import RuleConfig
 
 HYBRID_V1_RULE_CONFIG_KEY = "hybrid_v1"
+REQUIRED_RULE_KEYS = set(hybrid_v1_config_dict().keys())
+
+
+class RuleConfigMissingError(RuntimeError):
+    pass
 
 
 def _parse_uuid(value: str | UUID | None) -> UUID | None:
@@ -78,15 +83,15 @@ def load_hybrid_v1_config(
     *,
     project_id: str | UUID | None = None,
 ) -> tuple[dict[str, Any], str]:
-    config = hybrid_v1_config_dict()
-    version = "v0.0"
+    config: dict[str, Any] = {}
+    version = ""
     if db is None:
-        return config, version
+        raise RuleConfigMissingError("rule_configs unavailable: database session missing")
 
     project_uuid = _parse_uuid(project_id)
     rows = _load_rows(db)
     if not rows:
-        return config, version
+        raise RuleConfigMissingError("rule_configs is empty")
 
     global_rows: list[RuleConfig] = []
     project_rows: list[RuleConfig] = []
@@ -100,10 +105,14 @@ def load_hybrid_v1_config(
     for row in global_rows:
         config, version = _apply_rule_row(config, version, row)
 
-    if project_uuid is None:
-        return config, version
+    if project_uuid is not None:
+        for row in project_rows:
+            config, version = _apply_rule_row(config, version, row)
 
-    for row in project_rows:
-        config, version = _apply_rule_row(config, version, row)
+    missing_keys = sorted(REQUIRED_RULE_KEYS.difference(config.keys()))
+    if missing_keys:
+        raise RuleConfigMissingError(f"rule_configs missing required keys: {', '.join(missing_keys)}")
+    if not version:
+        raise RuleConfigMissingError("rule_configs missing rule_version")
 
     return config, version

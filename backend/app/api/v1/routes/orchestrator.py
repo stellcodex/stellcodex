@@ -7,20 +7,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.core.format_registry import get_rule_for_filename
 from app.core.ids import format_scx_file_id, normalize_scx_file_id, normalize_scx_id
 from app.db.session import get_db
 from app.models.file import UploadFile as UploadFileModel
 from app.models.orchestrator import OrchestratorSession
 from app.security.deps import Principal, get_current_principal
 from app.services.audit import log_event
-from app.services.orchestrator_sessions import (
-    approval_required,
-    build_decision_json,
-    derive_session_state,
-    state_label,
-    upsert_orchestrator_session,
-)
+from app.services.orchestra_client import proxy_orchestra
 
 router = APIRouter(prefix="/orchestrator", tags=["orchestrator"])
 
@@ -42,10 +35,48 @@ class RequiredInputOut(BaseModel):
     required: bool = True
 
 
+class BlockedReasonOut(BaseModel):
+    code: str
+    message: str
+
+
 class RequiredInputsOut(BaseModel):
     session_id: str
     file_id: str
     required_inputs: list[RequiredInputOut] = Field(default_factory=list)
+    submitted_inputs: dict[str, Any] = Field(default_factory=dict)
+    blocked_reasons: list[BlockedReasonOut] = Field(default_factory=list)
+
+
+class OrchestratorInputIn(BaseModel):
+    session_id: str
+    key: str
+    value: Any
+
+
+class OrchestratorInputOut(BaseModel):
+    session_id: str
+    file_id: str
+    state: str
+    state_label: str
+    accepted: bool = True
+    submitted_inputs: dict[str, Any] = Field(default_factory=dict)
+    required_inputs: list[RequiredInputOut] = Field(default_factory=list)
+
+
+class OrchestratorAdvanceIn(BaseModel):
+    session_id: str
+
+
+class OrchestratorAdvanceOut(BaseModel):
+    session_id: str
+    file_id: str
+    state: str
+    state_label: str
+    advanced: bool
+    decision_json: dict[str, Any]
+    required_inputs: list[RequiredInputOut] = Field(default_factory=list)
+    blocked_reasons: list[BlockedReasonOut] = Field(default_factory=list)
 
 
 def _normalize_file_uuid(value: str) -> UUID:
@@ -69,104 +100,9 @@ def _get_file_by_identifier(db: Session, value: str) -> UploadFileModel | None:
     return db.query(UploadFileModel).filter(UploadFileModel.file_id.in_((canonical, legacy))).first()
 
 
-def _assert_file_access(f: UploadFileModel, principal: Principal) -> None:
-    if principal.typ == "guest":
-        owner_sub = principal.owner_sub or ""
-        if f.owner_anon_sub != owner_sub and f.owner_sub != owner_sub:
-            raise HTTPException(status_code=403, detail="Forbidden")
-        return
-    if str(f.owner_user_id or "") != str(principal.user_id or ""):
+def _assert_file_access(file_row: UploadFileModel, principal: Principal) -> None:
+    if str(file_row.owner_user_id or "") != str(principal.user_id or ""):
         raise HTTPException(status_code=403, detail="Forbidden")
-
-
-def _kind_mode(file_row: UploadFileModel) -> tuple[str, str]:
-    meta = file_row.meta if isinstance(file_row.meta, dict) else {}
-    rule = get_rule_for_filename(file_row.original_filename or "")
-    kind = str(meta.get("kind") or (rule.kind if rule else "3d"))
-    mode = str(meta.get("mode") or (rule.mode if rule else "brep"))
-    return kind, mode
-
-
-def _decision_json_for_file(file_row: UploadFileModel) -> dict[str, Any]:
-    meta = file_row.meta if isinstance(file_row.meta, dict) else {}
-    payload = meta.get("decision_json")
-    if isinstance(payload, dict):
-        return payload
-    _kind, mode = _kind_mode(file_row)
-    return build_decision_json(
-        mode=mode,
-        rule_version=str(meta.get("rule_version") or "v0.0"),
-        geometry_meta=meta.get("geometry_meta_json") if isinstance(meta.get("geometry_meta_json"), dict) else None,
-        dfm_findings=meta.get("dfm_findings") if isinstance(meta.get("dfm_findings"), dict) else None,
-    )
-
-
-def _dfm_findings_for_file(file_row: UploadFileModel) -> dict[str, Any] | None:
-    meta = file_row.meta if isinstance(file_row.meta, dict) else {}
-    payload = meta.get("dfm_findings")
-    return payload if isinstance(payload, dict) else None
-
-
-def _required_inputs_for_session(session: OrchestratorSession, file_row: UploadFileModel) -> list[RequiredInputOut]:
-    decision_json = session.decision_json if isinstance(session.decision_json, dict) else {}
-    flags = decision_json.get("conflict_flags")
-    items: list[RequiredInputOut] = []
-    if isinstance(flags, list) and "unknown_critical_geometry" in flags:
-        items.append(
-            RequiredInputOut(
-                key="geometry_confirmation",
-                label="Geometry Confirmation",
-                input_type="boolean",
-            )
-        )
-    if approval_required(decision_json, _dfm_findings_for_file(file_row)):
-        items.append(
-            RequiredInputOut(
-                key="approval_reason",
-                label="Approval Reason",
-                input_type="text",
-            )
-        )
-    return items
-
-
-def _serialize_session(file_row: UploadFileModel, session: OrchestratorSession) -> OrchestratorDecisionOut:
-    decision_json = session.decision_json if isinstance(session.decision_json, dict) else _decision_json_for_file(file_row)
-    flags = decision_json.get("conflict_flags")
-    return OrchestratorDecisionOut(
-        session_id=str(session.id),
-        file_id=_public_file_id(file_row.file_id),
-        state=session.state,
-        state_label=state_label(session.state),
-        approval_required=approval_required(decision_json, _dfm_findings_for_file(file_row)),
-        risk_flags=[str(item) for item in flags] if isinstance(flags, list) else [],
-        decision_json=decision_json,
-    )
-
-
-def _ensure_session(file_row: UploadFileModel, db: Session) -> OrchestratorSession:
-    session = db.query(OrchestratorSession).filter(OrchestratorSession.file_id == file_row.file_id).first()
-    decision_json = _decision_json_for_file(file_row)
-    kind, mode = _kind_mode(file_row)
-    dfm_findings = _dfm_findings_for_file(file_row)
-    next_state = derive_session_state(
-        file_status=file_row.status,
-        kind=kind,
-        decision_json=decision_json,
-        dfm_findings=dfm_findings,
-        current_state=session.state if session else None,
-    )
-    session = upsert_orchestrator_session(
-        db,
-        file_id=file_row.file_id,
-        state=next_state,
-        decision_json=decision_json,
-        rule_version=str(decision_json.get("rule_version") or "v0.0"),
-        mode=mode,
-    )
-    if session is None:
-        raise HTTPException(status_code=503, detail="Orchestrator session store unavailable")
-    return session
 
 
 def _get_session_by_id(db: Session, session_id: str) -> OrchestratorSession:
@@ -180,6 +116,15 @@ def _get_session_by_id(db: Session, session_id: str) -> OrchestratorSession:
     return session
 
 
+def _file_for_session(db: Session, session_id: str, principal: Principal) -> UploadFileModel:
+    session = _get_session_by_id(db, session_id)
+    file_row = _get_file_by_identifier(db, session.file_id)
+    if file_row is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    _assert_file_access(file_row, principal)
+    return file_row
+
+
 @router.post("/start", response_model=OrchestratorDecisionOut)
 def start_orchestrator(
     file_id: str,
@@ -191,18 +136,17 @@ def start_orchestrator(
         raise HTTPException(status_code=404, detail="File not found")
     _assert_file_access(file_row, principal)
 
-    session = _ensure_session(file_row, db)
+    payload = proxy_orchestra(path="/sessions/start", method="POST", payload={"file_id": file_row.file_id})
     log_event(
         db,
         "orchestrator.started",
         actor_user_id=principal.user_id,
         actor_anon_sub=principal.owner_sub,
         file_id=file_row.file_id,
-        data={"session_id": str(session.id), "state": session.state},
+        data={"session_id": payload.get("session_id"), "state": payload.get("state")},
     )
     db.commit()
-    db.refresh(session)
-    return _serialize_session(file_row, session)
+    return payload
 
 
 @router.get("/decision", response_model=OrchestratorDecisionOut)
@@ -216,21 +160,14 @@ def get_orchestrator_decision(
         raise HTTPException(status_code=400, detail="file_id or session_id is required")
 
     if session_id:
-        session = _get_session_by_id(db, session_id)
-        file_row = _get_file_by_identifier(db, session.file_id)
-        if file_row is None:
-            raise HTTPException(status_code=404, detail="File not found")
-        _assert_file_access(file_row, principal)
-        return _serialize_session(file_row, session)
+        _file_for_session(db, session_id, principal)
+        return proxy_orchestra(path="/sessions/decision", query={"session_id": session_id})
 
     file_row = _get_file_by_identifier(db, str(file_id))
     if file_row is None:
         raise HTTPException(status_code=404, detail="File not found")
     _assert_file_access(file_row, principal)
-    session = _ensure_session(file_row, db)
-    db.commit()
-    db.refresh(session)
-    return _serialize_session(file_row, session)
+    return proxy_orchestra(path="/sessions/decision", query={"file_id": file_row.file_id})
 
 
 @router.get("/required-inputs", response_model=RequiredInputsOut)
@@ -239,13 +176,35 @@ def get_required_inputs(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_current_principal),
 ):
-    session = _get_session_by_id(db, session_id)
-    file_row = _get_file_by_identifier(db, session.file_id)
-    if file_row is None:
-        raise HTTPException(status_code=404, detail="File not found")
-    _assert_file_access(file_row, principal)
-    return RequiredInputsOut(
-        session_id=str(session.id),
-        file_id=_public_file_id(file_row.file_id),
-        required_inputs=_required_inputs_for_session(session, file_row),
+    _file_for_session(db, session_id, principal)
+    return proxy_orchestra(path="/sessions/required-inputs", query={"session_id": session_id})
+
+
+@router.post("/input", response_model=OrchestratorInputOut)
+def submit_orchestrator_input(
+    data: OrchestratorInputIn,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
+):
+    _file_for_session(db, data.session_id, principal)
+    return proxy_orchestra(path="/sessions/input", method="POST", payload=data.model_dump())
+
+
+@router.post("/advance", response_model=OrchestratorAdvanceOut)
+def advance_orchestrator(
+    data: OrchestratorAdvanceIn,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
+):
+    file_row = _file_for_session(db, data.session_id, principal)
+    payload = proxy_orchestra(path="/sessions/advance", method="POST", payload=data.model_dump())
+    log_event(
+        db,
+        "orchestrator.advanced",
+        actor_user_id=principal.user_id,
+        actor_anon_sub=principal.owner_sub,
+        file_id=file_row.file_id,
+        data={"session_id": data.session_id, "state": payload.get("state")},
     )
+    db.commit()
+    return payload

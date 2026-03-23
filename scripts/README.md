@@ -20,7 +20,7 @@
 Optional env vars:
 
 ```
-API_BASE=http://127.0.0.1:18000/api/v1 FRONT_BASE=http://127.0.0.1:3010 STEP_SAMPLE=/path/to/file.STEP ./scripts/smoke_gate.sh
+API_BASE=http://127.0.0.1:8000/api/v1 FRONT_BASE=http://127.0.0.1:3010 STEP_SAMPLE=/path/to/file.STEP ./scripts/smoke_gate.sh
 ```
 
 ## weekly_restore_gate.sh
@@ -44,5 +44,5 @@ BACKUP_DIR=./backups RESTORE_DB_NAME=stellcodex_restore_probe RUN_SMOKE_GATE=1 .
 Optional env vars:
 
 ```
-API_BASE=http://127.0.0.1:18000/api/v1 FRONT_BASE=http://127.0.0.1:3010 REPORT_DIR=./evidence ./scripts/e2e_smoke.sh
+API_BASE=http://127.0.0.1:8000/api/v1 FRONT_BASE=http://127.0.0.1:3010 REPORT_DIR=./evidence ./scripts/e2e_smoke.sh
 ```

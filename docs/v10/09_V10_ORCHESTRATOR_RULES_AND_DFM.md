@@ -4,7 +4,7 @@
 - Status: `Active Canonical`
 - Parent authority: `docs/v10/00_V10_MASTER_CONSTITUTION.md`, `docs/v10/01_V10_SOURCE_HIERARCHY.md`
 - Related documents: `docs/v10/04_V10_DATA_MODEL.md`, `docs/v10/05_V10_API_CONTRACTS.md`, `docs/v10/11_V10_RELEASE_GATES_AND_SMOKE.md`
-- Last updated: `2026-03-16`
+- Last updated: `2026-03-23`
 - Language: `English`
 - Scope: `State machine, deterministic decision rules, approvals, and DFM handling`
 - Replacement rule: `Any change to state transitions, decision_json rules, or DFM flow must update this file before release.`
@@ -30,6 +30,7 @@ State skipping is forbidden.
 - `decision_json` is mandatory for orchestrator-backed decisions
 - `rule_explanations` must be deterministic and traceable
 - `rule_configs` is the runtime threshold source
+- `rule_configs == empty` is a hard failure; code-default thresholds are forbidden
 - LLM-generated manufacturing decisions are forbidden
 
 ## DFM Rules
@@ -41,5 +42,5 @@ State skipping is forbidden.
 ## Repo Anchors
 
 - models: `backend/app/models/orchestrator.py`, `backend/app/models/rule_config.py`
-- services: `backend/app/services/orchestrator_sessions.py`, `backend/app/services/rule_configs.py`
-- routes: `backend/app/api/v1/routes/orchestrator.py`, `backend/app/api/v1/routes/approvals.py`, `backend/app/api/v1/routes/dfm.py`
+- services: `services/orchestra/runtime_app/main.py`, `services/stell_ai/runtime_app/main.py`, `backend/app/services/rule_configs.py`
+- routes: `backend/app/api/v1/routes/orchestrator.py`, `backend/app/api/v1/routes/approvals.py`, `backend/app/api/v1/routes/dfm.py`, `backend/app/api/v1/routes/stell_ai.py`
