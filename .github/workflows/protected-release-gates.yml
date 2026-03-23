@@ -59,8 +59,8 @@ jobs:
         run: |
           pytest -q \
             backend/tests/test_format_registry_contract.py \
-            backend/tests/test_guest_token_identity.py \
-            backend/tests/test_hybrid_v1_geometry_merge_policy.py
+            backend/tests/test_hybrid_v1_geometry_merge_policy.py \
+            backend/tests/test_backend_core_closure.py
 
   frontend-release-gate:
     name: frontend-release-gate
