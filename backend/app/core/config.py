@@ -113,6 +113,18 @@ class Settings(BaseSettings):
     # Internal service authorities
     stell_ai_base_url: str = Field(default="http://stellai:7020", validation_alias="STELL_AI_BASE_URL")
     orchestra_base_url: str = Field(default="http://orchestra:7010", validation_alias="ORCHESTRA_BASE_URL")
+    ai_memory_drive_enabled: bool = Field(default=False, validation_alias="AI_MEMORY_DRIVE_ENABLED")
+    ai_memory_drive_root: str | None = Field(default=None, validation_alias="AI_MEMORY_DRIVE_ROOT")
+    ai_memory_local_snapshot_dir: str = Field(
+        default="/var/stellcodex/work/ai-memory/case-snapshots",
+        validation_alias="AI_MEMORY_LOCAL_SNAPSHOT_DIR",
+    )
+    ai_snapshot_queue_name: str = Field(default="ai_snapshots", validation_alias="AI_SNAPSHOT_QUEUE_NAME")
+    ai_snapshot_max_attempts: int = Field(default=5, validation_alias="AI_SNAPSHOT_MAX_ATTEMPTS")
+    ai_snapshot_retry_base_seconds: int = Field(default=10, validation_alias="AI_SNAPSHOT_RETRY_BASE_SECONDS")
+    ai_snapshot_retry_max_seconds: int = Field(default=300, validation_alias="AI_SNAPSHOT_RETRY_MAX_SECONDS")
+    ai_snapshot_job_timeout_seconds: int = Field(default=120, validation_alias="AI_SNAPSHOT_JOB_TIMEOUT_SECONDS")
+    ai_snapshot_lock_timeout_seconds: int = Field(default=600, validation_alias="AI_SNAPSHOT_LOCK_TIMEOUT_SECONDS")
 
     @property
     def s3_enabled(self) -> bool:

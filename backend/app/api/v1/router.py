@@ -22,6 +22,7 @@ from app.api.v1.routes.quotes import router as quotes_router
 from app.api.v1.routes.stell import router as stell_router
 from app.api.v1.routes.stell_ai import router as stell_ai_router
 from app.api.v1.routes.internal_runtime import router as internal_runtime_router
+from app.api.v1.routes.ai import router as ai_router
 
 api_router = APIRouter()
 api_router.include_router(health_router, tags=["health"])
@@ -45,4 +46,5 @@ api_router.include_router(quotes_router, prefix="/quotes", tags=["quotes"])
 api_router.include_router(admin_router, tags=["admin"])
 api_router.include_router(stell_router, tags=["stell"])
 api_router.include_router(stell_ai_router, tags=["stell-ai"])
+api_router.include_router(ai_router, tags=["ai"])
 api_router.include_router(internal_runtime_router, tags=["internal-runtime"])

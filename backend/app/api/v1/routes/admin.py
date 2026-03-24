@@ -29,7 +29,7 @@ from app.services.orchestra_client import proxy_orchestra
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_role("admin"))])
 
-QUEUE_NAMES = ["cad", "drawing", "render"]
+QUEUE_NAMES = list(dict.fromkeys(["cad", "drawing", "render", settings.ai_snapshot_queue_name]))
 
 
 class IssueTokenIn(BaseModel):
