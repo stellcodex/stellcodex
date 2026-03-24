@@ -116,6 +116,12 @@ def _ensure_stell_ai_memory_schema() -> None:
                 """
             )
         )
+        conn.execute(
+            text(
+                "ALTER TABLE ai_case_logs ADD COLUMN IF NOT EXISTS "
+                "retrieved_context_summary JSONB NULL"
+            )
+        )
 
 
 def register_startup(app: FastAPI) -> None:

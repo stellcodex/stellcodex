@@ -60,6 +60,7 @@ class InternalAiCaseLogIn(BaseModel):
     error_trace: dict[str, Any] | None = None
     duration_ms: int = Field(default=0, ge=0)
     timestamp: datetime | None = None
+    retrieved_context_summary: dict[str, Any] | None = None
 
 
 class InternalAiMemoryContextIn(BaseModel):
@@ -323,6 +324,7 @@ def log_ai_case(data: InternalAiCaseLogIn, db: Session = Depends(get_db)):
             error_trace=data.error_trace,
             duration_ms=data.duration_ms,
             timestamp=data.timestamp,
+            retrieved_context_summary=data.retrieved_context_summary,
         )
     except ValueError as exc:
         db.rollback()

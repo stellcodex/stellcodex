@@ -30,6 +30,7 @@ class AiCaseLog(Base):
     drive_snapshot_path = Column(Text, nullable=True)
     drive_snapshot_status = Column(String(16), nullable=False, default="disabled")
     drive_snapshot_error = Column(Text, nullable=True)
+    retrieved_context_summary = Column(JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False, index=True)
 
 
