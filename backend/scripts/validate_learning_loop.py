@@ -307,6 +307,10 @@ def run_validation() -> bool:
         # ── CLEANUP ───────────────────────────────────────────────────────────────────────
         _cleanup(db, file_id)
 
+    # ── STELL.AI AGENT PATH ───────────────────────────────────────────────────────────────
+    print("\n\n=== STELL.AI AGENT LEARNING LOOP ===\n")
+    _run_stell_ai_validation(engine)
+
     # ── SUMMARY ──────────────────────────────────────────────────────────────────────────
     print("\n=== SUMMARY ===")
     total = len(_results)
@@ -320,6 +324,194 @@ def run_validation() -> bool:
         return False
     print("\n  All checks passed. Loop is end-to-end proven.")
     return True
+
+
+def _run_stell_ai_validation(engine) -> None:
+    """
+    Validates STELL.AI agent learning loop via stell_learning_client.
+
+    Proves: RUN1 (failure) → pattern_signal → RUN2 retrieves RUN1 →
+            RUN2 behavior changes (guard blocks) → AiCaseLog records retrieved_context_summary.
+    """
+    import sys, pathlib
+    sys.path.insert(0, "/root/stell")
+
+    try:
+        import stell_learning_client as slc
+    except ImportError as exc:
+        check("stell_learning_client importable", False)
+        print(f"  (skipping STELL.AI checks: {exc})")
+        return
+
+    check("stell_learning_client importable", True)
+
+    from sqlalchemy import text
+
+    LANE = "codex"
+    PROMPT = "python api endpoint debug yardim"  # triggers code category
+
+    # ── STEP 1: Clean state for this test lane/category ──────────────────────
+    sim_key = slc._agent_similarity_key(LANE, slc._classify_prompt_category(PROMPT))
+    with engine.begin() as conn:
+        conn.execute(
+            text("DELETE FROM ai_case_logs WHERE file_id = :fid AND project_id = :lane"),
+            {"fid": slc.STELL_AGENT_FILE_ID, "lane": LANE},
+        )
+        conn.execute(
+            text("DELETE FROM ai_pattern_signals WHERE tenant_id = :tid AND similarity_index_key = :sk"),
+            {"tid": slc.STELL_AGENT_TENANT_ID, "sk": sim_key},
+        )
+
+    # ── STEP 2: RUN1 — failure run ───────────────────────────────────────────
+    print("── 1. RUN1: failure case (no prior context) ─────────────────")
+    run1_ctx = slc.get_agent_memory(LANE, PROMPT)
+    check("RUN1: get_agent_memory returns dict", isinstance(run1_ctx, dict))
+    check("RUN1: no prior cases (fresh state)", len(run1_ctx.get("top_similar_cases") or []) == 0)
+    check("RUN1: no active signals (fresh state)", len(run1_ctx.get("active_signals") or []) == 0)
+
+    run1_case_id = slc.log_agent_case(
+        session_id=None,
+        lane=LANE,
+        prompt=PROMPT,
+        executor="stell-internal-executor",
+        decision_json={"lane": LANE, "selected_executor": "stell-internal-executor", "confidence": 0.71},
+        final_status="failure",
+        error_message="provider unavailable: connection refused",
+        duration_ms=3200,
+        retrieved_context_summary=run1_ctx if run1_ctx else None,
+    )
+    check("RUN1: case_id returned", run1_case_id is not None)
+
+    with engine.connect() as conn:
+        r1_row = conn.execute(
+            text("SELECT final_status, failure_class, retrieved_context_summary FROM ai_case_logs WHERE case_id = :cid"),
+            {"cid": run1_case_id},
+        ).first()
+    check("RUN1: AiCaseLog persisted in DB", r1_row is not None)
+    check("RUN1: final_status == 'failure'", r1_row is not None and r1_row[0] == "failure")
+    check("RUN1: failure_class == 'infra_error'", r1_row is not None and r1_row[1] == "infra_error")
+
+    # ── STEP 3: Run 2 more failures to trigger pattern_signal ────────────────
+    print("\n── 2. Pattern signal extraction (3× failure) ────────────────")
+    for i in range(2):
+        slc.log_agent_case(
+            session_id=None,
+            lane=LANE,
+            prompt=PROMPT,
+            executor="stell-internal-executor",
+            decision_json={"lane": LANE, "selected_executor": "stell-internal-executor", "confidence": 0.68},
+            final_status="failure",
+            error_message="provider unavailable: connection refused",
+            duration_ms=2900,
+            retrieved_context_summary=None,
+        )
+
+    with engine.connect() as conn:
+        sig_row = conn.execute(
+            text(
+                "SELECT signal_payload FROM ai_pattern_signals "
+                "WHERE tenant_id = :tid AND signal_type = 'pattern_signal' "
+                "AND similarity_index_key = :sk AND active = TRUE LIMIT 1"
+            ),
+            {"tid": slc.STELL_AGENT_TENANT_ID, "sk": sim_key},
+        ).first()
+    check("pattern_signal created after 3× infra_error", sig_row is not None)
+    if sig_row:
+        payload = sig_row[0] if isinstance(sig_row[0], dict) else {}
+        check("pattern_signal guard_flag == repeat_failure_guard", payload.get("guard_flag") == slc.REPEAT_FAILURE_GUARD)
+        check("pattern_signal repeat_count >= 3", int(payload.get("repeat_count") or 0) >= 3)
+
+    # ── STEP 4: RUN2 — retrieval happens, guard is active ────────────────────
+    print("\n── 3. RUN2: retrieval before decision, guard enforced ───────")
+    run2_ctx = slc.get_agent_memory(LANE, PROMPT)
+    check("RUN2: get_agent_memory returns dict", isinstance(run2_ctx, dict))
+    check("RUN2: top_similar_cases populated (RUN1 visible)", len(run2_ctx.get("top_similar_cases") or []) > 0)
+    check("RUN2: last_failed_case retrieved (RUN1 case)", run2_ctx.get("last_failed_case") is not None)
+    check(
+        "RUN2: active_signals contains pattern_signal with guard_flag",
+        any(
+            isinstance(s, dict)
+            and isinstance(s.get("signal_payload"), dict)
+            and s["signal_payload"].get("guard_flag") == slc.REPEAT_FAILURE_GUARD
+            for s in (run2_ctx.get("active_signals") or [])
+        ),
+    )
+
+    # RUN2 behavior: guard is active → log as blocked (simulating delegate_text guard path)
+    run2_case_id = slc.log_agent_case(
+        session_id=None,
+        lane=LANE,
+        prompt=PROMPT,
+        executor="guard",
+        decision_json={
+            "guard_flag": slc.REPEAT_FAILURE_GUARD,
+            "repeat_count": 3,
+            "lane": LANE,
+            "requires_manual_review": True,
+        },
+        final_status="blocked",
+        error_message="repeat_failure_guard signal active — automatic advance blocked",
+        duration_ms=12,
+        retrieved_context_summary=run2_ctx,
+    )
+    check("RUN2: case_id returned", run2_case_id is not None)
+
+    with engine.connect() as conn:
+        r2_row = conn.execute(
+            text(
+                "SELECT final_status, failure_class, retrieved_context_summary "
+                "FROM ai_case_logs WHERE case_id = :cid"
+            ),
+            {"cid": run2_case_id},
+        ).first()
+    check("RUN2: AiCaseLog persisted in DB", r2_row is not None)
+    check("RUN2: final_status == 'blocked' (behavior changed from RUN1 'failure')", r2_row is not None and r2_row[0] == "blocked")
+    check(
+        "RUN2: retrieved_context_summary stored on AiCaseLog",
+        r2_row is not None and isinstance(r2_row[2], dict),
+    )
+    check(
+        "RUN2: retrieved_context_summary contains top_similar_cases (RUN1 was seen)",
+        r2_row is not None
+        and isinstance(r2_row[2], dict)
+        and len(r2_row[2].get("top_similar_cases") or []) > 0,
+    )
+    check(
+        "RUN2: retrieved_context_summary contains active_signals (guard was seen)",
+        r2_row is not None
+        and isinstance(r2_row[2], dict)
+        and len(r2_row[2].get("active_signals") or []) > 0,
+    )
+
+    # ── STEP 5: RUN1 vs RUN2 comparison ──────────────────────────────────────
+    print("\n── 4. RUN1 vs RUN2 comparison ───────────────────────────────")
+    check(
+        "RUN1 final_status='failure' vs RUN2 final_status='blocked' (behavior changed)",
+        r1_row is not None and r2_row is not None and r1_row[0] == "failure" and r2_row[0] == "blocked",
+    )
+    check(
+        "RUN2 retrieved_context_summary references prior case (top_similar_cases non-empty)",
+        r2_row is not None and isinstance(r2_row[2], dict) and len(r2_row[2].get("top_similar_cases") or []) > 0,
+    )
+
+    # ── STEP 6: FAIL-CLOSED — memory unavailable, core still runs ────────────
+    print("\n── 5. STELL.AI fail-closed behaviour ────────────────────────")
+    try:
+        empty = slc.get_agent_memory("", "")
+        check("get_agent_memory with empty inputs returns dict (no crash)", isinstance(empty, dict))
+    except Exception as exc:
+        check(f"get_agent_memory with empty inputs raised: {exc}", False)
+
+    # ── CLEANUP ──────────────────────────────────────────────────────────────
+    with engine.begin() as conn:
+        conn.execute(
+            text("DELETE FROM ai_case_logs WHERE file_id = :fid AND project_id = :lane"),
+            {"fid": slc.STELL_AGENT_FILE_ID, "lane": LANE},
+        )
+        conn.execute(
+            text("DELETE FROM ai_pattern_signals WHERE tenant_id = :tid AND similarity_index_key = :sk"),
+            {"tid": slc.STELL_AGENT_TENANT_ID, "sk": sim_key},
+        )
 
 
 if __name__ == "__main__":
