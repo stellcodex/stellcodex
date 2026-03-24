@@ -21,3 +21,4 @@ from .quote import Quote, ProductionOrder  # noqa: F401
 from .orchestrator import OrchestratorSession  # noqa: F401
 from .rule_config import RuleConfig  # noqa: F401
 from .tenant import Tenant  # noqa: F401
+from .ai_learning import AiCaseLog, AiSnapshotJob, AiEvalResult, AiPatternSignal, SolvedCase, FailedCase, BlockedCase, RecoveredCase  # noqa: F401

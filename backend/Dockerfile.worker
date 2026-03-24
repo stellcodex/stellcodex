@@ -4,7 +4,7 @@ WORKDIR /app
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-    curl ca-certificates xz-utils procps netcat-openbsd assimp-utils \
+    curl ca-certificates xz-utils procps netcat-openbsd assimp-utils rclone \
     g++ cmake make \
     libocct-data-exchange-7.8 libocct-modeling-data-7.8 libocct-modeling-algorithms-7.8 \
     libocct-foundation-7.8 libocct-ocaf-7.8 libocct-visualization-7.8 occt-misc \

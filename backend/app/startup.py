@@ -127,6 +127,7 @@ def register_startup(app: FastAPI) -> None:
         from app.models import file_version as _file_version  # noqa: F401
         from app.models import library_item as _library_item  # noqa: F401
         from app.models import orchestrator as _orchestrator  # noqa: F401
+        from app.models import ai_learning as _ai_learning  # noqa: F401
         from app.models import rule_config as _rule_config  # noqa: F401
         Base.metadata.create_all(bind=engine)
         _ensure_users_schema()

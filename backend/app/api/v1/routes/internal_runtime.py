@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 import uuid
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -18,6 +19,14 @@ from app.db.session import get_db
 from app.models.file import UploadFile as UploadFileModel
 from app.models.orchestrator import OrchestratorSession
 from app.models.share import Share
+from app.services.ai_learning import (
+    SnapshotEnqueueError,
+    get_memory_context,
+    record_case_run,
+    search_experience_entries,
+    store_decision_log,
+    store_experience_entry,
+)
 from app.services.rule_configs import RuleConfigMissingError, load_hybrid_v1_config
 
 router = APIRouter(prefix="/internal/runtime", tags=["internal-runtime"])
@@ -37,6 +46,47 @@ class InternalSessionUpsertIn(BaseModel):
     risk_flags: list[str] = Field(default_factory=list)
     decision_json: dict[str, Any] = Field(default_factory=dict)
     notes: str | None = None
+
+
+class InternalAiCaseLogIn(BaseModel):
+    case_id: str | None = None
+    file_id: str = Field(min_length=4, max_length=64)
+    session_id: str | None = Field(default=None, max_length=64)
+    run_type: str = Field(min_length=2, max_length=48)
+    input_payload: dict[str, Any] = Field(default_factory=dict)
+    decision_output: dict[str, Any] = Field(default_factory=dict)
+    execution_trace: list[dict[str, Any]] = Field(default_factory=list)
+    final_status: str = Field(min_length=6, max_length=16)
+    error_trace: dict[str, Any] | None = None
+    duration_ms: int = Field(default=0, ge=0)
+    timestamp: datetime | None = None
+
+
+class InternalAiMemoryContextIn(BaseModel):
+    file_id: str = Field(min_length=4, max_length=64)
+    project_id: str | None = Field(default=None, max_length=128)
+    mode: str | None = Field(default=None, max_length=48)
+    geometry_meta: dict[str, Any] | None = None
+    dfm_findings: dict[str, Any] | None = None
+
+
+class InternalAiExperienceWriteIn(BaseModel):
+    task_query: str = Field(min_length=2, max_length=500)
+    successful_plan: dict[str, Any] = Field(default_factory=dict)
+    lessons_learned: str | None = Field(default=None, max_length=4000)
+    feedback_from_owner: str | None = Field(default=None, max_length=4000)
+
+
+class InternalAiExperienceSearchIn(BaseModel):
+    query: str = Field(min_length=2, max_length=240)
+    limit: int = Field(default=5, ge=1, le=20)
+
+
+class InternalAiDecisionLogIn(BaseModel):
+    prompt: str = Field(min_length=2, max_length=500)
+    lane: str = Field(min_length=2, max_length=64)
+    executor: str = Field(min_length=2, max_length=128)
+    decision_json: dict[str, Any] = Field(default_factory=dict)
 
 
 def _require_internal_token(x_internal_token: str | None = Header(default=None, alias="X-Internal-Token")) -> None:
@@ -98,9 +148,14 @@ def _load_assembly_tree(file_row: UploadFileModel, meta: dict[str, Any]) -> list
 
 
 def _active_share_exists(db: Session, file_id: str) -> bool:
+    now = datetime.utcnow()
     share = (
         db.query(Share)
-        .filter(Share.file_id == file_id, Share.revoked_at.is_(None))
+        .filter(
+            Share.file_id == file_id,
+            Share.revoked_at.is_(None),
+            Share.expires_at > now,
+        )
         .order_by(Share.created_at.desc())
         .first()
     )
@@ -137,6 +192,7 @@ def _file_context(db: Session, file_row: UploadFileModel, *, include_assembly_tr
     return {
         "file_id": _public_file_id(file_row.file_id),
         "canonical_file_id": file_row.file_id,
+        "tenant_id": int(file_row.tenant_id),
         "original_filename": file_row.original_filename,
         "content_type": file_row.content_type,
         "status": file_row.status,
@@ -246,3 +302,73 @@ def upsert_session(data: InternalSessionUpsertIn, db: Session = Depends(get_db))
     db.commit()
     db.refresh(session)
     return _serialize_session(session)
+
+
+@router.post("/ai/cases/log", dependencies=[Depends(_require_internal_token)])
+def log_ai_case(data: InternalAiCaseLogIn, db: Session = Depends(get_db)):
+    file_row = _get_file_by_identifier(db, data.file_id)
+    if file_row is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    try:
+        return record_case_run(
+            db,
+            file_row=file_row,
+            case_id=data.case_id,
+            session_id=data.session_id,
+            run_type=data.run_type,
+            input_payload=data.input_payload,
+            decision_output=data.decision_output,
+            execution_trace=data.execution_trace,
+            final_status=data.final_status,
+            error_trace=data.error_trace,
+            duration_ms=data.duration_ms,
+            timestamp=data.timestamp,
+        )
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
+    except SnapshotEnqueueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
+@router.post("/ai/memory/context", dependencies=[Depends(_require_internal_token)])
+def ai_memory_context(data: InternalAiMemoryContextIn, db: Session = Depends(get_db)):
+    file_row = _get_file_by_identifier(db, data.file_id)
+    if file_row is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    return get_memory_context(
+        db,
+        file_row=file_row,
+        project_id=data.project_id,
+        mode=data.mode,
+        geometry_meta=data.geometry_meta,
+        dfm_findings=data.dfm_findings,
+    )
+
+
+@router.post("/ai/experience/write", dependencies=[Depends(_require_internal_token)])
+def ai_experience_write(data: InternalAiExperienceWriteIn, db: Session = Depends(get_db)):
+    return store_experience_entry(
+        db,
+        task_query=data.task_query,
+        successful_plan=data.successful_plan,
+        lessons_learned=data.lessons_learned,
+        feedback_from_owner=data.feedback_from_owner,
+    )
+
+
+@router.post("/ai/experience/search", dependencies=[Depends(_require_internal_token)])
+def ai_experience_search(data: InternalAiExperienceSearchIn, db: Session = Depends(get_db)):
+    return search_experience_entries(db, query=data.query, limit=data.limit)
+
+
+@router.post("/ai/decision-log", dependencies=[Depends(_require_internal_token)])
+def ai_decision_log(data: InternalAiDecisionLogIn, db: Session = Depends(get_db)):
+    return store_decision_log(
+        db,
+        prompt=data.prompt,
+        lane=data.lane,
+        executor=data.executor,
+        decision_json=data.decision_json,
+    )
