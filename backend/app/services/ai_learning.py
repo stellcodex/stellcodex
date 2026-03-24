@@ -521,6 +521,7 @@ def record_case_run(
     error_trace: dict[str, Any] | None,
     duration_ms: int | float | None,
     timestamp: datetime | None = None,
+    retrieved_context_summary: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     status = _safe_text(final_status).lower()
     if status not in FINAL_STATUSES:
@@ -562,6 +563,7 @@ def record_case_run(
         error_trace=_safe_json(error_trace) if error_trace else None,
         failure_class=failure_class,
         duration_ms=max(int(duration_ms or 0), 0),
+        retrieved_context_summary=_safe_json(retrieved_context_summary) if isinstance(retrieved_context_summary, dict) else None,
         created_at=created_at,
     )
     db.add(case_log)
@@ -660,6 +662,7 @@ def record_case_run(
         "drive_snapshot_path": case_log.drive_snapshot_path,
         "drive_snapshot_status": case_log.drive_snapshot_status,
         "drive_snapshot_error": case_log.drive_snapshot_error,
+        "retrieved_context_summary": case_log.retrieved_context_summary,
         "eval_result": evaluation,
         "signals": signals,
     }
