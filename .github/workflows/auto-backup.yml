@@ -22,7 +22,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: rclone kur
-        run: curl https://rclone.org/install.sh | sudo bash -s stable
+        run: |
+          curl -fsSL https://rclone.org/install.sh -o /tmp/rclone-install.sh
+          sudo bash /tmp/rclone-install.sh
+          rclone version
 
       - name: rclone konfigüre et
         run: |
@@ -36,11 +39,15 @@ jobs:
 
       - name: ops/ → Drive
         run: |
-          TS=$(date +%Y%m%d_%H%M%S)
-          rclone copy ops/ \
-            "gdrive:stellcodex-genois/backups/config/ops_${TS}/" \
-            --include "*.sh" --include "*.yml" --include "*.yaml" \
-            --include "*.json"
+          if [ -d ops ] && find ops -type f | grep -q .; then
+            TS=$(date +%Y%m%d_%H%M%S)
+            rclone copy ops/ \
+              "gdrive:stellcodex-genois/backups/config/ops_${TS}/" \
+              --include "*.sh" --include "*.yml" --include "*.yaml" \
+              --include "*.json"
+          else
+            echo "ops/ tracked content not present in this ref; skipping."
+          fi
 
       - name: CI workflows → Drive
         run: |
