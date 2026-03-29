@@ -5,6 +5,7 @@
   "/files/[fileId]": "system.status.read",
   "/files/[fileId]/viewer": "system.status.read",
   "/files/[fileId]/versions": "system.status.read",
+  "/viewer": "system.status.read",
   "/shares": "system.status.read",
   "/admin": "system.status.read",
   "/admin/health": "system.status.read",

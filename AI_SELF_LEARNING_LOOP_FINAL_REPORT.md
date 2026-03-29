@@ -3,6 +3,8 @@
 **Date:** 2026-03-24
 **Scope:** Operational learning from runtime evidence. Not model training.
 
+**Status note (2026-03-29):** This file preserves the 2026-03-24 pre-integration closure state. Its remaining-blockers section is historical only. The current canonical runtime carries STELL.AI and Orchestra from `/root/workspace/_canonical_repos/stell-ai`, `/root/workspace/_canonical_repos/orchestra`, and `/root/workspace/_canonical_repos/infra/deploy/docker-compose.yml`.
+
 ---
 
 ## Loop Architecture

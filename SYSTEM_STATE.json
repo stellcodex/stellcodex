@@ -1,0 +1,26 @@
+{
+  "system_version": "V10",
+  "current_phase": "SELF_LEARNING_ACTIVE",
+  "learning_status": "ACTIVE",
+  "completed_phases_locked": true,
+  "forbidden_reopen": [
+    "UI_REBUILD",
+    "CORE_REWRITE",
+    "FRONTEND_RESET"
+  ],
+  "canonical_paths": {
+    "repo_root": "/root/workspace",
+    "frontend": "/root/workspace/frontend",
+    "compose": "/root/workspace/infrastructure/deploy/docker-compose.yml"
+  },
+  "authorities": {
+    "github": "CODE",
+    "drive": "ARCHIVE",
+    "server": "RUNTIME_ONLY"
+  },
+  "health": {
+    "api": "ok",
+    "stell_ai": "ok"
+  },
+  "blockers": []
+}

@@ -3,6 +3,8 @@
 
 **Date:** 2026-03-24
 
+**Status note (2026-03-29):** This file preserves the historical `/root/stell` delegate-path integration proof. The current canonical runtime is built from `/root/workspace/_canonical_repos/stell-ai`, `/root/workspace/_canonical_repos/orchestra`, and `/root/workspace/_canonical_repos/infra/deploy/docker-compose.yml`.
+
 ---
 
 ## Loop Architecture (End-to-End)

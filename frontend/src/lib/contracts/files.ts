@@ -24,6 +24,20 @@ export interface RawFileDetail extends RawFileSummary {
   view_mode_default?: string | null;
 }
 
+export interface RawFileVersion {
+  id: string;
+  file_id: string;
+  version_number: number;
+  created_at: string;
+  created_by?: string | null;
+  status: string;
+  original_name: string;
+  content_type: string;
+  size_bytes: number;
+  is_current: boolean;
+  metadata?: Record<string, unknown> | null;
+}
+
 export interface RawFileStatus {
   state: string;
   derivatives_available: string[];

@@ -1,4 +1,4 @@
-import type { RawFileDetail, RawFileManifest, RawFileStatus, RawFileSummary } from "@/lib/contracts/files";
+import type { RawFileDetail, RawFileManifest, RawFileStatus, RawFileSummary, RawFileVersion } from "@/lib/contracts/files";
 
 import { apiFetch, apiJson } from "./fetch";
 import { getAuthHeaders } from "./session";
@@ -24,6 +24,12 @@ export async function listRecentFiles(limit = 8) {
 
 export async function getFile(fileId: string) {
   return apiJson<RawFileDetail>(`/files/${encodeURIComponent(fileId)}`, {
+    headers: await getAuthHeaders(),
+  });
+}
+
+export async function listFileVersions(fileId: string) {
+  return apiJson<RawFileVersion[]>(`/files/${encodeURIComponent(fileId)}/versions`, {
     headers: await getAuthHeaders(),
   });
 }
@@ -78,6 +84,17 @@ export async function uploadFile(
       resolve({ file_id: fileId });
     };
     request.send(formData);
+  });
+}
+
+export async function uploadFileVersion(fileId: string, file: File) {
+  const formData = new FormData();
+  formData.append("upload", file);
+
+  return apiJson<RawFileSummary>(`/files/${encodeURIComponent(fileId)}/new-version`, {
+    method: "POST",
+    body: formData,
+    headers: await getAuthHeaders(),
   });
 }
 

@@ -4,8 +4,9 @@ import type {
   RawFileManifest,
   RawFileStatus,
   RawFileSummary,
+  RawFileVersion,
 } from "@/lib/contracts/files";
-import type { FileRecord, StatusTone, ViewerModel, ViewerNodeRecord } from "@/lib/contracts/ui";
+import type { FileRecord, FileVersionRecord, StatusTone, ViewerModel, ViewerNodeRecord } from "@/lib/contracts/ui";
 
 function mapStatusTone(status: string): StatusTone {
   const normalized = status.toLowerCase();
@@ -35,6 +36,22 @@ export function mapFileRecord(input: RawFileSummary | RawFileDetail): FileRecord
     originalUrl: input.original_url ?? null,
     partCount: input.part_count ?? null,
     error: input.error ?? null,
+  };
+}
+
+export function mapFileVersionRecord(input: RawFileVersion): FileVersionRecord {
+  return {
+    id: input.id,
+    fileId: input.file_id,
+    versionNumber: input.version_number,
+    createdAt: input.created_at,
+    createdBy: input.created_by ?? null,
+    status: input.status,
+    originalName: input.original_name,
+    contentType: input.content_type,
+    sizeBytes: input.size_bytes,
+    isCurrent: input.is_current,
+    metadata: input.metadata ?? {},
   };
 }
 
