@@ -43,6 +43,9 @@ export function ProjectFilesTable({ files, onShare }: ProjectFilesTableProps) {
                 <Link className="font-medium" href={`/files/${encodeURIComponent(file.fileId)}`}>
                   File
                 </Link>
+                <Link className="font-medium" href={`/files/${encodeURIComponent(file.fileId)}/versions`}>
+                  Versions
+                </Link>
                 <Link className="font-medium" href={`/files/${encodeURIComponent(file.fileId)}/viewer`}>
                   Viewer
                 </Link>

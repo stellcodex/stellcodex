@@ -1,8 +1,14 @@
+## Archive Note
+
+- Reason retired: This root-level V10 summary declared itself active canonical truth, but active authority lives only under `docs/v10/`.
+- Replaced by: `docs/v10/00_V10_MASTER_CONSTITUTION.md`, `docs/v10/01_V10_SOURCE_HIERARCHY.md`, `docs/v10/05_V10_API_CONTRACTS.md`, and `docs/v10/19_V10_FRONTEND_SURFACE_CONTRACT.md`
+- Historical value: Yes. It preserves the 2026-03-21 UI freeze summary and the then-current gap assumptions.
+
 # STELLCODEX V10 MASTER
 
 ## A. STATUS
 
-- Status: Active Canonical Source of Truth
+- Status: Archived frozen snapshot; the original root file claimed `Active Canonical Source of Truth`
 - Date: 2026-03-21
 - Replaces prior active reference set for ongoing implementation decisions
 

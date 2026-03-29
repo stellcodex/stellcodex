@@ -24,12 +24,15 @@ class AiCaseLog(Base):
     decision_output = Column(JSONB, nullable=False, default=dict)
     execution_trace = Column(JSONB, nullable=False, default=list)
     final_status = Column(String(16), nullable=False, default="blocked", index=True)
+    case_type = Column(String(24), nullable=False, default="blocked_case", index=True)
     error_trace = Column(JSONB, nullable=True)
     failure_class = Column(String(32), nullable=True, index=True)
     duration_ms = Column(Integer, nullable=False, default=0)
+    retry_count = Column(Integer, nullable=False, default=0)
     drive_snapshot_path = Column(Text, nullable=True)
     drive_snapshot_status = Column(String(16), nullable=False, default="disabled")
     drive_snapshot_error = Column(Text, nullable=True)
+    retrieved_context_summary = Column(JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False, index=True)
 
 

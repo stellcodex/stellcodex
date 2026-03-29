@@ -28,6 +28,20 @@ export interface FileRecord {
   error: string | null;
 }
 
+export interface FileVersionRecord {
+  id: string;
+  fileId: string;
+  versionNumber: number;
+  createdAt: string;
+  createdBy: string | null;
+  status: string;
+  originalName: string;
+  contentType: string;
+  sizeBytes: number;
+  isCurrent: boolean;
+  metadata: Record<string, unknown>;
+}
+
 export interface ProjectFileRecord {
   fileId: string;
   originalFilename: string;

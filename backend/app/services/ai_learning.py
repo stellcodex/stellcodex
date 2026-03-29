@@ -58,6 +58,13 @@ def _safe_text(value: Any) -> str:
     return str(value or "").strip()
 
 
+def _safe_int(value: Any) -> int:
+    try:
+        return int(value)
+    except Exception:
+        return 0
+
+
 def _safe_json(value: Any) -> Any:
     try:
         json.dumps(value, ensure_ascii=True)
@@ -77,6 +84,35 @@ def _normalize_mode(value: Any) -> str:
     if token in {"brep", "mesh_approx", "visual_only"}:
         return token
     return "visual_only"
+
+
+def _retry_count(input_payload: dict[str, Any], execution_trace: list[Any], decision_output: dict[str, Any]) -> int:
+    context = _safe_dict(input_payload.get("context"))
+    for candidate in (
+        input_payload.get("retry_count"),
+        context.get("retry_count"),
+        decision_output.get("retry_count"),
+    ):
+        if candidate is not None:
+            return max(_safe_int(candidate), 0)
+
+    trace_retry_count = 0
+    for item in execution_trace:
+        if not isinstance(item, dict):
+            continue
+        step_name = _safe_text(item.get("step")).lower()
+        if "retry" in step_name:
+            trace_retry_count += 1
+    return trace_retry_count
+
+
+def _case_type_for_status(final_status: str, improvement_flag: bool) -> str:
+    token = _safe_text(final_status).lower()
+    if token == "success":
+        return "recovery_case" if improvement_flag else "solved_case"
+    if token == "failure":
+        return "failure_case"
+    return "blocked_case"
 
 
 def _normalized_tokens(values: list[Any]) -> list[str]:
@@ -256,8 +292,10 @@ def _snapshot_payload(
         "decision_output": _safe_json(case_log.decision_output),
         "execution_trace": _safe_json(case_log.execution_trace),
         "final_status": case_log.final_status,
+        "case_type": case_log.case_type,
         "error_trace": _safe_json(case_log.error_trace),
         "duration_ms": int(case_log.duration_ms or 0),
+        "retry_count": int(case_log.retry_count or 0),
         "timestamp": case_log.created_at.isoformat() if case_log.created_at else _now().isoformat(),
         "signature_context": signature_payload,
         "eval_result": evaluation,
@@ -266,19 +304,45 @@ def _snapshot_payload(
 
 
 def _evaluation_summary(history: list[AiCaseLog], case_log: AiCaseLog, failure_class: str | None) -> tuple[dict[str, Any], float, float]:
-    similar = [item for item in history if item.similarity_index_key == case_log.similarity_index_key]
+    prior = [item for item in history if item.case_id != case_log.case_id]
+    similar = [item for item in prior if item.similarity_index_key == case_log.similarity_index_key]
     if not similar:
-        similar = history
-    total = len(similar)
-    success_count = sum(1 for item in similar if item.final_status == "success")
+        similar = prior
+    total = len(similar) + 1
+    success_count = sum(1 for item in similar if item.final_status == "success") + (1 if case_log.final_status == "success" else 0)
     durations = [float(item.duration_ms or 0) / 1000.0 for item in similar if item.duration_ms is not None]
+    durations.append(float(case_log.duration_ms or 0) / 1000.0)
     failure_counts = Counter(_safe_text(item.failure_class) or "none" for item in similar if item.final_status == "failure")
+    if case_log.final_status == "failure":
+        failure_counts[_safe_text(failure_class) or "none"] += 1
     success_rate = round(success_count / total, 4) if total else 0.0
     average_resolution_seconds = round(mean(durations), 4) if durations else 0.0
+    retry_used = _retry_count(_safe_dict(case_log.input_payload), _safe_list(case_log.execution_trace), _safe_dict(case_log.decision_output))
+    improvement_flag = case_log.final_status == "success" and any(item.final_status in {"failure", "blocked"} for item in similar)
+    decision_confidence = float(_safe_dict(case_log.decision_output).get("confidence") or 0.0)
+    status_weight = {"success": 1.0, "blocked": 0.5, "failure": 0.0}.get(case_log.final_status, 0.0)
+    accuracy_score = round(
+        max(
+            0.0,
+            min(
+                1.0,
+                ((status_weight + decision_confidence) / 2.0)
+                - min(retry_used * 0.05, 0.2)
+                + (0.05 if improvement_flag else 0.0),
+            ),
+        ),
+        4,
+    )
     evaluation = {
         "case_id": str(case_log.case_id),
+        "case_type": case_log.case_type,
         "outcome": case_log.final_status,
         "failure_class": failure_class,
+        "success": case_log.final_status == "success",
+        "accuracy_score": accuracy_score,
+        "retry_used": retry_used,
+        "error_type": failure_class or "none",
+        "improvement_flag": improvement_flag,
         "success_rate": success_rate,
         "average_resolution_seconds": average_resolution_seconds,
         "similar_case_count": total,
@@ -294,8 +358,10 @@ def _evaluation_summary(history: list[AiCaseLog], case_log: AiCaseLog, failure_c
 def _memory_outcome(case_log: AiCaseLog, failure_class: str | None) -> dict[str, Any]:
     return {
         "final_status": case_log.final_status,
+        "case_type": case_log.case_type,
         "failure_class": failure_class,
         "duration_ms": int(case_log.duration_ms or 0),
+        "retry_count": int(case_log.retry_count or 0),
         "run_type": case_log.run_type,
         "drive_snapshot_status": case_log.drive_snapshot_status,
         "created_at": case_log.created_at.isoformat() if case_log.created_at else _now().isoformat(),
@@ -521,6 +587,7 @@ def record_case_run(
     error_trace: dict[str, Any] | None,
     duration_ms: int | float | None,
     timestamp: datetime | None = None,
+    retrieved_context_summary: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     status = _safe_text(final_status).lower()
     if status not in FINAL_STATUSES:
@@ -530,6 +597,7 @@ def record_case_run(
     decision_output = _safe_dict(decision_output)
     execution_trace = _safe_list(execution_trace)
     error_trace = _safe_dict(error_trace) if isinstance(error_trace, dict) else None
+    retry_count = _retry_count(input_payload, execution_trace, decision_output)
     failure_class = _failure_class(
         final_status=status,
         run_type=run_type,
@@ -546,6 +614,16 @@ def record_case_run(
     project_id = _project_id(file_row, input_payload)
 
     case_uuid = UUID(str(case_id)) if case_id else uuid4()
+    provisional_improvement_flag = status == "success" and (
+        db.query(AiCaseLog)
+        .filter(
+            AiCaseLog.tenant_id == int(file_row.tenant_id),
+            AiCaseLog.similarity_index_key == similarity_index_key,
+            AiCaseLog.final_status.in_(("failure", "blocked")),
+        )
+        .count()
+        > 0
+    )
     case_log = AiCaseLog(
         case_id=case_uuid,
         tenant_id=int(file_row.tenant_id),
@@ -559,9 +637,12 @@ def record_case_run(
         decision_output=_safe_json(decision_output),
         execution_trace=_safe_json(execution_trace),
         final_status=status,
+        case_type=_case_type_for_status(status, provisional_improvement_flag),
         error_trace=_safe_json(error_trace) if error_trace else None,
         failure_class=failure_class,
         duration_ms=max(int(duration_ms or 0), 0),
+        retry_count=retry_count,
+        retrieved_context_summary=_safe_json(retrieved_context_summary) if isinstance(retrieved_context_summary, dict) else None,
         created_at=created_at,
     )
     db.add(case_log)
@@ -655,11 +736,14 @@ def record_case_run(
         "similarity_index_key": case_log.similarity_index_key,
         "normalized_problem_signature": case_log.normalized_problem_signature,
         "final_status": case_log.final_status,
+        "case_type": case_log.case_type,
         "failure_class": case_log.failure_class,
+        "retry_count": int(case_log.retry_count or 0),
         "snapshot_job_id": str(snapshot_job.snapshot_job_id),
         "drive_snapshot_path": case_log.drive_snapshot_path,
         "drive_snapshot_status": case_log.drive_snapshot_status,
         "drive_snapshot_error": case_log.drive_snapshot_error,
+        "retrieved_context_summary": case_log.retrieved_context_summary,
         "eval_result": evaluation,
         "signals": signals,
     }

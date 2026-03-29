@@ -24,7 +24,7 @@ import type { RawFileDetail } from "../lib/contracts/files";
 import type { DecisionRecord } from "../lib/contracts/ui";
 import { mapAdminAudit } from "../lib/mappers/adminMappers";
 import { mapSessionUser } from "../lib/mappers/authMappers";
-import { countOccurrenceNodes, mapFileRecord, mapViewerModel } from "../lib/mappers/fileMappers";
+import { countOccurrenceNodes, mapFileRecord, mapFileVersionRecord, mapViewerModel } from "../lib/mappers/fileMappers";
 import { mapPublicShareRecord, mapPublicShareTerminalState } from "../lib/mappers/shareMappers";
 
 const frontendRoot = path.resolve(__dirname, "..");
@@ -70,6 +70,20 @@ const decision: DecisionRecord = {
     },
   ],
 };
+
+const mappedVersion = mapFileVersionRecord({
+  id: "version-1",
+  file_id: "scx_test-file-id",
+  version_number: 3,
+  created_at: "2026-03-16T12:00:00Z",
+  created_by: "user-1",
+  status: "ready",
+  original_name: "fixture-v3.step",
+  content_type: "model/step",
+  size_bytes: 8192,
+  is_current: true,
+  metadata: { rule_version: "v1.2.3" },
+});
 
 function readAllSourceFiles(root: string): string {
   const entries = fs.readdirSync(root, { withFileTypes: true });
@@ -275,10 +289,18 @@ const checks: Array<[string, () => void | Promise<void>]> = [
   assert.equal(fs.existsSync(path.join(appRoot, "(app)", "projects", "[projectId]", "page.tsx")), true);
   assert.equal(fs.existsSync(path.join(appRoot, "(app)", "files", "[fileId]", "page.tsx")), true);
   assert.equal(fs.existsSync(path.join(appRoot, "(app)", "files", "[fileId]", "viewer", "page.tsx")), true);
+  assert.equal(fs.existsSync(path.join(appRoot, "(app)", "files", "[fileId]", "versions", "page.tsx")), true);
   assert.equal(fs.existsSync(path.join(appRoot, "(app)", "shares", "page.tsx")), true);
   assert.equal(fs.existsSync(path.join(appRoot, "(app)", "admin", "page.tsx")), true);
   assert.equal(fs.existsSync(path.join(appRoot, "(app)", "settings", "page.tsx")), true);
   assert.equal(fs.existsSync(path.join(appRoot, "(share)", "s", "[token]", "page.tsx")), true);
+  }],
+
+  ["access-control-route-contract", () => {
+  const accessControlSource = fs.readFileSync(path.join(frontendRoot, "security", "access-control.source.json"), "utf8");
+  const routePermissionsSource = fs.readFileSync(path.join(frontendRoot, "security", "route-permissions.json"), "utf8");
+  assert.equal(accessControlSource.includes('"/viewer"'), true);
+  assert.equal(routePermissionsSource.includes('"/viewer"'), true);
   }],
 
   ["safe-next-path-contract", () => {
@@ -382,6 +404,7 @@ const checks: Array<[string, () => void | Promise<void>]> = [
     />,
   );
 
+  assert.match(html, /Versions/);
   assert.match(html, /Viewer/);
   assert.match(html, /Share/);
   }],
@@ -434,13 +457,14 @@ const checks: Array<[string, () => void | Promise<void>]> = [
     <div>
       <FileMetaCard file={mapFileRecord(rawFile)} projectName="Fixture Project" />
       <WorkflowSummaryCard decision={decision} dfm={null} shareCount={1} status="ready" />
-      <VersionsTable supported={false} />
+      <VersionsTable items={[mappedVersion]} supported />
     </div>,
   );
 
   assert.match(html, /File metadata/);
   assert.match(html, /Workflow summary/);
-  assert.match(html, /Version history unavailable/);
+  assert.match(html, /fixture-v3\.step/);
+  assert.match(html, /Current/);
   }],
 
   ["admin pages basic render", () => {

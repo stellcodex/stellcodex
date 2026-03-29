@@ -4,7 +4,6 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 
 import { Card } from "@/components/primitives/Card";
-import { EmptyState } from "@/components/primitives/EmptyState";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { ShareDialog } from "@/components/shares/ShareDialog";
 import { RouteErrorState } from "@/components/states/RouteErrorState";
@@ -79,11 +78,10 @@ export function ProjectDetailScreen({ projectId }: ProjectDetailScreenProps) {
               </div>
             </dl>
           </Card>
-          <Card description="Version uploads stay fail-closed until the backend exposes a real version upload contract." title="Versioning">
-            <EmptyState
-              description="The active backend supports project uploads and file version routes, but it does not expose a version upload API."
-              title="Version upload unavailable"
-            />
+          <Card description="Version history is file-bound and now runs through the live backend version contract." title="Versioning">
+            <div className="text-sm leading-6 text-[var(--foreground-muted)]">
+              Open a file row and use <span className="font-medium text-[var(--foreground-strong)]">Versions</span> to inspect history or upload a replacement under the same file identity.
+            </div>
           </Card>
           <AttentionPanel
             files={project.files.map((file) => ({

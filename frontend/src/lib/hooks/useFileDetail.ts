@@ -71,7 +71,7 @@ export function useFileDetail(fileId: string) {
     decision,
     projectName,
     shares,
-    versionsSupported: false,
+    versionsSupported: true,
     loading,
     error,
     refresh,
