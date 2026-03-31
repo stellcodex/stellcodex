@@ -87,7 +87,7 @@ export function SignInScreen({ authCode, nextPath }: SignInScreenProps) {
       return;
     }
     const search = new URLSearchParams({ next: nextPath });
-    window.location.assign(`/api/v1/auth/google/start?${search.toString()}`);
+    window.location.assign(`https://api.stellcodex.com/api/v1/auth/google/start?${search.toString()}`);
   }
 
   return (
