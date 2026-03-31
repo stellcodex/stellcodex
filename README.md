@@ -20,6 +20,26 @@ It integrates:
 
 ---
 
+## Why STELLCODEX
+
+Manufacturing decisions are often based on:
+- experience  
+- assumptions  
+- inconsistent data  
+
+STELLCODEX removes this uncertainty by turning decisions into deterministic, verifiable workflows.
+
+---
+
+## Focus
+
+Building systems that:
+- reduce production cost  
+- remove uncertainty  
+- automate engineering decisions  
+
+---
+
 ## What I Do
 
 - Injection mold design & optimization  
@@ -40,15 +60,6 @@ It integrates:
 
 ---
 
-## Focus
-
-Building systems that:
-- reduce production cost  
-- remove uncertainty  
-- automate engineering decisions  
-
----
-
 ## Links
 
 🌐 https://stellcodex.com
@@ -56,6 +67,8 @@ Building systems that:
 ---
 
 ## Technical Details
+
+Below is the full production baseline and system specification:
 
 # STELLCODEX — Ultra Production-Ready Baseline
 
