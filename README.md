@@ -4,13 +4,15 @@ Mold Design & Manufacturing Specialist
 Injection Molding | Cost Optimization | Process Engineering  
 
 Builder of **STELLCODEX**  
-Deterministic Manufacturing Decision Platform
+Deterministic Manufacturing Decision Platform  
+
+Reducing production cost and uncertainty in manufacturing through deterministic engineering systems.
 
 ---
 
 ## STELLCODEX
 
-STELLCODEX is a production-grade AI platform that transforms engineering decisions into deterministic workflows.
+STELLCODEX is a production-grade AI platform designed to reduce cost, eliminate uncertainty, and standardize engineering decisions in manufacturing.
 
 It integrates:
 - STELL-AI → decision intelligence  
@@ -35,8 +37,9 @@ STELLCODEX removes this uncertainty by turning decisions into deterministic, ver
 
 Building systems that:
 - reduce production cost  
-- remove uncertainty  
-- automate engineering decisions  
+- eliminate uncertainty  
+- standardize engineering decisions  
+- automate repetitive technical workflows  
 
 ---
 
