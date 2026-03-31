@@ -59,6 +59,7 @@ class Settings(BaseSettings):
 
     # Feature flags
     feature_files: bool = Field(default=True, validation_alias="FEATURE_FILES")
+    rate_limit_per_hour: int = Field(default=1000, validation_alias="RATE_LIMIT_PER_HOUR")
 
     # Upload limits
     max_upload_bytes: int = Field(default=200 * 1024 * 1024, validation_alias="MAX_UPLOAD_BYTES")
@@ -134,6 +135,14 @@ class Settings(BaseSettings):
     def _ensure_jwt_secret(self):
         if not self.jwt_secret:
             raise ValueError("JWT secret env missing: set JWT_SECRET or SECRET_KEY")
+        db_url = str(self.database_url)
+        if not (
+            db_url.startswith("postgresql://")
+            or db_url.startswith("postgresql+psycopg2://")
+        ):
+            raise ValueError(
+                "DATABASE_URL must use PostgreSQL scheme (postgresql:// or postgresql+psycopg2://)"
+            )
         return self
 
     # ---- Legacy aliases (unused) ----
