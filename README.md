@@ -1,3 +1,62 @@
+# Coskun CELIK
+
+Mold Design & Manufacturing Specialist  
+Injection Molding | Cost Optimization | Process Engineering  
+
+Builder of **STELLCODEX**  
+Deterministic Manufacturing Decision Platform
+
+---
+
+## STELLCODEX
+
+STELLCODEX is a production-grade AI platform that transforms engineering decisions into deterministic workflows.
+
+It integrates:
+- STELL-AI → decision intelligence  
+- Orchestra → workflow execution  
+- Backend → contract-safe system  
+- Infrastructure → production runtime  
+
+---
+
+## What I Do
+
+- Injection mold design & optimization  
+- Manufacturing process improvement  
+- Cost reduction in mass production  
+- AI-assisted engineering systems  
+
+---
+
+## Experience
+
+- High-volume injection production (24/7 lines)  
+- Mold design & manufacturing  
+- Projects delivered for:
+  - Profilo  
+  - Auer  
+  - Automotive suppliers  
+
+---
+
+## Focus
+
+Building systems that:
+- reduce production cost  
+- remove uncertainty  
+- automate engineering decisions  
+
+---
+
+## Links
+
+🌐 https://stellcodex.com
+
+---
+
+## Technical Details
+
 # STELLCODEX — Ultra Production-Ready Baseline
 
 Generated: 2026-02-27 02:01:13 UTC
