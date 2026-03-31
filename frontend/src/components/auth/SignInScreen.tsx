@@ -87,7 +87,12 @@ export function SignInScreen({ authCode, nextPath }: SignInScreenProps) {
       return;
     }
     const search = new URLSearchParams({ next: nextPath });
-    window.location.assign(`/api/v1/auth/google/start?${search.toString()}`);
+    const apiBase =
+  (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
+
+const base = apiBase || window.location.origin;
+
+window.location.assign(`${base}/api/v1/auth/google/start?${search.toString()}`);
   }
 
   return (
