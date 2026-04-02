@@ -52,7 +52,7 @@ export function sanitizeNextPath(value: string | null | undefined) {
 }
 
 export function isProtectedPath(pathname: string) {
-  const protectedPrefixes = ["/dashboard", "/projects", "/files", "/shares", "/admin", "/settings"];
+  const protectedPrefixes = ["/dashboard", "/projects", "/files", "/shares", "/admin", "/settings", "/viewer"];
   return protectedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 

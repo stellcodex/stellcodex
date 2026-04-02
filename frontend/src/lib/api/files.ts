@@ -1,6 +1,6 @@
 import type { RawFileDetail, RawFileManifest, RawFileStatus, RawFileSummary, RawFileVersion } from "@/lib/contracts/files";
 
-import { apiFetch, apiJson } from "./fetch";
+import { apiFetch, apiJson, getApiBase } from "./fetch";
 import { getAuthHeaders } from "./session";
 
 export interface UploadProgressEvent {
@@ -59,7 +59,7 @@ export async function uploadFile(
 
   return new Promise<{ file_id: string }>((resolve, reject) => {
     const request = new XMLHttpRequest();
-    request.open("POST", "/api/v1/files/upload");
+    request.open("POST", `${getApiBase()}/files/upload`);
     request.withCredentials = true;
     request.responseType = "json";
     request.upload.addEventListener("progress", (event) => {

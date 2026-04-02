@@ -64,7 +64,10 @@ export function PublicShareScreen({ token }: PublicShareScreenProps) {
   if (state === "loading") return <RouteLoadingState title="Resolving public share" />;
   if (state === "expired") return <PublicShareTerminalState description="This share token has expired and now returns a terminal state." title="Link expired" />;
   if (state === "revoked") return <PublicShareTerminalState description="This share token has been revoked or access has been removed." title="Share revoked" />;
-  if (state === "invalid" || !share) return <PublicShareTerminalState description="The share token is invalid or forbidden." title="Share unavailable" />;
+  if (state === "invalid" || !share) return <PublicShareTerminalState description="The share link could not be found or is no longer valid." title="Share unavailable" />;
+  if (!share.canView) {
+    return <PublicShareTerminalState description="View access is not permitted for this share token." title="Access not permitted" />;
+  }
   if (!share.gltfUrl && !share.originalUrl) {
     return <PublicShareTerminalState description="No public viewer content is available for this token." title="Preview unavailable" />;
   }
