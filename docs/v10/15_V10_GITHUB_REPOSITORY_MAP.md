@@ -4,26 +4,26 @@
 - Status: `Active Canonical`
 - Parent authority: `docs/v10/00_V10_MASTER_CONSTITUTION.md`, `docs/v10/01_V10_SOURCE_HIERARCHY.md`
 - Related documents: `docs/v10/03_V10_SYSTEM_ARCHITECTURE.md`, `docs/v10/10_V10_DEPLOY_BACKUP_RESTORE.md`, `docs/indexes/REPO_INDEX.md`
-- Last updated: `2026-03-29`
+- Last updated: `2026-04-02`
 - Language: `English`
 - Scope: `Beginner-safe explanation of where code, docs, infra, evidence, and runtime assets live`
 - Replacement rule: `Repository map changes must be updated here before new operators are expected to rely on them.`
 
 This document is governed by `docs/v10/00_V10_MASTER_CONSTITUTION.md` and `docs/v10/01_V10_SOURCE_HIERARCHY.md`. If any lower-level file conflicts with these authorities, this file must be updated to comply.
 
-In this workspace, split runtime repos are staged under `_canonical_repos/`. Production deploy roots are `/srv/stellcodex`, `/srv/stell-ai`, `/srv/orchestra`, and `/srv/infra`.
+In this workspace, split runtime repos are staged under `_canonical_repos/` when present. Production deploy roots are `/srv/stellcodex`, `/srv/stell-ai`, `/srv/orchestra`, and `/srv/infra`.
 
 ## Where Code Lives
 
-- `backend/`: FastAPI API shell, persistence layer, workers, models, service clients, API routes, alembic migrations
+- `backend/`: FastAPI API shell, persistence layer, workers, models, service clients, API routes, alembic migrations, service proxying, and admin/observability surfaces
 - `frontend/`: Next.js STELLCODEX product shell, viewer pages, admin shell, route guards
-- `_canonical_repos/stell-ai/`: standalone STELL.AI runtime owned by the canonical split repo
-- `_canonical_repos/orchestra/`: standalone Orchestra runtime owned by the canonical split repo
+- `_canonical_repos/stell-ai/`: documented V10 canonical split-runtime target location for the standalone STELL.AI runtime; operators must verify physical presence in current repository state before treating it as execution fact
+- `_canonical_repos/orchestra/`: documented V10 canonical split-runtime target location for the standalone Orchestra runtime; operators must verify physical presence in current repository state before treating it as execution fact
 - `db/`: SQL migration floor and migration references
 
 ## Where Infrastructure Lives
 
-- `_canonical_repos/infra/`: canonical compose, nginx, runtime env contract, compliance helpers, and runtime ops
+- `_canonical_repos/infra/`: documented V10 canonical split-runtime target location for compose, nginx, runtime env contract, compliance helpers, and runtime ops; operators must verify physical presence in current repository state before treating it as execution fact
 - `ops/`: workspace-local utility layer retained for backup-state, cron, and hygiene support
 
 ## Where Active Docs Live
