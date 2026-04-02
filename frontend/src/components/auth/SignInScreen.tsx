@@ -7,6 +7,7 @@ import { Button } from "@/components/primitives/Button";
 import { Card } from "@/components/primitives/Card";
 import { Input } from "@/components/primitives/Input";
 import { login } from "@/lib/api/auth";
+import { getApiBase } from "@/lib/api/fetch";
 
 export interface SignInScreenProps {
   authCode?: string | null;
@@ -87,12 +88,7 @@ export function SignInScreen({ authCode, nextPath }: SignInScreenProps) {
       return;
     }
     const search = new URLSearchParams({ next: nextPath });
-    const apiBase =
-  (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
-
-const base = apiBase || window.location.origin;
-
-window.location.assign(`${base}/api/v1/auth/google/start?${search.toString()}`);
+    window.location.assign(`${getApiBase()}/auth/google/start?${search.toString()}`);
   }
 
   return (
