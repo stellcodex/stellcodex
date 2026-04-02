@@ -124,6 +124,34 @@ def _file_for_session(db: Session, session_id: str, principal: Principal) -> Upl
     _assert_file_access(file_row, principal)
     return file_row
 
+def _proxy_orchestra_for_owned_file(
+    *,
+    db: Session,
+    principal: Principal,
+    path: str,
+    method: str = "GET",
+    file_id: str | None = None,
+    session_id: str | None = None,
+    payload: dict[str, Any] | None = None,
+):
+    """Backend gateway guard for orchestrator proxy calls.
+
+    Backend validates ownership/file access, while Orchestra remains the
+    authority for workflow decisions and state transitions.
+    """
+    if session_id:
+        _file_for_session(db, session_id, principal)
+        query = {"session_id": session_id}
+    else:
+        file_row = _get_file_by_identifier(db, str(file_id))
+        if file_row is None:
+            raise HTTPException(status_code=404, detail="File not found")
+        _assert_file_access(file_row, principal)
+        query = {"file_id": file_row.file_id}
+
+    return proxy_orchestra(path=path, method=method, query=query if method == "GET" else None, payload=payload)
+
+
 
 @router.post("/start", response_model=OrchestratorDecisionOut)
 def start_orchestrator(
@@ -159,15 +187,13 @@ def get_orchestrator_decision(
     if not file_id and not session_id:
         raise HTTPException(status_code=400, detail="file_id or session_id is required")
 
-    if session_id:
-        _file_for_session(db, session_id, principal)
-        return proxy_orchestra(path="/sessions/decision", query={"session_id": session_id})
-
-    file_row = _get_file_by_identifier(db, str(file_id))
-    if file_row is None:
-        raise HTTPException(status_code=404, detail="File not found")
-    _assert_file_access(file_row, principal)
-    return proxy_orchestra(path="/sessions/decision", query={"file_id": file_row.file_id})
+    return _proxy_orchestra_for_owned_file(
+        db=db,
+        principal=principal,
+        path="/sessions/decision",
+        file_id=file_id,
+        session_id=session_id,
+    )
 
 
 @router.get("/required-inputs", response_model=RequiredInputsOut)
