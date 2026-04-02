@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 import uuid
+from secrets import compare_digest
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -28,9 +29,6 @@ from app.services.ai_learning import (
     store_experience_entry,
 )
 from app.services.rule_configs import RuleConfigMissingError, load_hybrid_v1_config
-
-router = APIRouter(prefix="/internal/runtime", tags=["internal-runtime"])
-
 
 class InternalSessionUpsertIn(BaseModel):
     session_id: str | None = None
@@ -94,8 +92,18 @@ def _require_internal_token(x_internal_token: str | None = Header(default=None, 
     expected = str(settings.bootstrap_admin_token or "").strip()
     if not expected:
         raise HTTPException(status_code=503, detail="Internal runtime token is not configured")
-    if str(x_internal_token or "").strip() != expected:
+    provided = str(x_internal_token or "").strip()
+    if not provided or not compare_digest(provided, expected):
         raise HTTPException(status_code=403, detail="Forbidden")
+
+
+
+
+router = APIRouter(
+    prefix="/internal/runtime",
+    tags=["internal-runtime"],
+    dependencies=[Depends(_require_internal_token)],
+)
 
 
 def _normalize_file_uuid(value: str) -> UUID:
@@ -212,7 +220,7 @@ def _file_context(db: Session, file_row: UploadFileModel, *, include_assembly_tr
     }
 
 
-@router.get("/files/{file_id}/context", dependencies=[Depends(_require_internal_token)])
+@router.get("/files/{file_id}/context")
 def get_file_context(
     file_id: str,
     include_assembly_tree: bool = Query(default=False),
@@ -224,7 +232,7 @@ def get_file_context(
     return _file_context(db, file_row, include_assembly_tree=include_assembly_tree)
 
 
-@router.get("/rule-config", dependencies=[Depends(_require_internal_token)])
+@router.get("/rule-config")
 def get_rule_config(
     project_id: str | None = Query(default=None),
     db: Session = Depends(get_db),
@@ -240,7 +248,7 @@ def get_rule_config(
     }
 
 
-@router.get("/orchestrator/sessions/by-file/{file_id}", dependencies=[Depends(_require_internal_token)])
+@router.get("/orchestrator/sessions/by-file/{file_id}")
 def get_session_by_file(file_id: str, db: Session = Depends(get_db)):
     file_row = _get_file_by_identifier(db, file_id)
     if file_row is None:
@@ -251,7 +259,7 @@ def get_session_by_file(file_id: str, db: Session = Depends(get_db)):
     return _serialize_session(session)
 
 
-@router.get("/orchestrator/sessions/by-id/{session_id}", dependencies=[Depends(_require_internal_token)])
+@router.get("/orchestrator/sessions/by-id/{session_id}")
 def get_session_by_id(session_id: str, db: Session = Depends(get_db)):
     try:
         session_uuid = UUID(str(session_id))
@@ -263,7 +271,7 @@ def get_session_by_id(session_id: str, db: Session = Depends(get_db)):
     return _serialize_session(session)
 
 
-@router.post("/orchestrator/sessions/upsert", dependencies=[Depends(_require_internal_token)])
+@router.post("/orchestrator/sessions/upsert")
 def upsert_session(data: InternalSessionUpsertIn, db: Session = Depends(get_db)):
     file_row = _get_file_by_identifier(db, data.file_id)
     if file_row is None:
@@ -305,7 +313,7 @@ def upsert_session(data: InternalSessionUpsertIn, db: Session = Depends(get_db))
     return _serialize_session(session)
 
 
-@router.post("/ai/cases/log", dependencies=[Depends(_require_internal_token)])
+@router.post("/ai/cases/log")
 def log_ai_case(data: InternalAiCaseLogIn, db: Session = Depends(get_db)):
     file_row = _get_file_by_identifier(db, data.file_id)
     if file_row is None:
@@ -334,7 +342,7 @@ def log_ai_case(data: InternalAiCaseLogIn, db: Session = Depends(get_db)):
         raise HTTPException(status_code=503, detail=str(exc))
 
 
-@router.post("/ai/memory/context", dependencies=[Depends(_require_internal_token)])
+@router.post("/ai/memory/context")
 def ai_memory_context(data: InternalAiMemoryContextIn, db: Session = Depends(get_db)):
     file_row = _get_file_by_identifier(db, data.file_id)
     if file_row is None:
@@ -349,7 +357,7 @@ def ai_memory_context(data: InternalAiMemoryContextIn, db: Session = Depends(get
     )
 
 
-@router.post("/ai/experience/write", dependencies=[Depends(_require_internal_token)])
+@router.post("/ai/experience/write")
 def ai_experience_write(data: InternalAiExperienceWriteIn, db: Session = Depends(get_db)):
     return store_experience_entry(
         db,
@@ -360,12 +368,12 @@ def ai_experience_write(data: InternalAiExperienceWriteIn, db: Session = Depends
     )
 
 
-@router.post("/ai/experience/search", dependencies=[Depends(_require_internal_token)])
+@router.post("/ai/experience/search")
 def ai_experience_search(data: InternalAiExperienceSearchIn, db: Session = Depends(get_db)):
     return search_experience_entries(db, query=data.query, limit=data.limit)
 
 
-@router.post("/ai/decision-log", dependencies=[Depends(_require_internal_token)])
+@router.post("/ai/decision-log")
 def ai_decision_log(data: InternalAiDecisionLogIn, db: Session = Depends(get_db)):
     return store_decision_log(
         db,

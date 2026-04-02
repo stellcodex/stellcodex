@@ -73,6 +73,7 @@ Documented split-runtime targets must remain aligned with physically verifiable 
 - `STELL.AI`: planning, analysis, decision authority, memory write/search
 - `Orchestra`: workflow state transitions, approvals, required inputs, share-readiness execution
 - `backend`: public API, auth, tenancy checks, persistence, storage access, service proxying, and admin observability surfaces
+- `backend` orchestrator/internal-runtime routes are bounded gateway surfaces; decision authority remains in Orchestra/STELL.AI runtimes
 
 ## Event And Processing Model
 

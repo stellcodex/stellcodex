@@ -39,6 +39,8 @@ This document is governed by `docs/v10/00_V10_MASTER_CONSTITUTION.md` and `docs/
 - no endpoint may leak storage internals or client-supplied permissions
 - `/api/v1/auth/guest` is retired and must not be reintroduced
 - backend route handlers may proxy to STELL.AI and Orchestra, but they may not own intelligence or workflow transition rules
+- backend `orchestrator` routes are gateway surfaces: backend enforces auth/ownership before proxying, while workflow decisions and transitions remain Orchestra-owned
+- `internal-runtime` endpoints are non-public service surfaces and must require the internal service token (`X-Internal-Token`) on every route
 - internal AI case logging may persist `retrieved_context_summary` when the caller injects pre-decision memory context
 - `repeat_failure_guard` is a recovery-input signal in intelligence and orchestration payloads; approval state remains owned by Orchestra
 - backend `stell-ai` proxy routes must inject backend-derived `tenant_id` into forwarded STELL.AI payloads; caller-supplied tenant scope is not trusted
