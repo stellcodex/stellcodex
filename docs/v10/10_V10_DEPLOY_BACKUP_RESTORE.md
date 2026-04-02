@@ -4,7 +4,7 @@
 - Status: `Active Canonical`
 - Parent authority: `docs/v10/00_V10_MASTER_CONSTITUTION.md`, `docs/v10/01_V10_SOURCE_HIERARCHY.md`
 - Related documents: `docs/v10/03_V10_SYSTEM_ARCHITECTURE.md`, `docs/v10/11_V10_RELEASE_GATES_AND_SMOKE.md`, `docs/v10/14_V10_DRIVE_ARCHIVE_HIERARCHY.md`
-- Last updated: `2026-03-29`
+- Last updated: `2026-04-02`
 - Language: `English`
 - Scope: `Deploy discipline, backup sources, restore proof, and disposability rules`
 - Replacement rule: `Deploy or restore process changes must update this file and the evidence standard before use.`
@@ -16,8 +16,11 @@ This document is governed by `docs/v10/00_V10_MASTER_CONSTITUTION.md` and `docs/
 - no hot patching in production
 - repo change -> build -> recreate -> verify -> archive evidence
 - runtime must be reconstructable from GitHub code, Drive backups, and environment templates
+- canonical path declarations in this document must be kept synchronized with repository-verifiable paths
 
 ## Canonical Automation
+
+Listed paths are canonical target paths for V10 operations and must remain physically verifiable in the active repository and deploy layout before being treated as execution fact.
 
 - deploy topology: `_canonical_repos/infra/deploy/docker-compose.yml`
 - edge topology: `_canonical_repos/infra/nginx/stellcodex.conf`, `_canonical_repos/infra/nginx/cloudflare-real-ip.conf`
