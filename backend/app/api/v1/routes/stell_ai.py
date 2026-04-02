@@ -148,6 +148,20 @@ def _tenant_id_for_principal(db: Session, principal: Principal, file_row: Upload
     return tenant_id
 
 
+def _tenant_payload(
+    db: Session,
+    principal: Principal,
+    *,
+    file_row: UploadFileModel | None = None,
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    scoped_payload = dict(payload or {})
+    scoped_payload["tenant_id"] = _tenant_id_for_principal(db, principal, file_row)
+    if file_row is not None:
+        scoped_payload["file_id"] = file_row.file_id
+    return scoped_payload
+
+
 @router.get("/capabilities")
 def capabilities(principal: Principal = Depends(get_current_principal)):
     _ = principal
@@ -188,11 +202,15 @@ def knowledge_ingest(
     return proxy_stell_ai(
         path="/knowledge/ingest",
         method="POST",
-        payload={
-            "tenant_id": _tenant_id_for_principal(db, principal, row),
-            "force": data.force,
-            "limit_files": data.limit_files,
-        },
+        payload=_tenant_payload(
+            db,
+            principal,
+            file_row=row,
+            payload={
+                "force": data.force,
+                "limit_files": data.limit_files,
+            },
+        ),
         timeout=180,
     )
 
@@ -236,11 +254,8 @@ def run_agent(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_current_principal),
 ):
-    if data.file_id:
-        row = _validate_file_access(data.file_id, db, principal)
-        payload = {**data.model_dump(), "file_id": row.file_id}
-    else:
-        payload = data.model_dump()
+    row = _validate_file_access(data.file_id, db, principal) if data.file_id else None
+    payload = _tenant_payload(db, principal, file_row=row, payload=data.model_dump())
     return proxy_stell_ai(path="/agents/run", method="POST", payload=payload)
 
 
@@ -260,11 +275,15 @@ def orchestrate_agents(
     return proxy_stell_ai(
         path="/agents/orchestrate",
         method="POST",
-        payload={
-            "tasks": tasks,
-            "include_web_context": data.include_web_context,
-            "web_query": data.web_query,
-        },
+        payload=_tenant_payload(
+            db,
+            principal,
+            payload={
+                "tasks": tasks,
+                "include_web_context": data.include_web_context,
+                "web_query": data.web_query,
+            },
+        ),
     )
 
 
@@ -287,10 +306,8 @@ def plan(
     principal: Principal = Depends(get_current_principal),
 ):
     _ = principal
-    payload = data.model_dump()
-    if data.file_id:
-        row = _validate_file_access(data.file_id, db, principal)
-        payload["file_id"] = row.file_id
+    row = _validate_file_access(data.file_id, db, principal) if data.file_id else None
+    payload = _tenant_payload(db, principal, file_row=row, payload=data.model_dump())
     return proxy_stell_ai(path="/plan", method="POST", payload=payload)
 
 
@@ -304,7 +321,7 @@ def analyze(
     return proxy_stell_ai(
         path="/analyze",
         method="POST",
-        payload={**data.model_dump(), "file_id": row.file_id},
+        payload=_tenant_payload(db, principal, file_row=row, payload=data.model_dump()),
     )
 
 
@@ -315,23 +332,35 @@ def decide(
     principal: Principal = Depends(get_current_principal),
 ):
     _ = principal
-    payload = data.model_dump()
-    if data.file_id:
-        row = _validate_file_access(data.file_id, db, principal)
-        payload["file_id"] = row.file_id
+    row = _validate_file_access(data.file_id, db, principal) if data.file_id else None
+    payload = _tenant_payload(db, principal, file_row=row, payload=data.model_dump())
     return proxy_stell_ai(path="/decide", method="POST", payload=payload)
 
 
 @router.post("/memory/write")
-def memory_write(data: MemoryWriteIn, principal: Principal = Depends(get_current_principal)):
-    _ = principal
-    return proxy_stell_ai(path="/memory/write", method="POST", payload=data.model_dump())
+def memory_write(
+    data: MemoryWriteIn,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
+):
+    return proxy_stell_ai(
+        path="/memory/write",
+        method="POST",
+        payload=_tenant_payload(db, principal, payload=data.model_dump()),
+    )
 
 
 @router.post("/memory/search")
-def memory_search(data: MemorySearchIn, principal: Principal = Depends(get_current_principal)):
-    _ = principal
-    return proxy_stell_ai(path="/memory/search", method="POST", payload=data.model_dump())
+def memory_search(
+    data: MemorySearchIn,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
+):
+    return proxy_stell_ai(
+        path="/memory/search",
+        method="POST",
+        payload=_tenant_payload(db, principal, payload=data.model_dump()),
+    )
 
 
 @router.post("/chat")
@@ -341,12 +370,7 @@ def chat(
     principal: Principal = Depends(get_current_principal),
 ):
     row = _validate_file_access(data.file_id, db, principal) if data.file_id else None
-    payload = {
-        **data.model_dump(),
-        "tenant_id": _tenant_id_for_principal(db, principal, row),
-    }
-    if row is not None:
-        payload["file_id"] = row.file_id
+    payload = _tenant_payload(db, principal, file_row=row, payload=data.model_dump())
     return proxy_stell_ai(path="/chat", method="POST", payload=payload, timeout=60)
 
 
