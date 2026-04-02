@@ -89,6 +89,19 @@ class InternalAiDecisionLogIn(BaseModel):
 
 
 def _require_internal_token(x_internal_token: str | None = Header(default=None, alias="X-Internal-Token")) -> None:
+    """Enforce the internal service authentication token on every internal-runtime request.
+
+    This uses `bootstrap_admin_token` from settings as a shared service credential.
+    It is NOT a per-user or per-tenant token — it is a single shared secret that
+    identifies a trusted internal service caller (Orchestra or STELL.AI).
+
+    Implications of the single-token model:
+    - All authorised internal callers share the same credential level.
+    - There is no per-tenant isolation at the token layer; callers are trusted to
+      supply correct file_id / session_id values that belong to the right tenant.
+    - Per-caller or per-tenant token scoping is a future hardening target and is
+      not implemented in the current hybrid proxy-gated split architecture.
+    """
     expected = str(settings.bootstrap_admin_token or "").strip()
     if not expected:
         raise HTTPException(status_code=503, detail="Internal runtime token is not configured")
@@ -226,6 +239,12 @@ def get_file_context(
     include_assembly_tree: bool = Query(default=False),
     db: Session = Depends(get_db),
 ):
+    """Return full file context to a trusted internal service caller.
+
+    INTERNAL SURFACE — requires X-Internal-Token; not exposed to public clients.
+    Returns storage-internal fields (bucket, object_key, etc.) needed by Orchestra
+    and STELL.AI for processing. These fields must never appear in public responses.
+    """
     file_row = _get_file_by_identifier(db, file_id)
     if file_row is None:
         raise HTTPException(status_code=404, detail="File not found")
@@ -250,6 +269,10 @@ def get_rule_config(
 
 @router.get("/orchestrator/sessions/by-file/{file_id}")
 def get_session_by_file(file_id: str, db: Session = Depends(get_db)):
+    """Return the current OrchestratorSession for a file to a trusted internal caller.
+
+    INTERNAL SURFACE — requires X-Internal-Token; not exposed to public clients.
+    """
     file_row = _get_file_by_identifier(db, file_id)
     if file_row is None:
         raise HTTPException(status_code=404, detail="File not found")
@@ -261,6 +284,10 @@ def get_session_by_file(file_id: str, db: Session = Depends(get_db)):
 
 @router.get("/orchestrator/sessions/by-id/{session_id}")
 def get_session_by_id(session_id: str, db: Session = Depends(get_db)):
+    """Return an OrchestratorSession by session UUID to a trusted internal caller.
+
+    INTERNAL SURFACE — requires X-Internal-Token; not exposed to public clients.
+    """
     try:
         session_uuid = UUID(str(session_id))
     except ValueError:
@@ -273,6 +300,22 @@ def get_session_by_id(session_id: str, db: Session = Depends(get_db)):
 
 @router.post("/orchestrator/sessions/upsert")
 def upsert_session(data: InternalSessionUpsertIn, db: Session = Depends(get_db)):
+    """Write or update an OrchestratorSession row on behalf of a trusted internal caller.
+
+    INTERNAL SURFACE — requires X-Internal-Token; not exposed to public clients.
+
+    Trusted caller model: Orchestra is the sole intended caller of this endpoint.
+    State values (state, state_code, state_label, status_gate, approval_required,
+    risk_flags, decision_json) are accepted as Orchestra-authoritative and written
+    directly. Backend does NOT validate state machine transitions here — that
+    authority belongs to Orchestra.
+
+    Security boundary: the internal-service token is the only access control
+    applied. Callers are trusted to supply state that reflects actual Orchestra
+    decisions. No backend-side state machine validation is performed; adding it
+    is a future hardening target that requires coordination with the Orchestra
+    runtime contract.
+    """
     file_row = _get_file_by_identifier(db, data.file_id)
     if file_row is None:
         raise HTTPException(status_code=404, detail="File not found")

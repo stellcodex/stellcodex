@@ -45,6 +45,7 @@ This document is governed by `docs/v10/00_V10_MASTER_CONSTITUTION.md` and `docs/
 - `repeat_failure_guard` is a recovery-input signal in intelligence and orchestration payloads; approval state remains owned by Orchestra
 - backend `stell-ai` proxy routes must inject backend-derived `tenant_id` into forwarded STELL.AI payloads; caller-supplied tenant scope is not trusted
 - when `file_id` is provided to `stell-ai` proxy routes, backend must resolve and forward canonical file identity only after ownership validation
+- two distinct approval surfaces exist: owner-initiated (`/approvals/{session_id}/approve|reject`, guarded by file ownership) and admin-initiated (`/admin/approvals/{id}:approve|reject`, guarded by admin role); both proxy to the same Orchestra endpoint and Orchestra is the state-transition authority for both paths
 
 ## Current File Endpoint Minimums
 
@@ -55,6 +56,22 @@ This document is governed by `docs/v10/00_V10_MASTER_CONSTITUTION.md` and `docs/
 - `POST /api/v1/files/{file_id}/new-version`
 
 ## Internal Runtime Minimums
+
+All `internal-runtime` endpoints require the `X-Internal-Token` header. These
+surfaces are non-public; they are called by Orchestra and STELL.AI only.
+
+### File and rule context (consumed by Orchestra and STELL.AI)
+
+- `GET /api/v1/internal/runtime/files/{file_id}/context`
+- `GET /api/v1/internal/runtime/rule-config`
+
+### Orchestrator session persistence (write authority: Orchestra)
+
+- `GET /api/v1/internal/runtime/orchestrator/sessions/by-file/{file_id}`
+- `GET /api/v1/internal/runtime/orchestrator/sessions/by-id/{session_id}`
+- `POST /api/v1/internal/runtime/orchestrator/sessions/upsert`
+
+### AI case logging and memory (write authority: STELL.AI)
 
 - `POST /api/v1/internal/runtime/ai/cases/log`
 - `POST /api/v1/internal/runtime/ai/memory/context`

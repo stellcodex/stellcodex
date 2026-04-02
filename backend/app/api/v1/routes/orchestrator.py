@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 from typing import Any
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.core.ids import format_scx_file_id, normalize_scx_file_id, normalize_scx_id
+from app.api.v1.routes._file_access import (
+    assert_file_access,
+    file_for_session,
+    get_file_by_identifier,
+    public_file_id,  # noqa: F401 – re-exported for potential future route use
+)
 from app.db.session import get_db
-from app.models.file import UploadFile as UploadFileModel
-from app.models.orchestrator import OrchestratorSession
 from app.security.deps import Principal, get_current_principal
 from app.services.audit import log_event
 from app.services.orchestra_client import proxy_orchestra
@@ -79,51 +81,6 @@ class OrchestratorAdvanceOut(BaseModel):
     blocked_reasons: list[BlockedReasonOut] = Field(default_factory=list)
 
 
-def _normalize_file_uuid(value: str) -> UUID:
-    try:
-        return normalize_scx_file_id(value)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid file id")
-
-
-def _public_file_id(value: str) -> str:
-    try:
-        return normalize_scx_id(value)
-    except ValueError:
-        return value
-
-
-def _get_file_by_identifier(db: Session, value: str) -> UploadFileModel | None:
-    uid = _normalize_file_uuid(value)
-    canonical = format_scx_file_id(uid)
-    legacy = str(uid)
-    return db.query(UploadFileModel).filter(UploadFileModel.file_id.in_((canonical, legacy))).first()
-
-
-def _assert_file_access(file_row: UploadFileModel, principal: Principal) -> None:
-    if str(file_row.owner_user_id or "") != str(principal.user_id or ""):
-        raise HTTPException(status_code=403, detail="Forbidden")
-
-
-def _get_session_by_id(db: Session, session_id: str) -> OrchestratorSession:
-    try:
-        session_uuid = UUID(str(session_id))
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid session id")
-    session = db.query(OrchestratorSession).filter(OrchestratorSession.id == session_uuid).first()
-    if session is None:
-        raise HTTPException(status_code=404, detail="Session not found")
-    return session
-
-
-def _file_for_session(db: Session, session_id: str, principal: Principal) -> UploadFileModel:
-    session = _get_session_by_id(db, session_id)
-    file_row = _get_file_by_identifier(db, session.file_id)
-    if file_row is None:
-        raise HTTPException(status_code=404, detail="File not found")
-    _assert_file_access(file_row, principal)
-    return file_row
-
 def _proxy_orchestra_for_owned_file(
     *,
     db: Session,
@@ -136,21 +93,22 @@ def _proxy_orchestra_for_owned_file(
 ):
     """Backend gateway guard for orchestrator proxy calls.
 
-    Backend validates ownership/file access, while Orchestra remains the
-    authority for workflow decisions and state transitions.
+    Backend validates ownership/file access here; Orchestra remains the sole
+    authority for workflow decisions and state transitions. This function does
+    NOT make workflow decisions — it only enforces the auth/ownership boundary
+    before forwarding the request.
     """
     if session_id:
-        _file_for_session(db, session_id, principal)
+        file_for_session(db, session_id, principal)
         query = {"session_id": session_id}
     else:
-        file_row = _get_file_by_identifier(db, str(file_id))
+        file_row = get_file_by_identifier(db, str(file_id))
         if file_row is None:
             raise HTTPException(status_code=404, detail="File not found")
-        _assert_file_access(file_row, principal)
+        assert_file_access(file_row, principal)
         query = {"file_id": file_row.file_id}
 
     return proxy_orchestra(path=path, method=method, query=query if method == "GET" else None, payload=payload)
-
 
 
 @router.post("/start", response_model=OrchestratorDecisionOut)
@@ -159,12 +117,16 @@ def start_orchestrator(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_current_principal),
 ):
-    file_row = _get_file_by_identifier(db, file_id)
+    file_row = get_file_by_identifier(db, file_id)
     if file_row is None:
         raise HTTPException(status_code=404, detail="File not found")
-    _assert_file_access(file_row, principal)
+    assert_file_access(file_row, principal)
 
     payload = proxy_orchestra(path="/sessions/start", method="POST", payload={"file_id": file_row.file_id})
+
+    # Observability record: backend logs the session and state that Orchestra returned.
+    # The start decision and state assignment are Orchestra-owned; backend records what
+    # Orchestra reported so the event trail is visible in admin audit surfaces.
     log_event(
         db,
         "orchestrator.started",
@@ -202,7 +164,7 @@ def get_required_inputs(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_current_principal),
 ):
-    _file_for_session(db, session_id, principal)
+    file_for_session(db, session_id, principal)
     return proxy_orchestra(path="/sessions/required-inputs", query={"session_id": session_id})
 
 
@@ -212,7 +174,7 @@ def submit_orchestrator_input(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_current_principal),
 ):
-    _file_for_session(db, data.session_id, principal)
+    file_for_session(db, data.session_id, principal)
     return proxy_orchestra(path="/sessions/input", method="POST", payload=data.model_dump())
 
 
@@ -222,8 +184,12 @@ def advance_orchestrator(
     db: Session = Depends(get_db),
     principal: Principal = Depends(get_current_principal),
 ):
-    file_row = _file_for_session(db, data.session_id, principal)
+    file_row = file_for_session(db, data.session_id, principal)
     payload = proxy_orchestra(path="/sessions/advance", method="POST", payload=data.model_dump())
+
+    # Observability record: backend logs the state transition that Orchestra returned.
+    # The advance decision and resulting state are Orchestra-owned; backend records
+    # what Orchestra reported so admin audit surfaces remain complete.
     log_event(
         db,
         "orchestrator.advanced",
