@@ -4,7 +4,7 @@
 - Status: `Active Canonical`
 - Parent authority: `docs/v10/00_V10_MASTER_CONSTITUTION.md`, `docs/v10/01_V10_SOURCE_HIERARCHY.md`
 - Related documents: `docs/v10/04_V10_DATA_MODEL.md`, `docs/v10/08_V10_SHARE_AND_PUBLIC_ACCESS_CONTRACT.md`, `docs/v10/09_V10_ORCHESTRATOR_RULES_AND_DFM.md`
-- Last updated: `2026-03-29`
+- Last updated: `2026-04-02`
 - Language: `English`
 - Scope: `Public and operator-facing API contracts`
 - Replacement rule: `API contract changes must update this file, tests, and runtime evidence before they are considered active.`
@@ -41,6 +41,8 @@ This document is governed by `docs/v10/00_V10_MASTER_CONSTITUTION.md` and `docs/
 - backend route handlers may proxy to STELL.AI and Orchestra, but they may not own intelligence or workflow transition rules
 - internal AI case logging may persist `retrieved_context_summary` when the caller injects pre-decision memory context
 - `repeat_failure_guard` is a recovery-input signal in intelligence and orchestration payloads; approval state remains owned by Orchestra
+- backend `stell-ai` proxy routes must inject backend-derived `tenant_id` into forwarded STELL.AI payloads; caller-supplied tenant scope is not trusted
+- when `file_id` is provided to `stell-ai` proxy routes, backend must resolve and forward canonical file identity only after ownership validation
 
 ## Current File Endpoint Minimums
 
