@@ -1,6 +1,6 @@
+from app.startup_admin import create_admin
 from fastapi import FastAPI
 from sqlalchemy import text
-
 from app.core.config import settings
 from app.db import Base, engine
 from app.db.session import SessionLocal
@@ -142,3 +142,4 @@ def register_startup(app: FastAPI) -> None:
         _ensure_users_schema()
         _ensure_uploaded_files_schema()
         _ensure_stell_ai_memory_schema()
+        create_admin()
